@@ -3,4 +3,9 @@
 
 .claude/settings.local.json
 
+# Claves reales. Solo se versionan los .example
+.env.local
+.env.*.local
+dart_define.json
+
 .DS_Store
