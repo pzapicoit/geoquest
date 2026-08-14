@@ -1,0 +1,10 @@
+linear:
+  team: "INT"  # Intermarkit — proyecto "GeoQuest"
+
+github:
+  owner: "pzapicoit"
+  repo: "geoquest"
+  default_branch: main
+
+docs:
+  url: ""

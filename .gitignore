@@ -1,0 +1,6 @@
+.devplugin/cache/
+.devplugin/task-metrics/
+
+.claude/settings.local.json
+
+.DS_Store
