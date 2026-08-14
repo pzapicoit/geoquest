@@ -46,17 +46,30 @@
 
 ## 5. Cliente en la app
 
-> **Bloqueado**: Flutter SDK no está instalado.
+- [x] 5.1 Flutter 3.47.0 / Dart 3.13.0 instalado. `flutter doctor`: Flutter ✓,
+      Xcode 26.6 ✓, Chrome ✓. **Android toolchain ✗** — falta el SDK de Android;
+      no bloquea INT-73 pero hay que instalarlo antes de INT-88
+- [x] 5.2 `flutter create --org es.intermarkit --project-name geoquest`
+      sobre `app/`, plataformas ios/android/web
+- [x] 5.3 `supabase_flutter ^2.17.2` y `http` como dependencias directas
+- [x] 5.4 `AppConfig.fromEnvironment` valida antes de inicializar y lanza
+      `MissingConfigError` nombrando la variable ausente
+- [x] 5.5 `app/dart_define.example.json` versionado; `dart_define.json` real
+      generado desde `.env.local` y gitignorado
+- [x] 5.6 `ConnectivityCheck` contra `/auth/v1/health`, inyectable para test
+- [x] 5.7 Cubierto por 10 tests (`flutter test`): éxito, clave inválida con el
+      motivo visible, timeout, red caída, y que no se usa la raíz de PostgREST.
+      **Falta la prueba visual del usuario** — ver nota abajo
+- [x] 5.8 Verificado sobre `build/web`: la clave secreta aparece en 0 ficheros,
+      la publicable en 1 (intencionado), ningún JWT legacy
 
-- [ ] 5.1 Instalar el SDK de Flutter y pasar `flutter doctor`
-- [ ] 5.2 `flutter create` sobre `app/` con el identificador de paquete del proyecto
-- [ ] 5.3 Añadir la dependencia `supabase_flutter`
-- [ ] 5.4 Inicializar Supabase en el arranque leyendo `String.fromEnvironment`,
-      fallando explícitamente si falta alguna variable
-- [ ] 5.5 Crear `app/dart_define.example.json` y su equivalente local no versionado
-- [ ] 5.6 Pantalla de verificación de conectividad contra `/auth/v1/health`
-- [ ] 5.7 Ejecutar la app y comprobar ambos casos: proyecto accesible y clave inválida
-- [ ] 5.8 Verificar que la clave secreta no aparece en el binario compilado
+> **Pendiente de prueba local del usuario**: los tests usan un cliente HTTP
+> falso. El camino real (red real contra el proyecto real) está verificado a
+> nivel HTTP con `curl`, pero nadie ha visto la app en pantalla todavía:
+>
+> ```
+> cd app && flutter run -d chrome --dart-define-from-file=dart_define.json
+> ```
 
 ## 6. Cierre
 

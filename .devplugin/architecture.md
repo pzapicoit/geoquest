@@ -35,7 +35,7 @@ el rol del usuario autenticado.
 | Carpeta | Stack | Estado |
 |---|---|---|
 | `backend/` | Supabase CLI, SQL | linkado, sin esquema (INT-74) |
-| `app/` | Flutter + `supabase_flutter` | pendiente |
+| `app/` | Flutter 3.47 + `supabase_flutter` | cliente conectado, sin UI de juego |
 | `panel/` | web, pendiente de definir | pendiente (INT-80) |
 
 ## Flujo de base de datos
@@ -76,6 +76,12 @@ silencio, así que probablemente sí.
 | Tests | `flutter test` |
 | Cobertura | `flutter test --coverage`, umbral por definir |
 | Quality | `flutter analyze`, `dart format --set-exit-if-changed` |
+
+La configuración se inyecta con `--dart-define-from-file=dart_define.json`. Ese
+fichero está gitignorado; la plantilla es `dart_define.example.json`.
+
+Herramientas de máquina: Flutter 3.47.0 / Dart 3.13.0, Xcode 26.6 y Chrome
+disponibles. **Falta el SDK de Android**, necesario antes de INT-88.
 
 ### panel/
 
