@@ -141,8 +141,11 @@ Lo que sí se pierde mientras tanto:
   casos incómodos.
 - Velocidad de iteración: cada `push` es una ida y vuelta de red.
 
-**Punto de reevaluación: INT-77 (políticas RLS).** Ahí el segundo punto pasa de
-molestia a impedimento, y conviene instalar Docker antes de empezar.
+**Sin fecha de reevaluación.** Una primera versión de esta decisión fijaba INT-77
+como el punto de instalar Docker. Sobrevaloraba el argumento: las políticas RLS
+se pueden probar contra el remoto creando usuarios por la API de Auth, sacando
+sus JWT y lanzando peticiones como ellos. Docker se instala si probar RLS resulta
+incómodo en la práctica, no por calendario.
 
 **Condición para que esto sea seguro:** mantener un seed script desde el primer
 día. Si el contenido creado desde el panel solo existe dentro de la base,

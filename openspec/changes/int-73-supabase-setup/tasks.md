@@ -43,13 +43,15 @@
       único entorno existente
 - [x] 4.4 `backend/supabase/seed.sql` creado y documentado. `[db.seed]` ya venía
       activo en `config.toml` apuntando a `./seed.sql`
-- [ ] 4.5 Reevaluar Docker al empezar INT-77
+- [x] 4.5 Docker sin fecha: se instala si probar RLS contra el remoto resulta
+      incómodo, no por calendario (ver D6)
 
 ## 5. Cliente en la app
 
 - [x] 5.1 Flutter 3.47.0 / Dart 3.13.0 instalado. `flutter doctor`: Flutter ✓,
-      Xcode 26.6 ✓, Chrome ✓. **Android toolchain ✗** — falta el SDK de Android;
-      no bloquea INT-73 pero hay que instalarlo antes de INT-88
+      Xcode 26.6 ✓, Chrome ✓. Android toolchain ✗ — **no aplica de momento**: el
+      desarrollo arranca por iOS. La plataforma `android/` ya está en el proyecto,
+      así que activarla luego es solo instalar el SDK
 - [x] 5.2 `flutter create --org es.intermarkit --project-name geoquest`
       sobre `app/`, plataformas ios/android/web
 - [x] 5.3 `supabase_flutter ^2.17.2` y `http` como dependencias directas
@@ -60,17 +62,17 @@
 - [x] 5.6 `ConnectivityCheck` contra `/auth/v1/health`, inyectable para test
 - [x] 5.7 Cubierto por 10 tests (`flutter test`): éxito, clave inválida con el
       motivo visible, timeout, red caída, y que no se usa la raíz de PostgREST.
-      **Falta la prueba visual del usuario** — ver nota abajo
+      **Verificado además en simulador iOS** (iPhone 17 Pro, iOS 26): la app
+      arranca, `Supabase init completed`, y la pantalla muestra "Conectado a
+      Supabase" con Auth respondiendo en 516 ms contra el proyecto real
 - [x] 5.8 Verificado sobre `build/web`: la clave secreta aparece en 0 ficheros,
       la publicable en 1 (intencionado), ningún JWT legacy
 
-> **Pendiente de prueba local del usuario**: los tests usan un cliente HTTP
-> falso. El camino real (red real contra el proyecto real) está verificado a
-> nivel HTTP con `curl`, pero nadie ha visto la app en pantalla todavía:
->
-> ```
-> cd app && flutter run -d chrome --dart-define-from-file=dart_define.json
-> ```
+Para volver a ejecutarla:
+
+```
+cd app && flutter run -d "iPhone 17 Pro" --dart-define-from-file=dart_define.json
+```
 
 ## 6. Cierre
 

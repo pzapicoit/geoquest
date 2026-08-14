@@ -41,8 +41,13 @@ el rol del usuario autenticado.
 ## Flujo de base de datos
 
 **Remote-first.** Las migraciones se escriben en local y se aplican al proyecto
-remoto con `supabase db push`. No hay stack local con Docker: se difiere hasta
-INT-77, donde probar políticas RLS exigirá usuarios y sesiones desechables.
+remoto con `supabase db push`. No hay stack local con Docker.
+
+Las políticas RLS también se pueden probar contra el remoto: se crean usuarios de
+prueba por la API de Auth, se obtienen sus JWT y se lanzan peticiones como ellos.
+Lo que se pierde es menor —usuarios que se acumulan en `auth.users` y setup
+destructivo sobre el único entorno—, así que Docker queda **sin fecha**: se
+instala si y cuando probar RLS resulte incómodo, no por calendario.
 
 Todo cambio de esquema va por migración versionada. Nunca a mano por el SQL
 editor: `supabase db reset --linked` reconstruye la base solo desde las
@@ -81,7 +86,11 @@ La configuración se inyecta con `--dart-define-from-file=dart_define.json`. Ese
 fichero está gitignorado; la plantilla es `dart_define.example.json`.
 
 Herramientas de máquina: Flutter 3.47.0 / Dart 3.13.0, Xcode 26.6 y Chrome
-disponibles. **Falta el SDK de Android**, necesario antes de INT-88.
+disponibles.
+
+**iOS primero.** El desarrollo arranca por iOS; Android queda para más adelante.
+El proyecto Flutter ya incluye la plataforma `android/`, así que activarlo es
+solo instalar el SDK de Android — no hay que tocar el proyecto.
 
 ### panel/
 
