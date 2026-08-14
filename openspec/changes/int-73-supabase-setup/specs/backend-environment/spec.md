@@ -10,9 +10,9 @@ entorno sin pasos manuales en el dashboard.
 
 #### Scenario: Clon limpio del repositorio
 
-- **WHEN** un desarrollador clona el repo y ejecuta el arranque documentado
-- **THEN** obtiene un stack de Supabase local equivalente al remoto, sin haber
-  tocado la consola web
+- **WHEN** un desarrollador clona el repo y sigue el arranque documentado
+- **THEN** llega a un entorno operativo sin haber tocado la consola web
+- **AND** todo el esquema procede de migraciones versionadas del repo
 
 #### Scenario: Un clon nuevo necesita saber contra qué proyecto linkar
 
@@ -73,21 +73,54 @@ El proyecto SHALL operar exclusivamente con el formato de claves
 - **THEN** puede revocarse de forma individual sin invalidar las demás ni
   requerir cambiar el secreto JWT del proyecto
 
-### Requirement: Arranque local documentado
+### Requirement: Flujo de trabajo documentado
 
-`backend/README.md` SHALL documentar cómo levantar, parar e inspeccionar el
-entorno local, incluyendo los prerrequisitos de máquina.
+`backend/README.md` SHALL documentar el flujo por defecto contra el proyecto
+remoto, y SHALL señalar el stack local como opcional junto a su prerrequisito.
 
-#### Scenario: Un desarrollador levanta el entorno por primera vez
+#### Scenario: Un desarrollador arranca por primera vez
 
 - **WHEN** sigue el README paso a paso
-- **THEN** llega a un stack local funcionando
-- **AND** el README le ha advertido antes de que necesita Docker en marcha
+- **THEN** llega a un entorno operativo contra el proyecto remoto
+- **AND** no necesita Docker para llegar ahí
 
-#### Scenario: Docker no está disponible
+#### Scenario: Se quiere levantar el stack local
 
-- **WHEN** se intenta arrancar el stack local sin Docker
-- **THEN** el README describe el síntoma y cómo resolverlo
+- **WHEN** se consulta el README
+- **THEN** encuentra los comandos y la advertencia de que requiere Docker
+- **AND** encuentra el síntoma concreto de "Docker parado" y su solución
+
+### Requirement: Todo cambio de esquema pasa por migración versionada
+
+Los cambios de esquema SHALL aplicarse mediante ficheros de migración del
+repositorio. MUST NOT aplicarse a mano desde el SQL editor del dashboard.
+
+#### Scenario: Se necesita un cambio de esquema
+
+- **WHEN** hay que crear o modificar una tabla, vista, función o política
+- **THEN** se crea un fichero de migración y se aplica con `supabase db push`
+
+#### Scenario: El esquema remoto ha divergido del repositorio
+
+- **WHEN** alguien aplicó un cambio a mano por el dashboard
+- **THEN** `supabase migration list` revela la divergencia entre el historial
+  local y el remoto
+
+#### Scenario: Se reconstruye la base desde cero
+
+- **WHEN** se ejecuta `supabase db reset --linked`
+- **THEN** el esquema resultante procede íntegramente de las migraciones del repo
+- **AND** cualquier cambio aplicado a mano se pierde
+
+### Requirement: Contenido reproducible por seed
+
+El contenido necesario para trabajar SHALL ser reproducible desde un script de
+seed versionado, mientras el proyecto remoto sea el único entorno existente.
+
+#### Scenario: Un reset destruye el contenido
+
+- **WHEN** se ejecuta `supabase db reset --linked` sobre una base con contenido
+- **THEN** el seed lo restituye sin intervención manual
 
 ### Requirement: Backend único compartido
 

@@ -30,14 +30,19 @@
 - [x] 3.4 `.devplugin/architecture.md` con el backend único compartido y las
       herramientas de calidad por módulo
 
-## 4. Stack local
+## 4. Flujo remote-first
 
-> **Bloqueado**: Docker Desktop no está instalado/arrancado en la máquina.
+> Decisión D6: sin stack local hasta INT-77. Docker deja de ser bloqueante.
 
-- [ ] 4.1 Instalar/arrancar Docker Desktop
-- [ ] 4.2 `supabase start` y comprobar que los servicios levantan
-- [ ] 4.3 Contrastar las URLs y puertos reales con los documentados en el README
-- [ ] 4.4 `supabase stop` y confirmar que apaga limpio
+- [x] 4.1 Verificado que `supabase db reset --linked` existe: la cadena de
+      migraciones se puede reaplicar desde cero contra el remoto sin Docker
+- [x] 4.2 README reescrito como remote-first, con el stack local marcado como
+      opcional y diferido
+- [x] 4.3 Documentada la advertencia de que `db reset --linked` actúa sobre el
+      único entorno existente
+- [x] 4.4 `backend/supabase/seed.sql` creado y documentado. `[db.seed]` ya venía
+      activo en `config.toml` apuntando a `./seed.sql`
+- [ ] 4.5 Reevaluar Docker al empezar INT-77
 
 ## 5. Cliente en la app
 

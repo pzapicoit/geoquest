@@ -9,15 +9,20 @@ No hay backend custom. La app y el panel atacan este mismo proyecto vía REST y 
 
 ---
 
-## Prerrequisitos
+## Cómo se trabaja aquí
+
+**Remote-first.** Las migraciones se escriben en local y se aplican al proyecto
+remoto con `supabase db push`. No hace falta Docker.
+
+El stack local es opcional y está diferido hasta **INT-77 (políticas RLS)**, que
+es donde empieza a hacer falta de verdad: probar RLS exige crear usuarios y
+sesiones desechables, y hacerlo contra el proyecto real deja basura permanente en
+`auth`.
 
 | | Para qué | Comprobar |
 |---|---|---|
 | [Supabase CLI](https://supabase.com/docs/guides/cli) | todo | `supabase --version` |
-| Docker Desktop **arrancado** | solo el stack local | `docker info` |
-
-Docker solo hace falta para `supabase start`. El link al proyecto remoto y las
-migraciones contra él funcionan sin Docker.
+| Docker Desktop | solo el stack local (opcional hoy) | `docker info` |
 
 ## Puesta en marcha
 
@@ -40,10 +45,30 @@ supabase projects api-keys --project-ref xhrntgsdlnwrvwehqfgl --reveal
 #    …y pega los valores en .env.local
 ```
 
-## Stack local
+## Migraciones (flujo habitual)
 
 ```bash
-supabase start     # levanta el stack (necesita Docker)
+supabase migration new <nombre>   # crea el fichero en supabase/migrations/
+supabase db push                  # aplica lo pendiente en el remoto
+supabase migration list           # compara historial local vs remoto
+supabase db reset --linked        # reaplica TODA la cadena desde cero en el remoto
+```
+
+Los cambios de esquema van **siempre** por migración versionada, nunca a mano por
+el SQL editor del dashboard. Si se tocan a mano, el repo deja de ser la fuente de
+verdad y el siguiente `db reset --linked` los borra sin avisar. `migration list`
+es lo que delata esa divergencia.
+
+> ⚠️ `db reset --linked` actúa sobre el **proyecto real**. Mientras no haya stack
+> local, es el único entorno que existe: borra y reconstruye. Por eso el contenido
+> de trabajo debe vivir en el seed, no solo dentro de la base.
+
+## Stack local (opcional, diferido a INT-77)
+
+Requiere Docker Desktop arrancado.
+
+```bash
+supabase start     # levanta el stack
 supabase status    # URLs y claves locales
 supabase stop      # apaga
 supabase db reset  # recrea la base local aplicando todas las migraciones
@@ -61,18 +86,6 @@ Puertos configurados en `supabase/config.toml`:
 
 Las claves del stack **local** las imprime `supabase status` y no tienen nada que
 ver con las del proyecto remoto. No mezcles unas con otras.
-
-## Migraciones
-
-```bash
-supabase migration new <nombre>   # crea el fichero en supabase/migrations/
-supabase db reset                 # aplica todo en local
-supabase db push                  # aplica lo pendiente en el remoto
-```
-
-Los cambios de esquema van **siempre** por migración versionada, nunca a mano por
-el dashboard. Si se tocan a mano, el repo deja de ser la fuente de verdad y el
-siguiente `db reset` los borra sin avisar.
 
 ## Claves: quién usa qué
 

@@ -38,6 +38,21 @@ el rol del usuario autenticado.
 | `app/` | Flutter + `supabase_flutter` | pendiente |
 | `panel/` | web, pendiente de definir | pendiente (INT-80) |
 
+## Flujo de base de datos
+
+**Remote-first.** Las migraciones se escriben en local y se aplican al proyecto
+remoto con `supabase db push`. No hay stack local con Docker: se difiere hasta
+INT-77, donde probar políticas RLS exigirá usuarios y sesiones desechables.
+
+Todo cambio de esquema va por migración versionada. Nunca a mano por el SQL
+editor: `supabase db reset --linked` reconstruye la base solo desde las
+migraciones del repo, y se lleva por delante cualquier cambio manual.
+
+Consecuencia de no tener segundo entorno: el proyecto remoto es el único que
+existe, así que **el contenido de trabajo debe ser reproducible desde
+`backend/supabase/seed.sql`**. Lo que solo viva dentro de la base se pierde en el
+primer reset.
+
 ## Herramientas de calidad
 
 Declaradas para los gates de `/execute`.
