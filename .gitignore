@@ -1,6 +1,11 @@
 .devplugin/cache/
 .devplugin/task-metrics/
 
+# Cache del CLI de Supabase. El proyecto real vive en backend/supabase/;
+# el CLI recrea un supabase/.temp/ en la raiz al lanzarlo desde ahi.
+/supabase/
+**/supabase/.temp/
+
 .claude/settings.local.json
 
 # Claves reales. Solo se versionan los .example
