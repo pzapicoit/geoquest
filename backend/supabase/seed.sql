@@ -16,4 +16,6 @@
 -- Regla práctica: si creas contenido desde el panel y te importaría perderlo,
 -- vuélcalo aquí.
 
--- Sin contenido todavía: el esquema llega en INT-74.
+-- Esquema ya existe (INT-74): temáticas, niveles, desafíos, progreso.
+-- Sin contenido todavía — lo crea el panel de administración, que no existe
+-- todavía (INT-80 en adelante).
