@@ -2,11 +2,12 @@
 
 ## 1. Contención de claves
 
-- [ ] 1.1 Desactivar las claves legacy (`anon`, `service_role`) del proyecto
-      `xhrntgsdlnwrvwehqfgl` desde el dashboard de Supabase — **acción de usuario**,
-      el CLI no expone gestión de claves
-- [ ] 1.2 Verificar con `supabase projects api-keys` que ya no figuran activas
-      (a fecha de hoy siguen activas)
+- [x] 1.1 Claves legacy (`anon`, `service_role`) desactivadas desde el dashboard
+      por el usuario (2026-08-14)
+- [x] 1.2 Verificado **funcionalmente**: ambas legacy devuelven 401 contra un
+      endpoint de datos; las nuevas devuelven 404 (autentican, tabla inexistente).
+      Ojo: `supabase projects api-keys` sigue enumerando las legacy aunque estén
+      desactivadas, así que ese listado no sirve como comprobación
 - [x] 1.3 Confirmar que las nuevas (`sb_publishable_…`, `sb_secret_…`) siguen operativas
 
 ## 2. Entorno de backend

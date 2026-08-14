@@ -62,10 +62,14 @@ El proyecto SHALL operar exclusivamente con el formato de claves
 `sb_publishable_…` / `sb_secret_…`, y las claves legacy de tipo JWT (`anon`,
 `service_role`) SHALL quedar desactivadas.
 
-#### Scenario: Consulta del listado de claves
+#### Scenario: Se intenta usar una clave legacy
 
-- **WHEN** se ejecuta `supabase projects api-keys`
-- **THEN** las claves de tipo `legacy` no aparecen como activas
+- **WHEN** se hace una petición a un endpoint de datos con la clave `anon` o
+  `service_role` legacy
+- **THEN** el proyecto la rechaza con 401
+
+Nota: `supabase projects api-keys` sigue enumerando las claves legacy aunque
+estén desactivadas. La comprobación válida es funcional, no el listado.
 
 #### Scenario: Una clave se ve comprometida
 
