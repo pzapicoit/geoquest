@@ -63,6 +63,6 @@
 - [x] 6.1 Conectividad verificada contra el proyecto remoto:
       `supabase migration list` conecta, `/auth/v1/health` → 200,
       `/rest/v1/<tabla>` con publicable → 404 (autentica, tabla inexistente)
-- [ ] 6.2 Confirmar la región `eu-west-1` frente al público objetivo — **pendiente
-      de decisión de usuario**
+- [x] 6.2 Región `eu-west-1` confirmada por el usuario (2026-08-14): público
+      objetivo europeo
 - [x] 6.3 `openspec validate` de la propuesta

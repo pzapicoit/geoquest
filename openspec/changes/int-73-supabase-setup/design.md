@@ -181,10 +181,7 @@ Rollback: reactivar las claves legacy desde el dashboard.
 
 ## Open Questions
 
-- Región `eu-west-1` (Irlanda) ya elegida. El criterio del issue era "la más
-  cercana a los usuarios objetivo"; si el público objetivo es España, encaja. Si
-  se apunta a Latinoamérica, convendría revisarlo — pero mover un proyecto de
-  región implica recrearlo, así que conviene confirmarlo ahora y no después de
-  INT-74.
+- ~~Región~~ **Resuelto (2026-08-14)**: `eu-west-1` confirmada. Público objetivo
+  europeo.
 - Gestión del SDK de Flutter: instalación directa vs `fvm` para fijar versión.
   No bloquea esta tarea.
