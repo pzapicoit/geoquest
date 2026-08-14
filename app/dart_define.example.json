@@ -1,0 +1,5 @@
+{
+  "_comentario": "Copia este fichero a dart_define.json y rellena los valores. dart_define.json está gitignorado. Se pasa con: flutter run --dart-define-from-file=dart_define.json",
+  "SUPABASE_URL": "https://xhrntgsdlnwrvwehqfgl.supabase.co",
+  "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_..."
+}

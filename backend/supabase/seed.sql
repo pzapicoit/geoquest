@@ -1,0 +1,19 @@
+-- Seed de GeoQuest.
+--
+-- Se ejecuta automáticamente al final de `supabase db reset` (config.toml,
+-- [db.seed] enabled = true).
+--
+-- POR QUÉ IMPORTA MÁS DE LO HABITUAL
+--
+-- Mientras no exista stack local (decisión D6 de INT-73), el proyecto remoto es
+-- el único entorno. Eso significa que `supabase db reset --linked` borra y
+-- reconstruye la base real.
+--
+-- Todo contenido de trabajo —temáticas, niveles, desafíos de prueba— debe poder
+-- reconstruirse desde aquí. Lo que solo exista dentro de la base se pierde en el
+-- primer reset y no hay vuelta atrás.
+--
+-- Regla práctica: si creas contenido desde el panel y te importaría perderlo,
+-- vuélcalo aquí.
+
+-- Sin contenido todavía: el esquema llega en INT-74.
