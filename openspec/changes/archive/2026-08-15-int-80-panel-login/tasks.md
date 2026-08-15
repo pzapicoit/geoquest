@@ -41,9 +41,10 @@
       proyecto `d83d4c61-3a9e-4fff-b1c4-d2a19fd03ef5`, fichero
       `[Admin] - Login.dc.html`, junto con `assets/geoquest-logo.png`,
       `image-slot.js` y `support.js`) — colores/tipografía tomados también
-      de `GeoQuest Branding.dc.html`; logo y foto de fondo no se pudieron
-      traer completos (superan el límite de 256 KB de la herramienta de
-      importación), ver nota en `panel/README.md`
+      de `GeoQuest Branding.dc.html`; el logo y la foto de fondo superaban
+      el límite de 256 KB de la herramienta de importación (llegaban
+      truncados), así que se añadieron a mano en el fix posterior desde
+      `Recursos/logo.png` y `Recursos/panel_login_back.jpg`
 - [x] 5.2 Traducir el maquetado a componente React con Tailwind
 - [x] 5.3 Formulario controlado (email, contraseña), sin opción de registro
       visible

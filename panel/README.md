@@ -42,14 +42,6 @@ entorno a configurar en el proyecto de Vercel:
 `react-router-dom` (ej. `/login`) no den 404 al recargar o enlazar
 directamente.
 
-## Pendiente conocido
-
-La pantalla de login (INT-80) usa el sistema de color/tipografía real de
-`GeoQuest Branding.dc.html`, pero sin el logo ni la foto de fondo del diseño
-(`[Admin] - Login.dc.html`): esos assets superan el límite de lectura de la
-herramienta de importación (256 KB) y no se pudieron traer completos. Toca
-añadirlos a mano en `src/assets/` cuando se exporten en un tamaño manejable.
-
 ## Issues en Linear
 
 | Issue  | Título                                        |

@@ -66,14 +66,14 @@ literalmente:
   como "Usuario" con placeholder de nombre.apellido, pero `admin-panel-auth`
   exige login por email contra Supabase Auth. Se cambia la etiqueta y el
   `type="email"` para que coincida con lo que el backend espera de verdad.
-- **Sin foto de fondo ni logo bitmap**: `assets/login-art.jpg` y
-  `assets/geoquest-logo.png` superan el límite de 256 KB de lectura de la
-  herramienta de importación de Claude Design — el archivo llega truncado
-  y corrupto. Se sustituye la foto por un degradado radial con los colores
-  de marca y el logo por el wordmark tipográfico ("Geo**Quest**"), ya usado
-  igual en `GeoQuest Branding.dc.html` sin el icono. Pendiente añadir los
-  assets reales a mano cuando se puedan exportar en un tamaño manejable
-  (ver `panel/README.md`).
+- **Foto de fondo y logo añadidos a mano tras testing local**: `assets/login-art.jpg`
+  y `assets/geoquest-logo.png` superaban el límite de 256 KB de lectura de la
+  herramienta de importación de Claude Design (llegaban truncados y
+  corruptos), así que la primera versión implementada usaba un degradado
+  radial y el wordmark tipográfico como sustituto. Durante el testing
+  local el usuario exportó ambos assets completos (`Recursos/panel_login_back.jpg`
+  y `Recursos/logo.png`) y se integraron redimensionados/optimizados
+  (256×256 el logo, 1800 px de ancho la foto) en `panel/src/assets/`.
 - **Sin fila de estadísticas** (18 Rutas / 312 Preguntas / 4 907 Jugadores):
   son cifras de ejemplo del mockup, no datos reales — mostrarlas induciría a
   pensar que el panel ya tiene esos números.

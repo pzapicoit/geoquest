@@ -2,6 +2,8 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
 import { useSession } from '../lib/useSession'
+import loginArt from '../assets/login-art.jpg'
+import geoquestLogo from '../assets/geoquest-logo.png'
 
 export function Login() {
   const navigate = useNavigate()
@@ -52,14 +54,25 @@ export function Login() {
     <div className="grid min-h-screen bg-brand-night lg:grid-cols-[1.05fr_1fr]">
       <div className="relative hidden overflow-hidden lg:block">
         <div
-          className="absolute inset-0"
+          className="absolute inset-0 bg-cover bg-center"
+          style={{ backgroundImage: `url(${loginArt})` }}
+        />
+        <div
+          className="pointer-events-none absolute inset-0"
           style={{
             background:
-              'radial-gradient(circle at 20% 20%, rgba(43,192,168,.18), transparent 55%), radial-gradient(circle at 80% 75%, rgba(27,111,168,.28), transparent 50%), #0E1620',
+              'linear-gradient(200deg, rgba(14,22,32,.88) 0%, rgba(14,22,32,.72) 45%, rgba(14,22,32,.96) 100%)',
           }}
         />
         <div className="relative flex h-full flex-col justify-between p-11">
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-[13px]">
+            <img
+              src={geoquestLogo}
+              alt="GeoQuest"
+              width={42}
+              height={42}
+              className="block rounded-[11px] shadow-[0_4px_16px_rgba(0,0,0,.35)]"
+            />
             <span className="font-display text-2xl font-extrabold tracking-tight text-white">
               Geo<span className="text-brand-teal">Quest</span>
             </span>
