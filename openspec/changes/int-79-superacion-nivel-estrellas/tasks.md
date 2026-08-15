@@ -38,28 +38,28 @@
 
 ## 3. Verificación manual (casos límite)
 
-- [ ] 3.1 `supabase db push` contra el proyecto remoto enlazado
-- [ ] 3.2 Caso de integridad: cerrar un intento con respuestas a un
+- [x] 3.1 `supabase db push` contra el proyecto remoto enlazado
+- [x] 3.2 Caso de integridad: cerrar un intento con respuestas a un
       `desafio_id` ajeno al nivel (insertado directamente) → esas
       respuestas no cuentan en el puntaje agregado
-- [ ] 3.3 Caso de completitud: cerrar un intento al que le falta responder
+- [x] 3.3 Caso de completitud: cerrar un intento al que le falta responder
       un desafío del nivel → falla, no modifica `intentos_nivel` ni
       `progreso_usuario_nivel`
-- [ ] 3.4 Caso de estrellas: puntaje entre `puntaje_minimo_superar` y
+- [x] 3.4 Caso de estrellas: puntaje entre `puntaje_minimo_superar` y
       `umbral_estrella_1` → `superado = true`, `estrellas_obtenidas = 1`
-- [ ] 3.5 Caso de no mejora: rejugar un nivel ya superado con puntaje/
+- [x] 3.5 Caso de no mejora: rejugar un nivel ya superado con puntaje/
       estrellas peores → `progreso_usuario_nivel` conserva el mejor
       resultado previo
-- [ ] 3.6 Caso de mejora: rejugar con puntaje/estrellas mejores →
+- [x] 3.6 Caso de mejora: rejugar con puntaje/estrellas mejores →
       `progreso_usuario_nivel` se actualiza al nuevo valor
-- [ ] 3.7 Caso de desbloqueo de nivel: superar un nivel con siguiente nivel
+- [x] 3.7 Caso de desbloqueo de nivel: superar un nivel con siguiente nivel
       en la temática → ese siguiente nivel queda `desbloqueado = true`
-- [ ] 3.8 Caso de desbloqueo de temática: acumular en
+- [x] 3.8 Caso de desbloqueo de temática: acumular en
       `progreso_usuario_nivel` las estrellas requeridas por la siguiente
       temática → el primer nivel de esa temática queda `desbloqueado =
       true`
-- [ ] 3.9 Caso de seguridad: intentar cerrar un `intento_id` que no
+- [x] 3.9 Caso de seguridad: intentar cerrar un `intento_id` que no
       pertenece al usuario autenticado → no devuelve fila / falla, sin
       modificar nada
-- [ ] 3.10 Caso de idempotencia: cerrar el mismo intento dos veces →
+- [x] 3.10 Caso de idempotencia: cerrar el mismo intento dos veces →
       segundo cierre no cambia el resultado ya escrito
