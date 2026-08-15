@@ -153,6 +153,25 @@ temática **actual** (no acumulado global de todas las temáticas jugadas),
 que es la lectura literal del issue: "estrellas requeridas acumuladas **en
 la temática**".
 
+### D7. Lock de asesoramiento por `(usuario, temática)` antes de decidir el desbloqueo de la siguiente temática
+
+Bajo `READ COMMITTED` (el nivel por defecto), si un mismo usuario cierra a
+la vez dos intentos de niveles distintos de la misma temática, cada
+transacción calcula la suma de `mejores_estrellas` (D6) leyendo el estado
+committeado hasta ese momento — sin ver el `upsert` que la otra
+transacción concurrente todavía no ha confirmado. Es un caso real de
+"lost update": ambas transacciones pueden ver la suma por debajo del
+umbral y ninguna desbloquear la siguiente temática, aunque el total ya
+alcanzado (tras que ambas terminen) sí lo cumpla. Se soluciona con
+`pg_advisory_xact_lock` justo antes de calcular esa suma, usando como clave
+el par `(auth.uid(), tematica_id)`: la segunda transacción en llegar
+espera a que la primera termine (haciendo visible su `upsert`) antes de
+leer la suma, así que siempre ve el estado completo. Alternativa
+descartada: subir la función a `SERIALIZABLE`, que exigiría que la app
+maneje reintentos ante fallos de serialización — coste innecesario cuando
+el lock de asesoramiento resuelve exactamente esta sección crítica sin
+tocar el resto de la función ni el aislamiento de otras RPCs.
+
 ## Risks / Trade-offs
 
 - **Cierre exige completitud (D2)** → si la app llama a la RPC antes de que

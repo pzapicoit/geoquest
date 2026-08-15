@@ -63,3 +63,21 @@
       modificar nada
 - [x] 3.10 Caso de idempotencia: cerrar el mismo intento dos veces →
       segundo cierre no cambia el resultado ya escrito
+
+## 4. Fixes de la revisión adversarial
+
+- [x] 4.1 `raise exception` si el `update intentos_nivel` no afecta
+      ninguna fila (defensa ante que el intento desaparezca entre la
+      lectura inicial y el update)
+- [x] 4.2 D7: `pg_advisory_xact_lock` por `(auth.uid(), tematica_id)` antes
+      de sumar `mejores_estrellas` y decidir el desbloqueo de la siguiente
+      temática, para evitar el "lost update" bajo `READ COMMITTED` cuando
+      dos niveles de la misma temática se cierran concurrentemente
+- [x] 4.3 Regresión: repetidos los 9 casos de la sección 3 tras el fix, sin
+      cambios de comportamiento
+- [x] 4.4 Intento de reproducción empírica de la carrera con dos cierres
+      concurrentes reales — no se consiguió forzar solapamiento genuino
+      (el pool de conexiones de PostgREST y el modo de `supabase db query`
+      serializan las llamadas concurrentes en este entorno); el fix se
+      apoya en el análisis de `READ COMMITTED` del revisor adversarial y
+      en la revisión de código, no en una reproducción determinista

@@ -96,6 +96,10 @@ begin
   where id = p_intento_id
   returning * into v_intento;
 
+  if not found then
+    raise exception 'El intento % ya no existe', p_intento_id;
+  end if;
+
   -- 2.1 / D5: upsert monotono -- mejor_puntaje/mejores_estrellas nunca
   -- bajan, superado y desbloqueado nunca vuelven a false. Hace la funcion
   -- idempotente ante una segunda llamada sobre el mismo intento.
@@ -111,6 +115,16 @@ begin
     actualizado_en = now();
 
   if v_superado then
+    -- D7: lock de asesoramiento por (usuario, tematica) -- bajo READ
+    -- COMMITTED, si dos intentos de niveles distintos de la misma
+    -- tematica se cierran a la vez, cada transaccion podria leer la suma
+    -- de estrellas de 2.3 sin ver el upsert de la otra (aun sin commitear)
+    -- y ninguna desbloquearia la siguiente tematica pese a que la suma ya
+    -- alcanzaba el requisito. Serializar aqui a las transacciones del
+    -- mismo usuario+tematica hace que la segunda en llegar vea ya
+    -- commiteado el resultado de la primera al leer la suma.
+    perform pg_advisory_xact_lock(hashtextextended(auth.uid()::text || ':' || v_tematica_id::text, 0));
+
     -- 2.2 Desbloqueo del siguiente nivel de la misma tematica, si existe.
     select id into v_siguiente_nivel_id
     from niveles
