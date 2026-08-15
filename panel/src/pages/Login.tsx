@@ -21,18 +21,23 @@ export function Login() {
     setLoading(true)
     setError('')
 
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
-      password,
-    })
+    try {
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      })
 
-    if (signInError) {
+      if (signInError) {
+        setError('Email o contraseña incorrectos.')
+        return
+      }
+
+      navigate('/', { replace: true })
+    } catch {
+      setError('No se ha podido conectar. Inténtalo de nuevo.')
+    } finally {
       setLoading(false)
-      setError('Email o contraseña incorrectos.')
-      return
     }
-
-    navigate('/', { replace: true })
   }
 
   return (
@@ -55,9 +60,9 @@ export function Login() {
             </span>
           </div>
           <div className="max-w-[430px]">
-            <h1 className="text-balance font-display text-4xl font-extrabold leading-tight tracking-tight text-white">
+            <p className="text-balance font-display text-4xl font-extrabold leading-tight tracking-tight text-white">
               Panel de gestión del juego
-            </h1>
+            </p>
             <p className="mt-3.5 text-balance text-[15.5px] leading-relaxed text-white/60">
               Rutas, paradas, preguntas y jugadores. Todo el contenido de GeoQuest desde un solo
               sitio.
@@ -130,12 +135,6 @@ export function Login() {
                 <span>{error}</span>
               </div>
             )}
-
-            <div className="mt-0.5 flex items-center justify-end gap-3">
-              <a href="#" className="text-sm text-brand-blue hover:text-brand-teal">
-                ¿Olvidaste la contraseña?
-              </a>
-            </div>
 
             <button
               type="submit"

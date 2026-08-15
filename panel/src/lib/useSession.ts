@@ -14,11 +14,20 @@ export function useSession(): SessionState {
   useEffect(() => {
     let isMounted = true
 
-    supabase.auth.getSession().then(({ data }) => {
-      if (!isMounted) return
-      setSession(data.session)
-      setLoading(false)
-    })
+    supabase.auth
+      .getSession()
+      .then(({ data }) => {
+        if (!isMounted) return
+        setSession(data.session)
+      })
+      .catch(() => {
+        if (!isMounted) return
+        setSession(null)
+      })
+      .finally(() => {
+        if (!isMounted) return
+        setLoading(false)
+      })
 
     const {
       data: { subscription },

@@ -57,6 +57,35 @@ diseño visual de la pantalla de login ya existe en Claude Design
   da deploy automático por push a `main` y preview por PR sin configuración
   adicional para un proyecto Vite.
 
+## Desviaciones respecto al mockup de `[Admin] - Login.dc.html`
+
+El mockup se usó como fuente de color/tipografía/layout, no se copió
+literalmente:
+
+- **Campo "Usuario" → "Correo electrónico"**: el mockup rotula el campo
+  como "Usuario" con placeholder de nombre.apellido, pero `admin-panel-auth`
+  exige login por email contra Supabase Auth. Se cambia la etiqueta y el
+  `type="email"` para que coincida con lo que el backend espera de verdad.
+- **Sin foto de fondo ni logo bitmap**: `assets/login-art.jpg` y
+  `assets/geoquest-logo.png` superan el límite de 256 KB de lectura de la
+  herramienta de importación de Claude Design — el archivo llega truncado
+  y corrupto. Se sustituye la foto por un degradado radial con los colores
+  de marca y el logo por el wordmark tipográfico ("Geo**Quest**"), ya usado
+  igual en `GeoQuest Branding.dc.html` sin el icono. Pendiente añadir los
+  assets reales a mano cuando se puedan exportar en un tamaño manejable
+  (ver `panel/README.md`).
+- **Sin fila de estadísticas** (18 Rutas / 312 Preguntas / 4 907 Jugadores):
+  son cifras de ejemplo del mockup, no datos reales — mostrarlas induciría a
+  pensar que el panel ya tiene esos números.
+- **Sin checkbox "Recordarme"**: en el propio mockup es puramente decorativo
+  (el `onSubmit` de referencia no lo lee), no cambia la persistencia real de
+  la sesión. Mantenerlo daría a entender a un admin en un ordenador
+  compartido que controla algo que en realidad no hace nada.
+- **Sin enlace "¿Olvidaste la contraseña?"**: el mockup lo deja sin
+  handler (`href="#"`); como la recuperación de contraseña es un no-goal de
+  este cambio, se retira en vez de dejar un enlace muerto — el pie de
+  página ya cubre el caso con el contacto a soporte.
+
 ## Risks / Trade-offs
 
 - [Sesión en `localStorage` es superficie de XSS] → Mitigación: es el
