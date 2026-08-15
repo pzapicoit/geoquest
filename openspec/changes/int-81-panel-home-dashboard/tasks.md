@@ -63,7 +63,11 @@
 
 ## 6. Cierre
 
-- [ ] 6.1 Verificación manual en `panel/` local: login real → Home con datos
-      reales del proyecto Supabase remoto (no mock).
-- [ ] 6.2 Actualizar `.devplugin/architecture.md` con el estado de INT-81 (y
+- [x] 6.1 Verificación manual en `panel/` local: login real → Home con datos
+      reales del proyecto Supabase remoto (no mock). Dev server + Playwright
+      headless contra un admin de prueba: header, nav, 4 métricas, accesos
+      rápidos deshabilitados, actividad reciente (altas reales) y alertas
+      (estado vacío) renderizan correctamente, sin errores de consola.
+      Usuario de prueba y screenshot limpiados al terminar.
+- [x] 6.2 Actualizar `.devplugin/architecture.md` con el estado de INT-81 (y
       la función nueva de `backend/`).
