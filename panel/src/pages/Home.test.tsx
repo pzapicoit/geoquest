@@ -74,7 +74,25 @@ describe('Home', () => {
     render(<Home />)
 
     expect(await screen.findByText(/nuevo registro: jugador0925/i)).toBeInTheDocument()
-    expect(screen.getByText(/superó fiordos de noruega · nivel 4/i)).toBeInTheDocument()
+    expect(screen.getByText(/superó fiordos de noruega · nivel 4 \(★★★\)/i)).toBeInTheDocument()
+  })
+
+  it('no revienta si estrellas_obtenidas viene fuera de rango (0-3)', async () => {
+    fetchActividadReciente.mockResolvedValue([
+      {
+        tipo: 'nivel_superado',
+        ocurridoEn: '2026-08-15T21:51:52.295314+00:00',
+        texto: 'Jugador0925',
+        detalle: { estrellas_obtenidas: 5 },
+        etiqueta: 'Fiordos de Noruega · Nivel 4',
+      },
+    ])
+
+    render(<Home />)
+
+    expect(
+      await screen.findByText(/superó fiordos de noruega · nivel 4 \(★★★\)/i),
+    ).toBeInTheDocument()
   })
 
   it('muestra un estado vacío explícito cuando no hay actividad reciente', async () => {

@@ -51,4 +51,20 @@ describe('useAdminProfile', () => {
     expect(result.current.nombre).toBeNull()
     expect(from).not.toHaveBeenCalled()
   })
+
+  it('deja nombre en null sin lanzar si la consulta a profiles falla', async () => {
+    getSession.mockResolvedValue({ data: { session: { user: { id: 'admin-1' } } } })
+    from.mockReturnValue({
+      select: () => ({
+        eq: () => ({
+          single: () => Promise.reject(new Error('network down')),
+        }),
+      }),
+    })
+
+    const { result } = renderHook(() => useAdminProfile())
+
+    await waitFor(() => expect(result.current.loading).toBe(false))
+    expect(result.current.nombre).toBeNull()
+  })
 })

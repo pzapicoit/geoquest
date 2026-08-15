@@ -31,6 +31,10 @@ export function useAdminProfile(): AdminProfileState {
         if (!isMounted) return
         setNombre(data?.nombre ?? null)
       })
+      .catch(() => {
+        if (!isMounted) return
+        setNombre(null)
+      })
       .finally(() => {
         if (!isMounted) return
         setLoading(false)

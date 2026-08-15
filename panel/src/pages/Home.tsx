@@ -50,7 +50,7 @@ function textoActividad(evento: EventoActividad): string {
   if (evento.tipo === 'nuevo_registro') {
     return `Nuevo registro: ${evento.texto}`
   }
-  const estrellas = Number(evento.detalle?.estrellas_obtenidas ?? 0)
+  const estrellas = Math.max(0, Math.min(3, Number(evento.detalle?.estrellas_obtenidas ?? 0)))
   const destino = evento.etiqueta ?? 'un nivel'
   return `${evento.texto} superó ${destino} (${'★'.repeat(estrellas)}${'☆'.repeat(3 - estrellas)})`
 }
