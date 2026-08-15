@@ -34,7 +34,7 @@ el rol del usuario autenticado.
 
 | Carpeta | Stack | Estado |
 |---|---|---|
-| `backend/` | Supabase CLI, SQL | esquema del juego (INT-74) + alta anónima y trigger de perfil (INT-75) + Storage de media de desafíos (INT-76) + RLS en todo el esquema del juego (INT-77) + cálculo de distancia/puntaje al responder un desafío (INT-78) + superación de nivel, estrellas y desbloqueos al cerrar un intento (INT-79) |
+| `backend/` | Supabase CLI, SQL | esquema del juego (INT-74) + alta anónima y trigger de perfil (INT-75) + Storage de media de desafíos (INT-76) + RLS en todo el esquema del juego (INT-77) + cálculo de distancia/puntaje al responder un desafío (INT-78) + superación de nivel, estrellas y desbloqueos al cerrar un intento (INT-79) + RPCs de reorden y vistas/funciones de métricas y alertas para el panel (INT-87) |
 | `app/` | Flutter 3.47 + `supabase_flutter` | sesión anónima automática en el arranque (INT-75), sin UI de juego |
 | `panel/` | React 19 + Vite + TypeScript, Tailwind CSS | login (INT-80) desplegado en https://geoquest-seven-omega.vercel.app/ |
 
