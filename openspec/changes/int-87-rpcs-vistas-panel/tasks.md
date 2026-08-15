@@ -26,9 +26,9 @@
 
 - [x] 6.1 Escribir la migración completa en `backend/supabase/migrations/`, aplicar con `supabase db push`
 - [x] 6.2 `supabase db lint --linked` — sin errores
-- [x] 6.3 Verificación manual contra remoto (mismo patrón que INT-77): usuarios de prueba admin y jugador vía Auth API. Jugador rechazado (P0001) en `metricas_home`, `alertas_contenido`, `reordenar_tematicas`, `reordenar_niveles`; `desafios_uso` le devuelve `[]` pese a haber datos. Admin obtiene resultados correctos en las 6 RPC/funciones/vista. Datos y usuarios de prueba borrados al terminar
+- [x] 6.3 Verificación manual contra remoto (mismo patrón que INT-77): usuarios de prueba admin y jugador vía Auth API. Jugador rechazado (P0001) en `metricas_home`, `alertas_contenido`, `reordenar_tematicas`, `reordenar_niveles`; `desafios_uso` le devuelve `[]` pese a haber datos. Admin obtiene resultados correctos en las 6 RPC/funciones/vista. Con 22 `intentos_nivel` de fixture sobre 3 niveles (uno activo con tasa 30%, uno idéntico pero inactivo, uno activo con solo 2 intentos), `alertas_contenido` marca `nivel_baja_tasa` únicamente en el primero — excluye correctamente el inactivo y el de muestra insuficiente — y `metricas_home` devuelve `jugadores_activos_7d`/`partidas_hoy`/`niveles_activos` exactos sobre esos datos. Datos y usuarios de prueba borrados al terminar
 - [x] 6.4 Verificación manual del reorden con intercambio de posiciones (caso D1/D2 de design.md): swap de 2 temáticas, swap de 2 niveles de una misma temática y swap de 2 desafíos de un nivel, sin error de unicidad; conjunto incompleto/con id ajeno rechazado sin tocar filas
 
 ## 7. Documentación
 
-- [ ] 7.1 Actualizar `.devplugin/architecture.md`: registrar INT-87 en la fila de `backend/` de la tabla de Módulos
+- [x] 7.1 Actualizar `.devplugin/architecture.md`: registrar INT-87 en la fila de `backend/` de la tabla de Módulos
