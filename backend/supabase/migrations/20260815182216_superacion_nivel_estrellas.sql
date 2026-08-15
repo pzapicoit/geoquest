@@ -19,7 +19,6 @@ declare
   v_nivel_id uuid;
   v_tematica_id uuid;
   v_puntaje_minimo integer;
-  v_umbral_estrella_1 integer;
   v_umbral_estrella_2 integer;
   v_umbral_estrella_3 integer;
   v_nivel_orden integer;
@@ -37,10 +36,10 @@ declare
   v_intento intentos_nivel;
 begin
   select ni.nivel_id, n.tematica_id, n.puntaje_minimo_superar,
-         n.umbral_estrella_1, n.umbral_estrella_2, n.umbral_estrella_3,
+         n.umbral_estrella_2, n.umbral_estrella_3,
          n.orden, t.orden
   into v_nivel_id, v_tematica_id, v_puntaje_minimo,
-       v_umbral_estrella_1, v_umbral_estrella_2, v_umbral_estrella_3,
+       v_umbral_estrella_2, v_umbral_estrella_3,
        v_nivel_orden, v_tematica_orden
   from intentos_nivel ni
   join niveles n on n.id = ni.nivel_id
@@ -76,7 +75,10 @@ begin
 
   -- 1.5 / D4: superado garantiza minimo 1 estrella, aunque el puntaje
   -- quede por debajo de umbral_estrella_1 (el CHECK de INT-74 solo exige
-  -- puntaje_minimo_superar <= umbral_estrella_1, no igualdad).
+  -- puntaje_minimo_superar <= umbral_estrella_1, no igualdad). Por eso
+  -- umbral_estrella_1 no se lee aqui: el "else 1" ya cubre tanto ese
+  -- rango como el de encima de umbral_estrella_1, que tampoco necesita
+  -- distinguirse de el.
   v_superado := v_puntaje >= v_puntaje_minimo;
 
   v_estrellas := case
