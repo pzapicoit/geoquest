@@ -1,0 +1,21 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-display: 'Baloo 2', cursive;
+  --font-sans: 'Outfit', system-ui, sans-serif;
+
+  --color-brand-night: #0e1620;
+  --color-brand-surface: #1c2937;
+  --color-brand-border: #e4ebee;
+  --color-brand-base: #f4f7f8;
+  --color-brand-teal: #2bc0a8;
+  --color-brand-blue: #1b6fa8;
+  --color-brand-gold: #ffc53d;
+  --color-brand-success: #22c55e;
+  --color-brand-error: #ff5a5f;
+  --color-brand-special: #7c5cff;
+}
+
+body {
+  font-family: var(--font-sans);
+}
