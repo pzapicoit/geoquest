@@ -1,5 +1,6 @@
 linear:
-  team: "INT"  # Intermarkit — proyecto "GeoQuest"
+  team: "INT"  # Intermarkit
+  project: "GeoQuest"  # filtra el equipo INT (compartido con Nomad Travel, Asuncion Activa)
 
 github:
   owner: "pzapicoit"
