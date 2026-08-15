@@ -85,6 +85,48 @@ ruta correspondiente, y se actualiza `imagen_url`/`video_url` con la URL
 pública resultante. Este cambio no implementa ese flujo, solo dejar el
 bucket y la convención listos para él.
 
+### RLS mínimo en `profiles` (D5, añadido tras revisión adversarial)
+
+La policy de escritura de Storage confía en `profiles.role = 'admin'`. Esa
+confianza es falsa mientras `profiles` no tenga RLS: `profiles` vive en el
+esquema `public`, expuesto por PostgREST, y sin RLS cualquier usuario
+autenticado (incluida una sesión anónima) puede hacer
+
+```
+PATCH /rest/v1/profiles?id=eq.<su-propio-id>
+{"role": "admin"}
+```
+
+y auto-promocionarse. Se confirmó contra el proyecto remoto: una sesión
+anónima recién creada consiguió `role = 'admin'` con una sola petición REST
+usando únicamente su propio JWT. A partir de ahí, esa sesión pasa también
+la policy de escritura del bucket — el "solo admin" quedaba en el papel,
+no en la práctica.
+
+Por eso este cambio añade el RLS mínimo imprescindible para que la premisa
+de la policy de Storage sea cierta, sin adelantar el resto de INT-77:
+
+- `alter table public.profiles enable row level security`
+- Una única policy: `profiles_select_own` (`select`, `to authenticated`,
+  `using (id = auth.uid())`) — necesaria porque la propia policy de
+  Storage hace `exists (select 1 from public.profiles where id =
+  auth.uid() and role = 'admin')`, y esa subconsulta corre bajo el RLS del
+  invocador: sin una policy de lectura de la fila propia, ni siquiera un
+  admin real pasaría el check.
+- **Ninguna** policy de `insert`/`update`/`delete` para `authenticated` ni
+  `anon`. Con RLS activado y sin policy de escritura, Postgres deniega por
+  defecto: nadie puede tocar su propia fila desde el cliente, ni para
+  cambiar `nombre`/`avatar_url` ni para cambiar `role`.
+- El trigger `handle_new_user` (INT-75) sigue funcionando igual: está
+  declarado `security definer`, así que no pasa por RLS al insertar la
+  fila de `profiles` en el alta.
+
+Alcance explícitamente fuera de esto: policies de escritura para que un
+jugador edite su propio `nombre`/`avatar_url`, y todo el RLS de
+temáticas/niveles/desafíos/progreso — eso sigue siendo INT-77. Hoy no
+existe ningún código (`app/`, `panel/`) que escriba en `profiles`, así que
+no reabrir esa escritura no rompe nada.
+
 ### Migración SQL, no dashboard
 
 Igual que el resto del esquema: la creación del bucket y las policies viven
@@ -108,16 +150,23 @@ reconstruyendo el proyecto al completo desde las migraciones.
   (`supabase-js` o `curl` con la clave de servicio) contra el proyecto
   remoto, no con un test automatizado — coherente con cómo se verificaron
   INT-73/74 (infraestructura sin código de aplicación).
+- **`profiles.role` auto-editable sin RLS** (D5) → Mitigación aplicada en
+  este mismo cambio: RLS mínimo en `profiles` (solo lectura de la fila
+  propia, sin policy de escritura). Confirmado con una prueba real de
+  auto-promoción antes y después del fix.
 
 ## Migration Plan
 
-1. Nueva migración `NNNNNNNNNNNNNN_storage_challenge_media.sql` en
-   `backend/supabase/migrations/`.
-2. `supabase db push` contra el proyecto remoto (eu-west-1).
-3. `supabase db lint` sobre las migraciones como gate de calidad.
-4. Verificación manual: subir una imagen y un video de ejemplo con la clave
-   de servicio, confirmar lectura pública anónima y confirmar que una
-   escritura sin rol admin es rechazada.
+1. Migración `20260815102938_storage_challenge_media.sql` en
+   `backend/supabase/migrations/`: bucket + policies de Storage.
+2. Segunda migración `storage_profiles_rls_minimo` (D5): `enable row level
+   security` en `profiles` + policy `profiles_select_own`.
+3. `supabase db push` contra el proyecto remoto (eu-west-1).
+4. `supabase db lint --linked` sobre las migraciones como gate de calidad.
+5. Verificación manual: subir una imagen y un video de ejemplo con la clave
+   de servicio, confirmar lectura pública anónima, confirmar que una
+   escritura sin rol admin es rechazada, y confirmar que un usuario ya no
+   puede auto-promocionarse a `admin` editando su propia fila.
 
 Rollback: migración de reversa que borra las 4 policies y hace `delete from
 storage.buckets where id = 'challenge-media'` (y sus objetos, si los

@@ -20,6 +20,12 @@ las URLs que la app consumirá.
   video.
 - Verificar subida y lectura de un archivo de ejemplo de cada tipo contra el
   bucket remoto, dejando constancia del resultado.
+- Habilitar RLS mínimo en `profiles` (solo lectura de la fila propia, sin
+  policy de escritura para `authenticated`/`anon`): sin esto, la policy de
+  escritura del bucket que comprueba `profiles.role = 'admin'` es papel
+  mojado, porque cualquier usuario puede auto-promocionarse editando su
+  propia fila por REST (hallazgo de la revisión adversarial de este mismo
+  cambio, confirmado contra el proyecto remoto).
 
 ## Capabilities
 
@@ -29,16 +35,28 @@ las URLs que la app consumirá.
   admin de escritura, y la convención de organización de archivos.
 
 ### Modified Capabilities
-(ninguna — no cambian requisitos de `game-data-model` ni de otras specs
-existentes; esto añade una capability nueva sobre Storage)
+- `game-data-model`: añade RLS mínimo a `profiles` (lectura de la fila
+  propia; ninguna policy de escritura para `authenticated`/`anon`), como
+  prerrequisito de seguridad para que la escritura admin-only del bucket
+  de Storage sea real y no solo nominal. No toca la jerarquía de
+  temáticas/niveles/desafíos ni el resto del esquema (eso sigue siendo
+  INT-77).
 
 ## Impact
 
-- Nueva migración en `backend/supabase/migrations/` (bucket + policies).
+- Nueva migración en `backend/supabase/migrations/` (bucket + policies de
+  Storage).
+- Segunda migración: `alter table profiles enable row level security` +
+  policy de solo-lectura de la fila propia. No afecta al trigger
+  `handle_new_user` (INT-75), que es `security definer` y no está sujeto a
+  RLS.
 - `backend/supabase/config.toml` (referencia de `file_size_limit` global ya
   existente; no requiere cambios si el bucket define su propio límite).
-- No afecta código de `app/` ni `panel/` en este cambio: solo deja el bucket
-  listo para que un futuro cambio (subida desde panel de admin, INT-80) lo
-  use.
-- No depende de RLS de tablas del juego (INT-77): las políticas de Storage
-  son un sistema RLS aparte, sobre `storage.objects`.
+- No afecta código de `app/` ni `panel/` en este cambio: ninguno de los dos
+  lee o escribe `profiles` hoy vía cliente Supabase (solo Auth), así que el
+  RLS mínimo no rompe nada existente. Deja el bucket listo para que un
+  futuro cambio (subida desde panel de admin, INT-80) lo use.
+- Sigue sin depender del RLS completo de las tablas del juego (INT-77): lo
+  añadido aquí es el mínimo en `profiles` necesario para que la policy de
+  escritura del bucket sea efectiva, no la cobertura completa de
+  temáticas/niveles/desafíos/progreso.
