@@ -36,7 +36,7 @@ el rol del usuario autenticado.
 |---|---|---|
 | `backend/` | Supabase CLI, SQL | esquema del juego (INT-74) + alta anónima y trigger de perfil (INT-75) + Storage de media de desafíos (INT-76) + RLS en todo el esquema del juego (INT-77) + cálculo de distancia/puntaje al responder un desafío (INT-78) + superación de nivel, estrellas y desbloqueos al cerrar un intento (INT-79) |
 | `app/` | Flutter 3.47 + `supabase_flutter` | sesión anónima automática en el arranque (INT-75), sin UI de juego |
-| `panel/` | web, pendiente de definir | pendiente (INT-80) |
+| `panel/` | React 19 + Vite + TypeScript, Tailwind CSS | stack decidido, implementación pendiente (INT-80) |
 
 ## Flujo de base de datos
 
@@ -94,7 +94,26 @@ solo instalar el SDK de Android — no hay que tocar el proyecto.
 
 ### panel/
 
-Por definir en INT-80.
+| Gate | Herramienta |
+|---|---|
+| Tests | Vitest + React Testing Library |
+| Cobertura | `vitest run --coverage`, umbral por definir |
+| Quality | ESLint, Prettier, `tsc --noEmit` |
+
+**Stack:** React 19 + Vite + TypeScript, Tailwind CSS, desplegado en Vercel.
+
+Decidido en INT-80 frente a Next.js y Flutter Web. No hay backend propio —
+panel y app hablan directo con Supabase con la clave publicable, RLS es la
+única frontera de seguridad — así que el SSR de Next.js no aporta nada aquí:
+una SPA basta. El diseño de las pantallas del panel llega ya maquetado en
+HTML/CSS desde Claude Design, lo que hace de React+Tailwind una traducción casi
+directa; Flutter Web habría significado reimplementar ese layout como widgets
+Dart sin ganar reuso real de lógica con `app/`, porque la lógica de negocio
+vive en Postgres, no en el cliente.
+
+Supabase no ofrece hosting de frontend (solo Postgres, Auth, Storage, Edge
+Functions), así que el panel se despliega en Vercel: conecta directo con el
+repo, deploy en cada push a `main` y preview automático por PR.
 
 ## Exenciones
 
