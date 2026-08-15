@@ -4,6 +4,7 @@ import { PanelLayout } from './components/PanelLayout'
 import { Login } from './pages/Login'
 import { Home } from './pages/Home'
 import { Preguntas } from './pages/Preguntas'
+import { PreguntaForm } from './pages/PreguntaForm'
 
 export function App() {
   return (
@@ -26,6 +27,26 @@ export function App() {
             <RequireAuth>
               <PanelLayout>
                 <Preguntas />
+              </PanelLayout>
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/preguntas/nueva"
+          element={
+            <RequireAuth>
+              <PanelLayout>
+                <PreguntaForm />
+              </PanelLayout>
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/preguntas/:id/editar"
+          element={
+            <RequireAuth>
+              <PanelLayout>
+                <PreguntaForm />
               </PanelLayout>
             </RequireAuth>
           }

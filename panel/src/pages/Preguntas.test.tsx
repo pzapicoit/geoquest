@@ -1,8 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, within, waitFor, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router-dom'
 import { Preguntas } from './Preguntas'
 import type { Pregunta } from '../lib/preguntas'
+
+function renderPreguntas() {
+  return render(
+    <MemoryRouter>
+      <Preguntas />
+    </MemoryRouter>,
+  )
+}
 
 const fetchPreguntas = vi.fn()
 const eliminarPregunta = vi.fn()
@@ -65,7 +74,7 @@ describe('Preguntas', () => {
   it('muestra una fila por desafío, no por asignación, con el indicador de uso', async () => {
     fetchPreguntas.mockResolvedValue([TORRE_EIFFEL, MACHU_PICCHU, DESAFIO_SUELTO])
 
-    render(<Preguntas />)
+    renderPreguntas()
 
     expect(await screen.findByText('Torre Eiffel')).toBeInTheDocument()
     expect(screen.getAllByText('Torre Eiffel')).toHaveLength(1)
@@ -84,7 +93,7 @@ describe('Preguntas', () => {
       }),
     ])
 
-    render(<Preguntas />)
+    renderPreguntas()
     await screen.findByText('Imagen rota')
 
     const img = screen.getByAltText('')
@@ -97,7 +106,7 @@ describe('Preguntas', () => {
     fetchPreguntas.mockResolvedValue([TORRE_EIFFEL])
     const user = userEvent.setup()
 
-    render(<Preguntas />)
+    renderPreguntas()
 
     const resumen = await screen.findByText('Usado en 2 niveles')
     const detalle = resumen.closest('details') as HTMLElement
@@ -115,7 +124,7 @@ describe('Preguntas', () => {
     fetchPreguntas.mockResolvedValue([TORRE_EIFFEL, MACHU_PICCHU])
     const user = userEvent.setup()
 
-    render(<Preguntas />)
+    renderPreguntas()
     await screen.findByText('Torre Eiffel')
 
     await user.type(screen.getByPlaceholderText(/buscar por lugar/i), 'ciudadela')
@@ -128,7 +137,7 @@ describe('Preguntas', () => {
     fetchPreguntas.mockResolvedValue([TORRE_EIFFEL, MACHU_PICCHU, DESAFIO_SUELTO])
     const user = userEvent.setup()
 
-    render(<Preguntas />)
+    renderPreguntas()
     await screen.findByText('Torre Eiffel')
 
     await user.selectOptions(screen.getByLabelText(/filtrar por tipo/i), 'video')
@@ -143,7 +152,7 @@ describe('Preguntas', () => {
     fetchPreguntas.mockResolvedValue([TORRE_EIFFEL, MACHU_PICCHU])
     const user = userEvent.setup()
 
-    render(<Preguntas />)
+    renderPreguntas()
     await screen.findByText('Torre Eiffel')
 
     await user.selectOptions(screen.getByLabelText(/filtrar por temática/i), 'Patrimonio')
@@ -155,7 +164,7 @@ describe('Preguntas', () => {
     fetchPreguntas.mockResolvedValue([TORRE_EIFFEL, DESAFIO_SUELTO])
     const user = userEvent.setup()
 
-    render(<Preguntas />)
+    renderPreguntas()
     await screen.findByText('Torre Eiffel')
 
     await user.click(screen.getByLabelText(/sin asignar a ningún nivel/i))
@@ -171,7 +180,7 @@ describe('Preguntas', () => {
     fetchPreguntas.mockResolvedValue(muchas)
     const user = userEvent.setup()
 
-    render(<Preguntas />)
+    renderPreguntas()
     await screen.findByText('Lugar 00')
 
     expect(screen.getByText(/mostrando 1–10 de 12/i)).toBeInTheDocument()
@@ -189,7 +198,7 @@ describe('Preguntas', () => {
     fetchPreguntas.mockResolvedValue([TORRE_EIFFEL])
     const user = userEvent.setup()
 
-    render(<Preguntas />)
+    renderPreguntas()
     await screen.findByText('Torre Eiffel')
 
     await user.type(screen.getByPlaceholderText(/buscar por lugar/i), 'no-existe-nada')
@@ -204,28 +213,25 @@ describe('Preguntas', () => {
   it('muestra un estado vacío distinto cuando el banco no tiene ninguna pregunta', async () => {
     fetchPreguntas.mockResolvedValue([])
 
-    render(<Preguntas />)
+    renderPreguntas()
 
     expect(await screen.findByText(/todavía no hay preguntas/i)).toBeInTheDocument()
     const cta = screen.getByText(/crear la primera pregunta/i)
-    expect(cta).toHaveAttribute('aria-disabled', 'true')
+    expect(cta.closest('a')).toHaveAttribute('href', '/preguntas/nueva')
   })
 
-  it('"Nueva pregunta" y "Editar" están deshabilitados', async () => {
+  it('"Nueva pregunta" navega a /preguntas/nueva y "Editar" a /preguntas/{id}/editar', async () => {
     fetchPreguntas.mockResolvedValue([TORRE_EIFFEL])
 
-    render(<Preguntas />)
+    renderPreguntas()
     await screen.findByText('Torre Eiffel')
 
     const nuevaPregunta = screen.getByText('Nueva pregunta')
-    expect(nuevaPregunta).toHaveAttribute('aria-disabled', 'true')
-    expect(nuevaPregunta.closest('a')).toBeNull()
+    expect(nuevaPregunta.closest('a')).toHaveAttribute('href', '/preguntas/nueva')
 
     const fila = screen.getByText('Torre Eiffel').closest('tr') as HTMLElement
     const accionEditar = within(fila).getByLabelText('Editar')
-    expect(accionEditar).toHaveAttribute('aria-disabled', 'true')
-    expect(accionEditar.tagName).not.toBe('A')
-    expect(within(fila).queryByRole('link')).not.toBeInTheDocument()
+    expect(accionEditar).toHaveAttribute('href', '/preguntas/d-eiffel/editar')
   })
 
   it('elimina un desafío con éxito y lo quita del listado', async () => {
@@ -233,7 +239,7 @@ describe('Preguntas', () => {
     eliminarPregunta.mockResolvedValue(undefined)
     const user = userEvent.setup()
 
-    render(<Preguntas />)
+    renderPreguntas()
     await screen.findByText('Torre Eiffel')
 
     const filaEiffel = screen.getByText('Torre Eiffel').closest('tr') as HTMLElement
@@ -255,7 +261,7 @@ describe('Preguntas', () => {
     )
     const user = userEvent.setup()
 
-    render(<Preguntas />)
+    renderPreguntas()
     const fila = (await screen.findByText('Torre Eiffel')).closest('tr') as HTMLElement
     const botonEliminar = within(fila).getByTitle('Eliminar')
 
@@ -278,7 +284,7 @@ describe('Preguntas', () => {
     )
     const user = userEvent.setup()
 
-    render(<Preguntas />)
+    renderPreguntas()
     await screen.findByText('Torre Eiffel')
 
     const fila = screen.getByText('Torre Eiffel').closest('tr') as HTMLElement
@@ -293,7 +299,7 @@ describe('Preguntas', () => {
     fetchPreguntas.mockResolvedValue([TORRE_EIFFEL])
     const user = userEvent.setup()
 
-    render(<Preguntas />)
+    renderPreguntas()
     const fila = (await screen.findByText('Torre Eiffel')).closest('tr') as HTMLElement
     await user.click(within(fila).getByTitle('Eliminar'))
 
@@ -304,7 +310,7 @@ describe('Preguntas', () => {
   it('muestra un error si falla la carga del listado', async () => {
     fetchPreguntas.mockRejectedValue(new Error('network down'))
 
-    render(<Preguntas />)
+    renderPreguntas()
 
     expect(
       await screen.findByText(/no se ha podido cargar el listado de preguntas/i),
