@@ -56,7 +56,7 @@
 - [x] 5.2 Tests de componente (Vitest + RTL) de Home: métricas, accesos
       rápidos deshabilitados, actividad/alertas con datos y con estado vacío.
       (Y de `PanelLayout`: nav con solo Home navegable, header con nombre del
-      admin y cierre de sesión.)
+      admin, y cierre de sesión + redirección a login vía `RequireAuth`.)
 - [x] 5.3 `npm run lint`, `npm run typecheck`, `npm run format:check`,
       `npm run test:coverage` en `panel/` — todo verde (32/32 tests,
       coverage del código nuevo 85-100%).
