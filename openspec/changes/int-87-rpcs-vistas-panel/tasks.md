@@ -25,9 +25,9 @@
 ## 6. Migración y verificación remota
 
 - [x] 6.1 Escribir la migración completa en `backend/supabase/migrations/`, aplicar con `supabase db push`
-- [ ] 6.2 `supabase db lint --linked`
-- [ ] 6.3 Verificación manual contra remoto (mismo patrón que INT-77): usuarios de prueba admin y jugador vía Auth API, confirmar que el jugador no puede invocar ninguna RPC/función/vista nueva y el admin sí
-- [ ] 6.4 Verificación manual del reorden con intercambio de posiciones (caso D1/D2 de design.md) sin error de unicidad
+- [x] 6.2 `supabase db lint --linked` — sin errores
+- [x] 6.3 Verificación manual contra remoto (mismo patrón que INT-77): usuarios de prueba admin y jugador vía Auth API. Jugador rechazado (P0001) en `metricas_home`, `alertas_contenido`, `reordenar_tematicas`, `reordenar_niveles`; `desafios_uso` le devuelve `[]` pese a haber datos. Admin obtiene resultados correctos en las 6 RPC/funciones/vista. Datos y usuarios de prueba borrados al terminar
+- [x] 6.4 Verificación manual del reorden con intercambio de posiciones (caso D1/D2 de design.md): swap de 2 temáticas, swap de 2 niveles de una misma temática y swap de 2 desafíos de un nivel, sin error de unicidad; conjunto incompleto/con id ajeno rechazado sin tocar filas
 
 ## 7. Documentación
 
