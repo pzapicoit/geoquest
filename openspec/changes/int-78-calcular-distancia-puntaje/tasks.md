@@ -25,17 +25,17 @@
 
 ## 3. Verificación manual (casos límite)
 
-- [ ] 3.1 `supabase db push` contra el proyecto remoto enlazado
-- [ ] 3.2 Caso límite: llamar a `responder_desafio` con coordenada
+- [x] 3.1 `supabase db push` contra el proyecto remoto enlazado
+- [x] 3.2 Caso límite: llamar a `responder_desafio` con coordenada
       adivinada igual a la real de un desafío de prueba → distancia 0,
       puntaje máximo
-- [ ] 3.3 Caso límite: llamar con coordenada en las antípodas del desafío →
+- [x] 3.3 Caso límite: llamar con coordenada en las antípodas del desafío →
       distancia ~20000km, puntaje 0
-- [ ] 3.4 Caso de seguridad: llamar a `responder_desafio` con un
+- [x] 3.4 Caso de seguridad: llamar a `responder_desafio` con un
       `intento_id` que no pertenece al usuario autenticado → falla, no
       inserta fila
-- [ ] 3.5 Caso de integridad: `insert` directo en `respuestas_desafio` con
+- [x] 3.5 Caso de integridad: `insert` directo en `respuestas_desafio` con
       `distancia_km`/`puntos` inventados → el trigger los sobrescribe con
       los valores calculados
-- [ ] 3.6 Confirmar que la respuesta de `responder_desafio` no expone
+- [x] 3.6 Confirmar que la respuesta de `responder_desafio` no expone
       `lat_real`/`lng_real` del desafío
