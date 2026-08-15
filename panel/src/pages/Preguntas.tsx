@@ -137,10 +137,12 @@ function Miniatura({ pregunta }: { pregunta: Pregunta }) {
 function FilaPregunta({
   pregunta,
   error,
+  eliminando,
   onEliminar,
 }: {
   pregunta: Pregunta
   error?: string
+  eliminando: boolean
   onEliminar: () => void
 }) {
   return (
@@ -206,8 +208,9 @@ function FilaPregunta({
           <button
             type="button"
             onClick={onEliminar}
+            disabled={eliminando}
             title="Eliminar"
-            className="flex h-8 w-8 items-center justify-center rounded-lg border-[1.5px] border-brand-border text-brand-night/60 hover:border-brand-error hover:text-brand-error"
+            className="flex h-8 w-8 items-center justify-center rounded-lg border-[1.5px] border-brand-border text-brand-night/60 hover:border-brand-error hover:text-brand-error disabled:cursor-not-allowed disabled:opacity-40"
           >
             <IconoEliminar />
           </button>
@@ -322,6 +325,7 @@ export function Preguntas() {
   const [preguntas, setPreguntas] = useState<Pregunta[] | null>(null)
   const [error, setError] = useState('')
   const [rowErrors, setRowErrors] = useState<Record<string, string>>({})
+  const [eliminandoIds, setEliminandoIds] = useState<Set<string>>(new Set())
 
   const [query, setQuery] = useState('')
   const [topic, setTopic] = useState(TODAS_TEMATICAS)
@@ -359,10 +363,14 @@ export function Preguntas() {
   }
 
   async function handleEliminar(pregunta: Pregunta) {
+    if (eliminandoIds.has(pregunta.id)) return
+
     const confirmado = window.confirm(
       `¿Eliminar "${pregunta.nombreLugar}"? Esta acción no se puede deshacer.`,
     )
     if (!confirmado) return
+
+    setEliminandoIds((actual) => new Set(actual).add(pregunta.id))
 
     try {
       await eliminarPregunta(pregunta.id)
@@ -381,6 +389,12 @@ export function Preguntas() {
             ? eliminarError.message
             : 'No se ha podido eliminar la pregunta.',
       }))
+    } finally {
+      setEliminandoIds((actual) => {
+        const siguiente = new Set(actual)
+        siguiente.delete(pregunta.id)
+        return siguiente
+      })
     }
   }
 
@@ -436,6 +450,13 @@ export function Preguntas() {
   const inicio = (paginaActual - 1) * PAGE_SIZE
   const pagina = filtradas.slice(inicio, inicio + PAGE_SIZE)
 
+  // Cambiar de filtros vuelve a la página 1 y descarta errores de fila de
+  // desafíos que puedan haber quedado ocultos por el filtro anterior.
+  function alCambiarFiltro() {
+    setPage(1)
+    setRowErrors({})
+  }
+
   function limpiarFiltros() {
     setQuery('')
     setTopic(TODAS_TEMATICAS)
@@ -443,7 +464,7 @@ export function Preguntas() {
     setTipo('todos')
     setEstado('todos')
     setSinAsignar(false)
-    setPage(1)
+    alCambiarFiltro()
   }
 
   return (
@@ -490,7 +511,7 @@ export function Preguntas() {
               value={query}
               onChange={(e) => {
                 setQuery(e.target.value)
-                setPage(1)
+                alCambiarFiltro()
               }}
               placeholder="Buscar por lugar o texto de la pregunta"
               className="min-w-0 flex-1 border-0 bg-transparent text-sm text-brand-night outline-none placeholder:text-brand-night/40"
@@ -503,7 +524,7 @@ export function Preguntas() {
             onChange={(e) => {
               setTopic(e.target.value)
               setLevel(TODOS_NIVELES)
-              setPage(1)
+              alCambiarFiltro()
             }}
             className="h-10 rounded-xl border-[1.5px] border-brand-border bg-white px-3 text-sm font-medium text-brand-night/75"
           >
@@ -519,7 +540,7 @@ export function Preguntas() {
             value={level}
             onChange={(e) => {
               setLevel(e.target.value)
-              setPage(1)
+              alCambiarFiltro()
             }}
             className="h-10 rounded-xl border-[1.5px] border-brand-border bg-white px-3 text-sm font-medium text-brand-night/75"
           >
@@ -535,7 +556,7 @@ export function Preguntas() {
             value={tipo}
             onChange={(e) => {
               setTipo(e.target.value as FiltroTipo)
-              setPage(1)
+              alCambiarFiltro()
             }}
             className="h-10 rounded-xl border-[1.5px] border-brand-border bg-white px-3 text-sm font-medium text-brand-night/75"
           >
@@ -550,7 +571,7 @@ export function Preguntas() {
             value={estado}
             onChange={(e) => {
               setEstado(e.target.value as FiltroEstado)
-              setPage(1)
+              alCambiarFiltro()
             }}
             className="h-10 rounded-xl border-[1.5px] border-brand-border bg-white px-3 text-sm font-medium text-brand-night/75"
           >
@@ -565,7 +586,7 @@ export function Preguntas() {
               checked={sinAsignar}
               onChange={(e) => {
                 setSinAsignar(e.target.checked)
-                setPage(1)
+                alCambiarFiltro()
               }}
             />
             Sin asignar a ningún nivel
@@ -604,6 +625,7 @@ export function Preguntas() {
                     key={p.id}
                     pregunta={p}
                     error={rowErrors[p.id]}
+                    eliminando={eliminandoIds.has(p.id)}
                     onEliminar={() => handleEliminar(p)}
                   />
                 ))}

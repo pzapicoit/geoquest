@@ -139,10 +139,16 @@ describe('eliminarPregunta', () => {
     await expect(eliminarPregunta('d-eiffel')).rejects.toThrow(/está en uso o tiene respuestas/i)
   })
 
-  it('propaga cualquier otro error de la base de datos', async () => {
+  it('propaga cualquier otro error de la base de datos como Error con su mensaje', async () => {
+    // El cliente de Supabase nunca lanza PostgrestError como instancia real
+    // (solo con .throwOnError()): el `error` que resuelve la promesa es un
+    // objeto plano deserializado del cuerpo de la respuesta. eliminarPregunta
+    // debe envolverlo en un Error de verdad para que `instanceof Error` en la
+    // UI funcione también fuera del caso 23503.
     const eq = vi.fn().mockResolvedValue({ error: { code: '42501', message: 'no autorizado' } })
     from.mockReturnValue({ delete: () => ({ eq }) })
 
-    await expect(eliminarPregunta('d-eiffel')).rejects.toMatchObject({ code: '42501' })
+    await expect(eliminarPregunta('d-eiffel')).rejects.toThrow('no autorizado')
+    await expect(eliminarPregunta('d-eiffel')).rejects.toBeInstanceOf(Error)
   })
 })

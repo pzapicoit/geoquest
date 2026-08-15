@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, within, waitFor, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Preguntas } from './Preguntas'
 import type { Pregunta } from '../lib/preguntas'
@@ -72,6 +72,25 @@ describe('Preguntas', () => {
     expect(screen.getByText('Usado en 2 niveles')).toBeInTheDocument()
     expect(screen.getByText('Usado en 1 nivel')).toBeInTheDocument()
     expect(screen.getByText('Sin asignar')).toBeInTheDocument()
+  })
+
+  it('cae a un ícono si la miniatura de imagen falla al cargar', async () => {
+    fetchPreguntas.mockResolvedValue([
+      pregunta({
+        id: 'd-rota',
+        nombreLugar: 'Imagen rota',
+        tipo: 'imagen',
+        imagenUrl: 'https://example.test/no-existe.jpg',
+      }),
+    ])
+
+    render(<Preguntas />)
+    await screen.findByText('Imagen rota')
+
+    const img = screen.getByAltText('')
+    fireEvent.error(img)
+
+    await waitFor(() => expect(screen.queryByAltText('')).not.toBeInTheDocument())
   })
 
   it('el detalle del indicador de uso lista cada temática y nivel al abrirlo', async () => {
@@ -223,6 +242,31 @@ describe('Preguntas', () => {
     expect(eliminarPregunta).toHaveBeenCalledWith('d-eiffel')
     expect(await screen.findByText('Machu Picchu')).toBeInTheDocument()
     expect(screen.queryByText('Torre Eiffel')).not.toBeInTheDocument()
+  })
+
+  it('no reenvía un segundo borrado mientras el primero está en curso', async () => {
+    fetchPreguntas.mockResolvedValue([TORRE_EIFFEL])
+    let resolverBorrado: () => void = () => {}
+    eliminarPregunta.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolverBorrado = resolve
+        }),
+    )
+    const user = userEvent.setup()
+
+    render(<Preguntas />)
+    const fila = (await screen.findByText('Torre Eiffel')).closest('tr') as HTMLElement
+    const botonEliminar = within(fila).getByTitle('Eliminar')
+
+    await user.click(botonEliminar)
+    expect(botonEliminar).toBeDisabled()
+
+    await user.click(botonEliminar)
+    expect(eliminarPregunta).toHaveBeenCalledTimes(1)
+
+    resolverBorrado()
+    await waitFor(() => expect(screen.queryByText('Torre Eiffel')).not.toBeInTheDocument())
   })
 
   it('muestra el mensaje de error y conserva la fila si el desafío está en uso', async () => {

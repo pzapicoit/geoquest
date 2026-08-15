@@ -109,5 +109,5 @@ export async function eliminarPregunta(id: string): Promise<void> {
       'No se puede eliminar: esta pregunta está en uso o tiene respuestas registradas de jugadores.',
     )
   }
-  throw error
+  throw new Error(error.message)
 }
