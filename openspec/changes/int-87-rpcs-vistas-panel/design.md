@@ -149,6 +149,14 @@ pueden faltar del todo; `(0, 0)` es la señal de "nunca se tocó").
 "sin ubicación aún" (en vez de `0, 0`), este criterio hay que revisarlo
 cuando se construya el formulario de alta de desafíos (INT-83).
 
+**Corregido tras revisión adversarial**: la primera versión calculaba
+`campo_faltante` con un `CASE` sin `ELSE` y repetía la misma condición en el
+`WHERE` por separado — un `CASE` sin `ELSE` desincronizado del `WHERE`
+podría devolver `campo_faltante` nulo para una fila que sí entra en el
+resultado. Se corrigió calculando `campo_faltante` una sola vez en un
+`LATERAL` y filtrando sobre ese mismo resultado
+(`where campo_faltante is not null`), eliminando la duplicación.
+
 ### D7: Umbral de "tasa de superación baja"
 
 Se considera baja una tasa de superación `< 40%` (`superados / intentos`),

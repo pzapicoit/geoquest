@@ -209,28 +209,28 @@ begin
 
   union all
 
+  -- D6, corregido tras revision adversarial: el campo que falta se calcula
+  -- una sola vez en el lateral y el WHERE filtra sobre ese mismo resultado
+  -- (campo_faltante is not null), en vez de duplicar la misma condicion en
+  -- un CASE y en un WHERE por separado -- un CASE sin ELSE desincronizado
+  -- del WHERE podria devolver campo_faltante nulo para una fila que si
+  -- entra en el resultado.
   select
     'desafio_incompleto'::text,
     d.id,
     'Desafio con datos incompletos'::text,
-    jsonb_build_object(
-      'tipo', d.tipo,
-      'campo_faltante',
-      case
-        when d.tipo = 'imagen' and coalesce(trim(d.imagen_url), '') = '' then 'imagen_url'
-        when d.tipo = 'video' and coalesce(trim(d.video_url), '') = '' then 'video_url'
-        when d.tipo = 'pregunta_texto' and coalesce(trim(d.texto_pregunta), '') = '' then 'texto_pregunta'
-        when d.lat_real = 0 and d.lng_real = 0 then 'coordenadas'
-      end
-    )
+    jsonb_build_object('tipo', d.tipo, 'campo_faltante', c.campo_faltante)
   from desafios d
+  cross join lateral (
+    select case
+      when d.tipo = 'imagen' and coalesce(trim(d.imagen_url), '') = '' then 'imagen_url'
+      when d.tipo = 'video' and coalesce(trim(d.video_url), '') = '' then 'video_url'
+      when d.tipo = 'pregunta_texto' and coalesce(trim(d.texto_pregunta), '') = '' then 'texto_pregunta'
+      when d.lat_real = 0 and d.lng_real = 0 then 'coordenadas'
+    end as campo_faltante
+  ) c
   where d.activo
-    and (
-      (d.tipo = 'imagen' and coalesce(trim(d.imagen_url), '') = '')
-      or (d.tipo = 'video' and coalesce(trim(d.video_url), '') = '')
-      or (d.tipo = 'pregunta_texto' and coalesce(trim(d.texto_pregunta), '') = '')
-      or (d.lat_real = 0 and d.lng_real = 0)
-    );
+    and c.campo_faltante is not null;
 end;
 $$;
 

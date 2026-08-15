@@ -16,7 +16,7 @@
 
 - [x] 4.1 `metricas_home()`: `security definer`, check `is_admin()` al principio, calcula `jugadores_totales` / `jugadores_activos_7d` / `partidas_hoy` / `niveles_activos`
 - [x] 4.2 `alertas_contenido()`: `security definer`, check `is_admin()` al principio, fila por nivel con tasa de superación < 40% y ≥ 5 intentos (`tipo = 'nivel_baja_tasa'`)
-- [x] 4.3 Extender `alertas_contenido()` con fila por desafío activo con contenido vacío según tipo o coordenadas `(0, 0)` (`tipo = 'desafio_incompleto'`)
+- [x] 4.3 Extender `alertas_contenido()` con fila por desafío activo con contenido vacío según tipo o coordenadas `(0, 0)` (`tipo = 'desafio_incompleto'`) — refactorizado tras revisión adversarial: `campo_faltante` se calcula una vez en un `LATERAL` y el `WHERE` filtra sobre ese resultado, en vez de duplicar la condición en un `CASE` sin `ELSE` y en un `WHERE` aparte
 
 ## 5. Vista de uso de desafíos
 
