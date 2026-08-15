@@ -32,6 +32,8 @@ npm run dev
 
 ## Despliegue
 
+**URL:** https://geoquest-seven-omega.vercel.app/
+
 Vercel, conectado al repo (`panel/` como root directory). Variables de
 entorno a configurar en el proyecto de Vercel:
 
