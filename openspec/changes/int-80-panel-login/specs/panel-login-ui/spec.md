@@ -19,7 +19,7 @@ estén vacíos antes de intentar autenticar.
 #### Scenario: Envío con campos vacíos
 
 - **WHEN** el usuario intenta enviar el formulario con el email o la
-  contraseña vacíos
+  contraseña vacíos, o compuestos solo por espacios en blanco
 - **THEN** el formulario muestra un error de validación
 - **AND** no se realiza ninguna llamada a Supabase Auth
 
@@ -50,3 +50,9 @@ no existe una sesión válida.
 
 - **WHEN** un usuario sin sesión intenta navegar a una ruta protegida
 - **THEN** el panel redirige a la pantalla de login
+
+#### Scenario: Login ya autenticado
+
+- **WHEN** un usuario con sesión válida navega a `/login`
+- **THEN** el panel lo redirige a la zona autenticada (Home) en vez de
+  mostrarle el formulario de nuevo
