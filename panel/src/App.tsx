@@ -1,5 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { RequireAuth } from './components/RequireAuth'
+import { PanelLayout } from './components/PanelLayout'
 import { Login } from './pages/Login'
 import { Home } from './pages/Home'
 
@@ -12,7 +13,9 @@ export function App() {
           path="/"
           element={
             <RequireAuth>
-              <Home />
+              <PanelLayout>
+                <Home />
+              </PanelLayout>
             </RequireAuth>
           }
         />
