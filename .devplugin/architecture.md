@@ -34,7 +34,7 @@ el rol del usuario autenticado.
 
 | Carpeta | Stack | Estado |
 |---|---|---|
-| `backend/` | Supabase CLI, SQL | esquema del juego (INT-74) + alta anónima y trigger de perfil (INT-75), sin RLS (INT-77) |
+| `backend/` | Supabase CLI, SQL | esquema del juego (INT-74) + alta anónima y trigger de perfil (INT-75) + Storage de media de desafíos (INT-76), sin RLS en tablas del juego (INT-77) |
 | `app/` | Flutter 3.47 + `supabase_flutter` | sesión anónima automática en el arranque (INT-75), sin UI de juego |
 | `panel/` | web, pendiente de definir | pendiente (INT-80) |
 
@@ -66,7 +66,7 @@ Declaradas para los gates de `/execute`.
 
 | Gate | Herramienta |
 |---|---|
-| Tests | `supabase db lint` sobre las migraciones |
+| Tests | `supabase db lint --linked` sobre las migraciones (remoto, sin Docker) |
 | Cobertura | no aplica — no hay código de aplicación |
 | Quality | `supabase db lint`, revisión de que todo cambio va por migración |
 
