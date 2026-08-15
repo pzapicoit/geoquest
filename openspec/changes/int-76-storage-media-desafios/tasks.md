@@ -24,8 +24,11 @@
 - [x] 2.5 Confirmar lectura pública anónima de ambos archivos de ejemplo
 - [x] 2.6 Confirmar que una subida sin rol admin (jugador/anónimo) es
       rechazada — sesión anónima real (`profiles.role = 'jugador'`),
-      subida rechazada con RLS violation; usuario de prueba borrado tras
-      la verificación
+      subida rechazada con RLS violation. Simétricamente, se confirmó que
+      un usuario real promovido a `profiles.role = 'admin'` sí puede subir
+      y borrar (vía su propio JWT, no con la clave de servicio, que se
+      salta RLS y no prueba la policy). Ambos usuarios de prueba borrados
+      tras la verificación
 - [x] 2.7 Confirmar que un archivo de tipo o tamaño no permitido es
       rechazado — `text/plain` rechazado (`InvalidMimeType`) y archivo de
       51 MiB rechazado (`EntityTooLarge`)
