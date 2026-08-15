@@ -17,46 +17,49 @@
 
 ## 2. Panel: capa de datos del dashboard
 
-- [ ] 2.1 `panel/src/lib/dashboard.ts` (o similar): funciones que envuelven
+- [x] 2.1 `panel/src/lib/dashboard.ts` (o similar): funciones que envuelven
       `supabase.rpc('metricas_home')`, `supabase.rpc('alertas_contenido')`,
       `supabase.rpc('actividad_reciente')`.
-- [ ] 2.2 Resolución de nombres legibles: dado un conjunto de `nivel_id`/
+- [x] 2.2 Resolución de nombres legibles: dado un conjunto de `nivel_id`/
       `tematica_id`/`desafio_id` de alertas y actividad, una consulta por
       tabla (`tematicas`, `niveles`, `desafios`) que arme un mapa id→nombre
       legible (ej. `"{tematica.nombre} · Nivel {niveles.orden}"`), sin N+1.
-- [ ] 2.3 Tipos TypeScript para las 3 formas de retorno (métricas, alerta,
+- [x] 2.3 Tipos TypeScript para las 3 formas de retorno (métricas, alerta,
       evento de actividad) y para el shape ya resuelto que consume la UI.
 
 ## 3. Panel: layout compartido
 
-- [ ] 3.1 Componente de layout con sidebar (Home, Jugadores, Ranking,
+- [x] 3.1 Componente de layout con sidebar (Home, Jugadores, Ranking,
       Temáticas, Niveles, Preguntas/Desafíos — solo "Home" navega, el resto
       deshabilitado) y header (nombre del admin desde `profiles.nombre` +
       botón "Cerrar sesión" que llama `supabase.auth.signOut()` y redirige a
       `/login`).
-- [ ] 3.2 Envolver la ruta `/` (`Home`, ya protegida por `RequireAuth`) con
+- [x] 3.2 Envolver la ruta `/` (`Home`, ya protegida por `RequireAuth`) con
       el nuevo layout en `App.tsx`.
 
 ## 4. Panel: pantalla Home
 
-- [ ] 4.1 Fila de 4 tarjetas de métricas desde `metricas_home()` (jugadores
+- [x] 4.1 Fila de 4 tarjetas de métricas desde `metricas_home()` (jugadores
       totales, activos 7 días, partidas hoy, niveles publicados), sin
       selector de rango.
-- [ ] 4.2 Accesos rápidos (nueva temática, nuevo nivel, nuevo desafío)
+- [x] 4.2 Accesos rápidos (nueva temática, nuevo nivel, nuevo desafío)
       renderizados deshabilitados.
-- [ ] 4.3 Columna "Actividad reciente" desde `actividad_reciente()` +
+- [x] 4.3 Columna "Actividad reciente" desde `actividad_reciente()` +
       resolución de nombres (2.2), con estado vacío explícito.
-- [ ] 4.4 Columna "Alertas de contenido" desde `alertas_contenido()` +
+- [x] 4.4 Columna "Alertas de contenido" desde `alertas_contenido()` +
       resolución de nombres (2.2), con estado vacío explícito.
 
 ## 5. Tests y calidad
 
-- [ ] 5.1 Tests de la capa de datos (2.1/2.2) con el cliente Supabase
+- [x] 5.1 Tests de la capa de datos (2.1/2.2) con el cliente Supabase
       mockeado: parseo de las 3 RPC y resolución de nombres sin N+1.
-- [ ] 5.2 Tests de componente (Vitest + RTL) de Home: métricas, accesos
+- [x] 5.2 Tests de componente (Vitest + RTL) de Home: métricas, accesos
       rápidos deshabilitados, actividad/alertas con datos y con estado vacío.
-- [ ] 5.3 `npm run lint`, `npm run typecheck`, `npm run format:check`,
-      `npm run test:coverage` en `panel/`.
+      (Y de `PanelLayout`: nav con solo Home navegable, header con nombre del
+      admin y cierre de sesión.)
+- [x] 5.3 `npm run lint`, `npm run typecheck`, `npm run format:check`,
+      `npm run test:coverage` en `panel/` — todo verde (32/32 tests,
+      coverage del código nuevo 85-100%).
 
 ## 6. Cierre
 
