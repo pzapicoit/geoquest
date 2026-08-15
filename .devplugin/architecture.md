@@ -34,7 +34,7 @@ el rol del usuario autenticado.
 
 | Carpeta | Stack | Estado |
 |---|---|---|
-| `backend/` | Supabase CLI, SQL | esquema del juego (INT-74) + alta anónima y trigger de perfil (INT-75) + Storage de media de desafíos (INT-76) + RLS en todo el esquema del juego (INT-77) |
+| `backend/` | Supabase CLI, SQL | esquema del juego (INT-74) + alta anónima y trigger de perfil (INT-75) + Storage de media de desafíos (INT-76) + RLS en todo el esquema del juego (INT-77) + cálculo de distancia/puntaje al responder un desafío (INT-78) |
 | `app/` | Flutter 3.47 + `supabase_flutter` | sesión anónima automática en el arranque (INT-75), sin UI de juego |
 | `panel/` | web, pendiente de definir | pendiente (INT-80) |
 
