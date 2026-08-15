@@ -71,8 +71,9 @@ export function Home() {
         setActividad(actividadResult)
         setAlertas(alertasResult)
       })
-      .catch(() => {
+      .catch((cargaError: unknown) => {
         if (!isMounted) return
+        console.error('Error cargando el resumen del panel:', cargaError)
         setError('No se ha podido cargar el resumen del panel.')
       })
 
