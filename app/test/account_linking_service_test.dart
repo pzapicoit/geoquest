@@ -29,5 +29,14 @@ void main() {
       expect(result, isA<AccountLinkFailure>());
       expect((result as AccountLinkFailure).reason, contains('already linked'));
     });
+
+    test('no propaga excepciones inesperadas, las convierte en fallo', () async {
+      final auth = FakeAuthGateway()..throwOnNextCall = Exception('timeout de red');
+      final service = AccountLinkingService(auth);
+
+      final result = await service.link(OAuthProvider.google);
+
+      expect(result, isA<AccountLinkFailure>());
+    });
   });
 }

@@ -35,6 +35,8 @@ class AccountLinkingService {
       return const AccountLinkStarted();
     } on AuthException catch (error) {
       return AccountLinkFailure(error.message);
+    } catch (error) {
+      return AccountLinkFailure('No se pudo vincular la cuenta: $error');
     }
   }
 }
