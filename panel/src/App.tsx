@@ -3,6 +3,7 @@ import { RequireAuth } from './components/RequireAuth'
 import { PanelLayout } from './components/PanelLayout'
 import { Login } from './pages/Login'
 import { Home } from './pages/Home'
+import { Preguntas } from './pages/Preguntas'
 
 export function App() {
   return (
@@ -15,6 +16,16 @@ export function App() {
             <RequireAuth>
               <PanelLayout>
                 <Home />
+              </PanelLayout>
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/preguntas"
+          element={
+            <RequireAuth>
+              <PanelLayout>
+                <Preguntas />
               </PanelLayout>
             </RequireAuth>
           }

@@ -1,16 +1,16 @@
 import type { ReactNode } from 'react'
-import { Link } from 'react-router-dom'
+import { NavLink } from 'react-router-dom'
 import geoquestLogo from '../assets/geoquest-logo.png'
 import { supabase } from '../lib/supabaseClient'
 import { useAdminProfile } from '../lib/useAdminProfile'
 
 const NAV_ITEMS = [
-  { label: 'Home', enabled: true },
-  { label: 'Jugadores', enabled: false },
-  { label: 'Ranking', enabled: false },
-  { label: 'Temáticas', enabled: false },
-  { label: 'Niveles', enabled: false },
-  { label: 'Preguntas/Desafíos', enabled: false },
+  { label: 'Home', to: '/', enabled: true },
+  { label: 'Jugadores', to: '/', enabled: false },
+  { label: 'Ranking', to: '/', enabled: false },
+  { label: 'Temáticas', to: '/', enabled: false },
+  { label: 'Niveles', to: '/', enabled: false },
+  { label: 'Preguntas/Desafíos', to: '/preguntas', enabled: true },
 ]
 
 export function PanelLayout({ children }: { children: ReactNode }) {
@@ -40,13 +40,20 @@ export function PanelLayout({ children }: { children: ReactNode }) {
         <nav className="flex flex-col gap-0.5" aria-label="Navegación del panel">
           {NAV_ITEMS.map((item) =>
             item.enabled ? (
-              <Link
+              <NavLink
                 key={item.label}
-                to="/"
-                className="rounded-xl px-3.5 py-2.5 text-sm font-semibold text-white ring-1 ring-brand-teal/35 ring-inset bg-brand-teal/15"
+                to={item.to}
+                end={item.to === '/'}
+                className={({ isActive }) =>
+                  `rounded-xl px-3.5 py-2.5 text-sm font-semibold ${
+                    isActive
+                      ? 'bg-brand-teal/15 text-white ring-1 ring-brand-teal/35 ring-inset'
+                      : 'text-white/60 hover:bg-white/5 hover:text-white'
+                  }`
+                }
               >
                 {item.label}
-              </Link>
+              </NavLink>
             ) : (
               <span
                 key={item.label}
