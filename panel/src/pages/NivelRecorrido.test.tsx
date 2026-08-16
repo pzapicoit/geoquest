@@ -80,6 +80,15 @@ describe('NivelRecorrido — carga y configuración', () => {
     expect(screen.getByDisplayValue('40')).toBeInTheDocument()
   })
 
+  it('precarga el nombre del nivel cuando ya tiene uno asignado', async () => {
+    fetchNivelRecorrido.mockResolvedValue({ ...NIVEL, nombre: 'Costas del Mediterráneo' })
+    renderNivel()
+
+    expect(await screen.findByDisplayValue('Costas del Mediterráneo')).toBeInTheDocument()
+    const breadcrumb = screen.getByLabelText('Miga de pan')
+    expect(breadcrumb.textContent).toContain('Costas del Mediterráneo')
+  })
+
   it('muestra un error si falla la carga del nivel', async () => {
     fetchNivelRecorrido.mockRejectedValue(new Error('no encontrado'))
     renderNivel()
@@ -194,6 +203,32 @@ describe('NivelRecorrido — recorrido de preguntas', () => {
     await user.click(screen.getAllByLabelText('Subir posición')[1])
 
     expect(await screen.findByText('conflicto de orden')).toBeInTheDocument()
+    const nombres = screen.getAllByText(/^(Torre Eiffel|Coliseo)$/).map((el) => el.textContent)
+    expect(nombres).toEqual(['Torre Eiffel', 'Coliseo'])
+  })
+
+  it('bloquea quitar/añadir mientras hay un reorden en curso, y los desbloquea al terminar', async () => {
+    fetchNivelRecorrido.mockResolvedValue(NIVEL)
+    let resolverReorden: () => void = () => {}
+    reordenarRecorrido.mockReturnValue(
+      new Promise<void>((resolve) => {
+        resolverReorden = resolve
+      }),
+    )
+    const user = userEvent.setup()
+    renderNivel()
+
+    await screen.findByText('Torre Eiffel')
+    await user.click(screen.getAllByLabelText('Subir posición')[1])
+
+    const botonQuitar = screen.getAllByText('Quitar del recorrido')[0]
+    expect(botonQuitar).toBeDisabled()
+
+    await user.click(botonQuitar)
+    expect(quitarPreguntaDelRecorrido).not.toHaveBeenCalled()
+
+    resolverReorden()
+    await waitFor(() => expect(botonQuitar).not.toBeDisabled())
   })
 
   it('añade una pregunta existente desde el selector', async () => {

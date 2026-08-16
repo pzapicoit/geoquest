@@ -198,7 +198,14 @@ export async function agregarPreguntaAlRecorrido(
   const { error } = await supabase
     .from('nivel_desafios')
     .insert({ nivel_id: nivelId, desafio_id: desafioId, orden: maxOrden + 1 })
-  if (error) throw new Error(error.message)
+  if (!error) return
+
+  if (error.code === '23505') {
+    throw new Error(
+      'Otra persona ha modificado este recorrido a la vez. Recarga la página e inténtalo de nuevo.',
+    )
+  }
+  throw new Error(error.message)
 }
 
 export async function reordenarRecorrido(nivelId: string, idsEnOrden: string[]): Promise<void> {

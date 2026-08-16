@@ -293,6 +293,23 @@ describe('agregarPreguntaAlRecorrido', () => {
 
     expect(insert).toHaveBeenCalledWith({ nivel_id: 'n-1', desafio_id: 'd-9', orden: 1 })
   })
+
+  it('da un mensaje amigable si el orden entra en conflicto por una inserción concurrente (23505)', async () => {
+    from.mockImplementation((table: string) => {
+      if (table === 'nivel_desafios') {
+        return {
+          select: () => ({ eq: () => Promise.resolve({ data: [{ orden: 1 }], error: null }) }),
+          insert: () =>
+            Promise.resolve({ error: { code: '23505', message: 'duplicate key value' } }),
+        }
+      }
+      throw new Error(`tabla inesperada: ${table}`)
+    })
+
+    await expect(agregarPreguntaAlRecorrido('n-1', 'd-9')).rejects.toThrow(
+      /otra persona ha modificado este recorrido/i,
+    )
+  })
 })
 
 describe('reordenarRecorrido', () => {

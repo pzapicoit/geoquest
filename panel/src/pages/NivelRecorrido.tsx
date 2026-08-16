@@ -121,7 +121,8 @@ function Miniatura({ pregunta }: { pregunta: { tipo: TipoDesafio; imagenUrl: str
 }
 
 function nombreNivel(nivel: Pick<NivelRecorridoData, 'nombre' | 'orden'>): string {
-  return nivel.nombre?.trim() ? nivel.nombre : `Nivel ${nivel.orden}`
+  const nombre = nivel.nombre?.trim()
+  return nombre ? nombre : `Nivel ${nivel.orden}`
 }
 
 function EstadoVacioRecorrido({ onAnadir }: { onAnadir: () => void }) {
@@ -158,6 +159,7 @@ function SelectorPreguntas({
   preguntas,
   error,
   agregandoId,
+  bloqueado,
   query,
   onQueryChange,
   onAgregar,
@@ -165,6 +167,7 @@ function SelectorPreguntas({
   preguntas: PreguntaBanco[] | null
   error: string
   agregandoId: string | null
+  bloqueado: boolean
   query: string
   onQueryChange: (query: string) => void
   onAgregar: (pregunta: PreguntaBanco) => void
@@ -218,7 +221,7 @@ function SelectorPreguntas({
               key={p.id}
               type="button"
               onClick={() => onAgregar(p)}
-              disabled={agregandoId === p.id}
+              disabled={agregandoId === p.id || bloqueado}
               className="flex w-full items-center gap-3 border-b border-brand-base px-3.5 py-2.5 text-left last:border-0 hover:bg-[#F8FBFC] disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Miniatura pregunta={p} />
@@ -247,6 +250,7 @@ function FilaPregunta({
   total,
   error,
   quitando,
+  bloqueado,
   arrastrando,
   onDragStart,
   onDragOver,
@@ -259,6 +263,7 @@ function FilaPregunta({
   total: number
   error?: string
   quitando: boolean
+  bloqueado: boolean
   arrastrando: boolean
   onDragStart: () => void
   onDragOver: (e: DragEvent<HTMLTableRowElement>) => void
@@ -268,7 +273,7 @@ function FilaPregunta({
 }) {
   return (
     <tr
-      draggable
+      draggable={!bloqueado}
       onDragStart={onDragStart}
       onDragOver={onDragOver}
       onDrop={onDrop}
@@ -300,7 +305,7 @@ function FilaPregunta({
           <button
             type="button"
             onClick={() => onMover(-1)}
-            disabled={index === 0}
+            disabled={index === 0 || bloqueado}
             aria-label="Subir posición"
             title="Subir posición"
             className="flex h-8 w-8 items-center justify-center rounded-lg border-[1.5px] border-brand-border text-brand-night/60 hover:border-brand-blue hover:text-brand-blue disabled:cursor-not-allowed disabled:opacity-30"
@@ -310,7 +315,7 @@ function FilaPregunta({
           <button
             type="button"
             onClick={() => onMover(1)}
-            disabled={index === total - 1}
+            disabled={index === total - 1 || bloqueado}
             aria-label="Bajar posición"
             title="Bajar posición"
             className="flex h-8 w-8 items-center justify-center rounded-lg border-[1.5px] border-brand-border text-brand-night/60 hover:border-brand-blue hover:text-brand-blue disabled:cursor-not-allowed disabled:opacity-30"
@@ -320,7 +325,7 @@ function FilaPregunta({
           <button
             type="button"
             onClick={onQuitar}
-            disabled={quitando}
+            disabled={quitando || bloqueado}
             title="Quitar del recorrido"
             className="rounded-lg border-[1.5px] border-brand-border px-3 py-2 text-xs font-semibold text-brand-night/60 hover:border-brand-error hover:text-brand-error disabled:cursor-not-allowed disabled:opacity-40"
           >
@@ -355,6 +360,10 @@ export function NivelRecorrido() {
   const [quitandoIds, setQuitandoIds] = useState<Set<string>>(new Set())
   const [errorOrden, setErrorOrden] = useState('')
   const [dragIndex, setDragIndex] = useState<number | null>(null)
+  // Serializa reordenar/quitar/añadir: sin este flag, una operación que falla
+  // puede revertir al estado anterior a otra que ya se resolvió mientras
+  // tanto (revisión adversarial de INT-84).
+  const [operandoRecorrido, setOperandoRecorrido] = useState(false)
 
   const [mostrarSelector, setMostrarSelector] = useState(false)
   const [preguntasBanco, setPreguntasBanco] = useState<PreguntaBanco[] | null>(null)
@@ -434,23 +443,29 @@ export function NivelRecorrido() {
   }
 
   function persistirOrden(nuevoOrden: PreguntaRecorrido[]) {
+    if (operandoRecorrido) return
+
     const anterior = preguntas
     const renumeradas = nuevoOrden.map((p, i) => ({ ...p, orden: i + 1 }))
     setPreguntas(renumeradas)
     setErrorOrden('')
+    setOperandoRecorrido(true)
 
     reordenarRecorrido(
       nivelId,
       renumeradas.map((p) => p.desafioId),
-    ).catch((error: unknown) => {
-      setPreguntas(anterior)
-      setErrorOrden(
-        error instanceof Error ? error.message : 'No se ha podido reordenar el recorrido.',
-      )
-    })
+    )
+      .catch((error: unknown) => {
+        setPreguntas(anterior)
+        setErrorOrden(
+          error instanceof Error ? error.message : 'No se ha podido reordenar el recorrido.',
+        )
+      })
+      .finally(() => setOperandoRecorrido(false))
   }
 
   function handleMover(index: number, delta: number) {
+    if (operandoRecorrido) return
     const destino = index + delta
     if (destino < 0 || destino >= preguntas.length) return
     const reordenadas = [...preguntas]
@@ -460,7 +475,7 @@ export function NivelRecorrido() {
   }
 
   function handleDrop(index: number) {
-    if (dragIndex === null || dragIndex === index) {
+    if (dragIndex === null || dragIndex === index || operandoRecorrido) {
       setDragIndex(null)
       return
     }
@@ -472,7 +487,7 @@ export function NivelRecorrido() {
   }
 
   async function handleQuitar(pregunta: PreguntaRecorrido) {
-    if (quitandoIds.has(pregunta.desafioId)) return
+    if (quitandoIds.has(pregunta.desafioId) || operandoRecorrido) return
 
     const confirmado = window.confirm(
       `¿Quitar "${pregunta.nombreLugar}" del recorrido? Seguirá disponible en el banco de preguntas.`,
@@ -480,6 +495,7 @@ export function NivelRecorrido() {
     if (!confirmado) return
 
     setQuitandoIds((actual) => new Set(actual).add(pregunta.desafioId))
+    setOperandoRecorrido(true)
     try {
       await quitarPreguntaDelRecorrido(nivelId, pregunta.desafioId)
       setPreguntas((actual) =>
@@ -505,6 +521,7 @@ export function NivelRecorrido() {
         siguiente.delete(pregunta.desafioId)
         return siguiente
       })
+      setOperandoRecorrido(false)
     }
   }
 
@@ -521,9 +538,10 @@ export function NivelRecorrido() {
   }
 
   async function handleAgregar(pregunta: PreguntaBanco) {
-    if (agregandoId) return
+    if (agregandoId || operandoRecorrido) return
 
     setAgregandoId(pregunta.id)
+    setOperandoRecorrido(true)
     try {
       await agregarPreguntaAlRecorrido(nivelId, pregunta.id)
       setPreguntas((actual) => [
@@ -541,6 +559,7 @@ export function NivelRecorrido() {
       setErrorBanco(error instanceof Error ? error.message : 'No se ha podido añadir la pregunta.')
     } finally {
       setAgregandoId(null)
+      setOperandoRecorrido(false)
     }
   }
 
@@ -680,6 +699,7 @@ export function NivelRecorrido() {
           preguntas={preguntasBanco}
           error={errorBanco}
           agregandoId={agregandoId}
+          bloqueado={operandoRecorrido}
           query={queryBanco}
           onQueryChange={setQueryBanco}
           onAgregar={handleAgregar}
@@ -715,6 +735,7 @@ export function NivelRecorrido() {
                     total={preguntas.length}
                     error={rowErrors[pregunta.desafioId]}
                     quitando={quitandoIds.has(pregunta.desafioId)}
+                    bloqueado={operandoRecorrido}
                     arrastrando={dragIndex === index}
                     onDragStart={() => setDragIndex(index)}
                     onDragOver={(e) => e.preventDefault()}
