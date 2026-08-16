@@ -413,8 +413,19 @@ export function NivelRecorrido() {
     e.preventDefault()
     if (guardandoConfig) return
 
+    if (
+      Number.isNaN(numeros.puntajeMinimo) ||
+      Number.isNaN(numeros.umbral1) ||
+      Number.isNaN(numeros.umbral2) ||
+      Number.isNaN(numeros.umbral3)
+    ) {
+      setErrorConfig('El puntaje mínimo y los umbrales deben ser números.')
+      return
+    }
+
+    const nombreTrim = nombre.trim()
     const config = {
-      nombre: nombre.trim() ? nombre.trim() : null,
+      nombre: nombreTrim ? nombreTrim : null,
       puntajeMinimoSuperar: numeros.puntajeMinimo,
       umbralEstrella1: numeros.umbral1,
       umbralEstrella2: numeros.umbral2,
