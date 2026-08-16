@@ -7,7 +7,7 @@ import '../services/auth_gateway.dart';
 import '../services/device_id_service.dart';
 import '../services/username_storage.dart';
 import 'topics_map_placeholder_screen.dart';
-import 'username_placeholder_screen.dart';
+import 'username_screen.dart';
 
 /// Pantalla de carga inicial (INT-88).
 ///
@@ -84,7 +84,7 @@ class _SplashScreenState extends State<SplashScreen> {
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
         builder: (_) => username == null
-            ? const UsernamePlaceholderScreen()
+            ? const UsernameScreen()
             : const TopicsMapPlaceholderScreen(),
       ),
     );
