@@ -32,6 +32,14 @@ Future<void> _pump(
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.reset);
 
+  // El hero anima el logo/wordmark y hace flotar las insignias en bucle
+  // infinito; sin esto, pumpAndSettle() nunca terminaría de asentar.
+  tester.platformDispatcher.accessibilityFeaturesTestValue =
+      const FakeAccessibilityFeatures(disableAnimations: true);
+  addTearDown(
+    () => tester.platformDispatcher.clearAccessibilityFeaturesTestValue(),
+  );
+
   await tester.pumpWidget(
     _pantalla(profileGateway: profileGateway, usernameStorage: usernameStorage),
   );

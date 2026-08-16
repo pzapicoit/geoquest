@@ -302,9 +302,92 @@ class _UsernameScreenState extends State<UsernameScreen> {
 }
 
 /// Cabecera de marca: degradado a todo lo ancho con el logo, el wordmark y
-/// dos insignias decorativas, tal como en el diseño de Claude Design.
-class _Hero extends StatelessWidget {
+/// dos insignias decorativas, tal como en el diseño de Claude Design. El
+/// logo aparece con un "pop", el wordmark sube con fade (`gq-rise`/`gq-pop`
+/// del diseño) y las dos insignias flotan en bucle (`gq-float`).
+class _Hero extends StatefulWidget {
   const _Hero();
+
+  @override
+  State<_Hero> createState() => _HeroState();
+}
+
+class _HeroState extends State<_Hero> with TickerProviderStateMixin {
+  // Respeta "reducir movimiento" del sistema — y de paso evita que los
+  // widget tests se cuelguen en pumpAndSettle() con animaciones infinitas.
+  final bool _reduceMotion = WidgetsBinding
+      .instance
+      .platformDispatcher
+      .accessibilityFeatures
+      .disableAnimations;
+
+  late final AnimationController _logoController = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 800),
+    value: _reduceMotion ? 1 : 0,
+  );
+  late final AnimationController _wordmarkController = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 700),
+    value: _reduceMotion ? 1 : 0,
+  );
+  late final AnimationController _badge1Controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 2800),
+  );
+  late final AnimationController _badge2Controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 3300),
+  );
+
+  late final Animation<double> _logoScale = TweenSequence<double>([
+    TweenSequenceItem(tween: Tween(begin: 0.84, end: 1.04), weight: 60),
+    TweenSequenceItem(tween: Tween(begin: 1.04, end: 1.0), weight: 40),
+  ]).animate(CurvedAnimation(parent: _logoController, curve: Curves.easeOut));
+
+  late final Animation<double> _logoOpacity = CurvedAnimation(
+    parent: _logoController,
+    curve: const Interval(0, 0.6),
+  );
+
+  late final Animation<double> _wordmarkRise = Tween<double>(begin: 14, end: 0)
+      .animate(
+        CurvedAnimation(parent: _wordmarkController, curve: Curves.easeOut),
+      );
+
+  late final Animation<double> _badgeFloat1 = Tween<double>(begin: 0, end: -11)
+      .animate(
+        CurvedAnimation(parent: _badge1Controller, curve: Curves.easeInOut),
+      );
+
+  late final Animation<double> _badgeFloat2 = Tween<double>(begin: 0, end: -11)
+      .animate(
+        CurvedAnimation(parent: _badge2Controller, curve: Curves.easeInOut),
+      );
+
+  @override
+  void initState() {
+    super.initState();
+    if (_reduceMotion) return;
+
+    _logoController.forward();
+    Future.delayed(const Duration(milliseconds: 120), () {
+      if (mounted) _wordmarkController.forward();
+    });
+    _badge1Controller.repeat(reverse: true);
+    Future.delayed(const Duration(milliseconds: 700), () {
+      if (mounted) _badge2Controller.repeat(reverse: true);
+    });
+  }
+
+  @override
+  void dispose() {
+    _logoController.dispose();
+    _wordmarkController.dispose();
+    _badge1Controller.dispose();
+    _badge2Controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -330,26 +413,40 @@ class _Hero extends StatelessWidget {
             Positioned(
               top: badgeTop,
               left: 8,
-              child: Transform.rotate(
-                angle: -0.08,
-                child: const _FloatingBadge(
-                  label: '✦ 42 CIUDADES',
-                  background: Color(0x2AFFFFFF),
-                  border: Color(0x57FFFFFF),
-                  textColor: Colors.white,
+              child: AnimatedBuilder(
+                animation: _badgeFloat1,
+                builder: (context, child) => Transform.translate(
+                  offset: Offset(0, _badgeFloat1.value),
+                  child: child,
+                ),
+                child: Transform.rotate(
+                  angle: -0.08,
+                  child: const _FloatingBadge(
+                    label: '✦ 42 CIUDADES',
+                    background: Color(0x2AFFFFFF),
+                    border: Color(0x57FFFFFF),
+                    textColor: Colors.white,
+                  ),
                 ),
               ),
             ),
             Positioned(
               top: _heroHeight - _cardOverlap - 54,
               right: 8,
-              child: Transform.rotate(
-                angle: 0.08,
-                child: const _FloatingBadge(
-                  label: '+120 PTS',
-                  background: Color(0x38FFC53D),
-                  border: Color(0x99FFC53D),
-                  textColor: Color(0xFFFFF3D1),
+              child: AnimatedBuilder(
+                animation: _badgeFloat2,
+                builder: (context, child) => Transform.translate(
+                  offset: Offset(0, _badgeFloat2.value),
+                  child: child,
+                ),
+                child: Transform.rotate(
+                  angle: 0.08,
+                  child: const _FloatingBadge(
+                    label: '+120 PTS',
+                    background: Color(0x38FFC53D),
+                    border: Color(0x99FFC53D),
+                    textColor: Color(0xFFFFF3D1),
+                  ),
                 ),
               ),
             ),
@@ -357,39 +454,58 @@ class _Hero extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Container(
-                    width: 76,
-                    height: 76,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(19),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFF092D4A)
-                              .withValues(alpha: 0.42),
-                          blurRadius: 24,
-                          offset: const Offset(0, 10),
+                  FadeTransition(
+                    opacity: _logoOpacity,
+                    child: ScaleTransition(
+                      scale: _logoScale,
+                      child: Container(
+                        width: 76,
+                        height: 76,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(19),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF092D4A)
+                                  .withValues(alpha: 0.42),
+                              blurRadius: 24,
+                              offset: const Offset(0, 10),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(19),
-                      child: Image.asset(
-                        'assets/branding/geoquest-logo.png',
-                        fit: BoxFit.cover,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(19),
+                          child: Image.asset(
+                            'assets/branding/geoquest-logo.png',
+                            fit: BoxFit.cover,
+                          ),
+                        ),
                       ),
                     ),
                   ),
                   const SizedBox(height: 12),
-                  const Text(
-                    'GeoQuest',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 26,
-                      letterSpacing: -0.4,
-                      color: Colors.white,
-                      shadows: [
-                        Shadow(color: Color(0x470B4266), offset: Offset(0, 3)),
-                      ],
+                  AnimatedBuilder(
+                    animation: _wordmarkController,
+                    builder: (context, child) => Opacity(
+                      opacity: _wordmarkController.value,
+                      child: Transform.translate(
+                        offset: Offset(0, _wordmarkRise.value),
+                        child: child,
+                      ),
+                    ),
+                    child: const Text(
+                      'GeoQuest',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 26,
+                        letterSpacing: -0.4,
+                        color: Colors.white,
+                        shadows: [
+                          Shadow(
+                            color: Color(0x470B4266),
+                            offset: Offset(0, 3),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ],

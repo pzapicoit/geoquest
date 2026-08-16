@@ -45,6 +45,20 @@ Session _fakeSession() => Session(
 void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues({});
+    // Varios tests navegan a UsernameScreen, cuya cabecera anima el
+    // logo/wordmark y hace flotar insignias en bucle infinito; sin esto,
+    // pumpAndSettle() nunca terminaría de asentar.
+    TestWidgetsFlutterBinding
+        .instance
+        .platformDispatcher
+        .accessibilityFeaturesTestValue = const FakeAccessibilityFeatures(
+      disableAnimations: true,
+    );
+  });
+
+  tearDown(() {
+    TestWidgetsFlutterBinding.instance.platformDispatcher
+        .clearAccessibilityFeaturesTestValue();
   });
 
   testWidgets('muestra el logo y la marca de GeoQuest mientras carga', (
