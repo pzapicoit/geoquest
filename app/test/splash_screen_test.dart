@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:geoquest/config/app_config.dart';
 import 'package:geoquest/screens/splash_screen.dart';
 import 'package:geoquest/screens/topics_map_placeholder_screen.dart';
-import 'package:geoquest/screens/username_placeholder_screen.dart';
+import 'package:geoquest/screens/username_screen.dart';
 import 'package:geoquest/services/anonymous_session_service.dart';
 import 'package:geoquest/services/device_id_service.dart';
 import 'package:geoquest/services/username_storage.dart';
@@ -97,7 +97,7 @@ void main() {
       await tester.pumpWidget(_pantalla(service: service));
       await tester.pumpAndSettle();
 
-      expect(find.byType(UsernamePlaceholderScreen), findsOneWidget);
+      expect(find.byType(UsernameScreen), findsOneWidget);
     },
   );
 
@@ -152,7 +152,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(auth.signInAnonymouslyCalls, 2);
-    expect(find.byType(UsernamePlaceholderScreen), findsOneWidget);
+    expect(find.byType(UsernameScreen), findsOneWidget);
   });
 
   testWidgets(
@@ -173,10 +173,10 @@ void main() {
       // La sesión resuelve casi al instante, pero el mínimo aún no se cumple.
       await tester.pump(const Duration(milliseconds: 100));
       expect(find.byType(SplashScreen), findsOneWidget);
-      expect(find.byType(UsernamePlaceholderScreen), findsNothing);
+      expect(find.byType(UsernameScreen), findsNothing);
 
       await tester.pumpAndSettle();
-      expect(find.byType(UsernamePlaceholderScreen), findsOneWidget);
+      expect(find.byType(UsernameScreen), findsOneWidget);
     },
   );
 }
