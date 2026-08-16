@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../services/profile_gateway.dart';
@@ -159,9 +160,9 @@ class _UsernameScreenState extends State<UsernameScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         '¿Cómo te llamamos?',
-                        style: TextStyle(
+                        style: GoogleFonts.baloo2(
                           fontSize: 32,
                           fontWeight: FontWeight.w800,
                           color: _ink,
@@ -173,7 +174,7 @@ class _UsernameScreenState extends State<UsernameScreen> {
                       Text(
                         'Elige un apodo para aparecer en el marcador. Puedes '
                         'cambiarlo cuando quieras.',
-                        style: TextStyle(
+                        style: GoogleFonts.outfit(
                           fontSize: 15,
                           color: _ink.withValues(alpha: 0.6),
                           height: 1.35,
@@ -191,7 +192,7 @@ class _UsernameScreenState extends State<UsernameScreen> {
                         const SizedBox(height: 8),
                         Text(
                           'Mínimo ${UsernameScreen.minLength} caracteres',
-                          style: const TextStyle(
+                          style: GoogleFonts.outfit(
                             fontSize: 12.5,
                             color: Colors.redAccent,
                           ),
@@ -205,7 +206,7 @@ class _UsernameScreenState extends State<UsernameScreen> {
                             child: Text(
                               'Sin contraseñas. Podrás vincular una cuenta '
                               'más adelante para no perder tu progreso.',
-                              style: TextStyle(
+                              style: GoogleFonts.outfit(
                                 fontSize: 12.5,
                                 color: _ink.withValues(alpha: 0.5),
                                 height: 1.35,
@@ -219,7 +220,7 @@ class _UsernameScreenState extends State<UsernameScreen> {
                           Text(
                             '${_controller.text.length}/${UsernameScreen.maxLength}',
                             key: const Key('nickname-counter'),
-                            style: TextStyle(
+                            style: GoogleFonts.outfit(
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
                               color: _ink.withValues(alpha: 0.35),
@@ -230,7 +231,7 @@ class _UsernameScreenState extends State<UsernameScreen> {
                       const SizedBox(height: 22),
                       Text(
                         'O PRUEBA UNO DE ESTOS',
-                        style: TextStyle(
+                        style: GoogleFonts.outfit(
                           fontSize: 10,
                           fontWeight: FontWeight.w600,
                           letterSpacing: 1.6,
@@ -253,7 +254,7 @@ class _UsernameScreenState extends State<UsernameScreen> {
                         const SizedBox(height: 22),
                         Text(
                           _errorMessage!,
-                          style: const TextStyle(
+                          style: GoogleFonts.outfit(
                             color: Colors.redAccent,
                             fontSize: 13,
                           ),
@@ -273,7 +274,7 @@ class _UsernameScreenState extends State<UsernameScreen> {
                           child: Text.rich(
                             TextSpan(
                               text: '¿Ya tienes una cuenta? ',
-                              style: TextStyle(
+                              style: GoogleFonts.outfit(
                                 fontSize: 13.5,
                                 color: _ink.withValues(alpha: 0.42),
                               ),
@@ -339,6 +340,11 @@ class _HeroState extends State<_Hero> with TickerProviderStateMixin {
     vsync: this,
     duration: const Duration(milliseconds: 3300),
   );
+  late final AnimationController _routeController = AnimationController(
+    vsync: this,
+    duration: const Duration(seconds: 10),
+    value: _reduceMotion ? 1 : 0,
+  );
 
   late final Animation<double> _logoScale = TweenSequence<double>([
     TweenSequenceItem(tween: Tween(begin: 0.84, end: 1.04), weight: 60),
@@ -378,6 +384,7 @@ class _HeroState extends State<_Hero> with TickerProviderStateMixin {
     Future.delayed(const Duration(milliseconds: 700), () {
       if (mounted) _badge2Controller.repeat(reverse: true);
     });
+    _routeController.repeat();
   }
 
   @override
@@ -386,6 +393,7 @@ class _HeroState extends State<_Hero> with TickerProviderStateMixin {
     _wordmarkController.dispose();
     _badge1Controller.dispose();
     _badge2Controller.dispose();
+    _routeController.dispose();
     super.dispose();
   }
 
@@ -410,6 +418,14 @@ class _HeroState extends State<_Hero> with TickerProviderStateMixin {
         ),
         child: Stack(
           children: [
+            Positioned.fill(
+              child: AnimatedBuilder(
+                animation: _routeController,
+                builder: (context, child) => CustomPaint(
+                  painter: _RoutesPainter(phase: -300 * _routeController.value),
+                ),
+              ),
+            ),
             Positioned(
               top: badgeTop,
               left: 8,
@@ -492,14 +508,14 @@ class _HeroState extends State<_Hero> with TickerProviderStateMixin {
                         child: child,
                       ),
                     ),
-                    child: const Text(
+                    child: Text(
                       'GeoQuest',
-                      style: TextStyle(
+                      style: GoogleFonts.baloo2(
                         fontWeight: FontWeight.w800,
                         fontSize: 26,
                         letterSpacing: -0.4,
                         color: Colors.white,
-                        shadows: [
+                        shadows: const [
                           Shadow(
                             color: Color(0x470B4266),
                             offset: Offset(0, 3),
@@ -515,6 +531,86 @@ class _HeroState extends State<_Hero> with TickerProviderStateMixin {
         ),
       ),
     );
+  }
+}
+
+/// Las dos rutas de fondo del hero, sobre un lienzo de 390x328 (el viewBox
+/// del diseño): una fluye (se desplaza el patrón de guiones), la otra es
+/// fija. `phase` desplaza el guión de la ruta que fluye.
+class _RoutesPainter extends CustomPainter {
+  const _RoutesPainter({required this.phase});
+
+  final double phase;
+
+  static final Path _flowPath = Path()
+    ..moveTo(-10, 250)
+    ..cubicTo(70, 210, 110, 250, 170, 200)
+    ..cubicTo(230, 150, 300, 150, 400, 190);
+
+  static final Path _staticPath = Path()
+    ..moveTo(-20, 120)
+    ..cubicTo(60, 150, 130, 90, 210, 120)
+    ..cubicTo(290, 150, 340, 60, 410, 100);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.save();
+    canvas.scale(size.width / 390, size.height / 328);
+
+    canvas.drawPath(
+      _dashedPath(_staticPath, on: 6, off: 12, phase: 0),
+      Paint()
+        ..color = Colors.white.withValues(alpha: 0.16)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2
+        ..strokeCap = StrokeCap.round,
+    );
+
+    canvas.drawPath(
+      _dashedPath(_flowPath, on: 9, off: 13, phase: phase),
+      Paint()
+        ..color = Colors.white.withValues(alpha: 0.42)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.5
+        ..strokeCap = StrokeCap.round,
+    );
+
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant _RoutesPainter oldDelegate) =>
+      oldDelegate.phase != phase;
+
+  static Path _dashedPath(
+    Path source, {
+    required double on,
+    required double off,
+    required double phase,
+  }) {
+    final dest = Path();
+    final cycle = on + off;
+    var normalizedPhase = phase % cycle;
+    if (normalizedPhase < 0) normalizedPhase += cycle;
+
+    for (final metric in source.computeMetrics()) {
+      var distance = -normalizedPhase;
+      var drawing = normalizedPhase < on;
+      while (distance < metric.length) {
+        final segmentLength = drawing ? on : off;
+        final segmentEnd = distance + segmentLength;
+        if (drawing) {
+          final start = distance.clamp(0.0, metric.length);
+          final end = segmentEnd.clamp(0.0, metric.length);
+          if (end > start) {
+            dest.addPath(metric.extractPath(start, end), Offset.zero);
+          }
+        }
+        distance = segmentEnd;
+        drawing = !drawing;
+      }
+    }
+    return dest;
   }
 }
 
@@ -542,7 +638,7 @@ class _FloatingBadge extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: TextStyle(
+        style: GoogleFonts.outfit(
           fontSize: 9.5,
           fontWeight: FontWeight.w600,
           letterSpacing: 0.6,
@@ -596,11 +692,15 @@ class _NicknameField extends StatelessWidget {
                 required isFocused,
                 maxLength,
               }) => null,
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-              decoration: const InputDecoration(
+              style: GoogleFonts.outfit(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+              ),
+              decoration: InputDecoration(
                 border: InputBorder.none,
                 hintText: 'Tu nombre de jugador',
-                contentPadding: EdgeInsets.symmetric(vertical: 14),
+                hintStyle: GoogleFonts.outfit(),
+                contentPadding: const EdgeInsets.symmetric(vertical: 14),
               ),
             ),
           ),
@@ -639,7 +739,7 @@ class _SuggestionChip extends StatelessWidget {
         shape: const StadiumBorder(),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       ),
-      child: Text(label, style: const TextStyle(fontSize: 13)),
+      child: Text(label, style: GoogleFonts.outfit(fontSize: 13)),
     );
   }
 }
@@ -704,9 +804,9 @@ class _StartButton extends StatelessWidget {
                     color: Colors.white,
                   ),
                 )
-              : const Text(
+              : Text(
                   'Empezar a jugar',
-                  style: TextStyle(
+                  style: GoogleFonts.baloo2(
                     color: Colors.white,
                     fontSize: 20,
                     fontWeight: FontWeight.w800,
