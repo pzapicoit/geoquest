@@ -1,0 +1,151 @@
+import { supabase } from './supabaseClient'
+
+export interface Tematica {
+  id: string
+  nombre: string
+  imagenPortada: string
+  orden: number
+  estrellasRequeridas: number
+  activo: boolean
+  cantidadNiveles: number
+}
+
+interface TematicaRow {
+  id: string
+  nombre: string
+  imagen_portada: string
+  orden: number
+  estrellas_requeridas: number
+  activo: boolean
+}
+
+interface NivelRow {
+  tematica_id: string
+}
+
+export async function fetchTematicas(): Promise<Tematica[]> {
+  const [{ data: tematicas, error: tematicasError }, { data: niveles, error: nivelesError }] =
+    await Promise.all([
+      supabase
+        .from('tematicas')
+        .select('id, nombre, imagen_portada, orden, estrellas_requeridas, activo')
+        .order('orden', { ascending: true }),
+      supabase.from('niveles').select('tematica_id'),
+    ])
+  if (tematicasError) throw tematicasError
+  if (nivelesError) throw nivelesError
+
+  const cantidadPorTematica = new Map<string, number>()
+  for (const nivel of (niveles ?? []) as NivelRow[]) {
+    cantidadPorTematica.set(
+      nivel.tematica_id,
+      (cantidadPorTematica.get(nivel.tematica_id) ?? 0) + 1,
+    )
+  }
+
+  return ((tematicas ?? []) as TematicaRow[]).map((tematica) => ({
+    id: tematica.id,
+    nombre: tematica.nombre,
+    imagenPortada: tematica.imagen_portada,
+    orden: tematica.orden,
+    estrellasRequeridas: tematica.estrellas_requeridas,
+    activo: tematica.activo,
+    cantidadNiveles: cantidadPorTematica.get(tematica.id) ?? 0,
+  }))
+}
+
+const MAX_PORTADA_BYTES = 4 * 1024 * 1024
+const MIME_PERMITIDOS_PORTADA = ['image/jpeg', 'image/png']
+const EXTENSION_POR_MIME: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+}
+
+export function validarImagenPortada(file: File): string | null {
+  if (!MIME_PERMITIDOS_PORTADA.includes(file.type)) {
+    return 'La portada debe ser JPG o PNG.'
+  }
+  if (file.size > MAX_PORTADA_BYTES) {
+    return 'El archivo supera el tamaño máximo de 4 MB.'
+  }
+  return null
+}
+
+export async function subirPortadaTematica(id: string, file: File): Promise<string> {
+  const extension = EXTENSION_POR_MIME[file.type] ?? file.name.split('.').pop() ?? 'bin'
+  const ruta = `tematicas/${id}.${extension}`
+
+  const { error } = await supabase.storage
+    .from('challenge-media')
+    .upload(ruta, file, { upsert: true, contentType: file.type })
+  if (error) throw new Error(error.message)
+
+  const { data } = supabase.storage.from('challenge-media').getPublicUrl(ruta)
+  return data.publicUrl
+}
+
+export interface GuardarTematicaInput {
+  id: string | null
+  nombre: string
+  estrellasRequeridas: number
+  activo: boolean
+  esPrimera: boolean
+  archivo: File | null
+  imagenPortadaActual: string | null
+}
+
+export async function guardarTematica(input: GuardarTematicaInput): Promise<{ id: string }> {
+  const id = input.id ?? crypto.randomUUID()
+
+  let imagenPortada = input.imagenPortadaActual
+  if (input.archivo) {
+    imagenPortada = await subirPortadaTematica(id, input.archivo)
+  }
+  if (!imagenPortada) {
+    throw new Error('La temática necesita una imagen de portada.')
+  }
+
+  const estrellasRequeridas = input.esPrimera ? 0 : input.estrellasRequeridas
+
+  if (input.id) {
+    const { error } = await supabase
+      .from('tematicas')
+      .update({
+        nombre: input.nombre,
+        imagen_portada: imagenPortada,
+        estrellas_requeridas: estrellasRequeridas,
+        activo: input.activo,
+      })
+      .eq('id', input.id)
+    if (error) throw new Error(error.message)
+    return { id }
+  }
+
+  const { data: existentes, error: ordenError } = await supabase.from('tematicas').select('orden')
+  if (ordenError) throw new Error(ordenError.message)
+
+  const siguienteOrden =
+    Math.max(0, ...((existentes ?? []) as { orden: number }[]).map((t) => t.orden)) + 1
+
+  const { error } = await supabase.from('tematicas').insert({
+    id,
+    nombre: input.nombre,
+    imagen_portada: imagenPortada,
+    orden: siguienteOrden,
+    estrellas_requeridas: estrellasRequeridas,
+    activo: input.activo,
+  })
+  if (error) throw new Error(error.message)
+
+  return { id }
+}
+
+export async function eliminarTematica(id: string): Promise<void> {
+  const { error } = await supabase.from('tematicas').delete().eq('id', id)
+  if (error) throw new Error(error.message)
+}
+
+export async function reordenarTematicas(idsEnOrden: string[]): Promise<void> {
+  const { error } = await supabase.rpc('reordenar_tematicas', { ids_en_orden: idsEnOrden })
+  if (error) throw new Error(error.message)
+}

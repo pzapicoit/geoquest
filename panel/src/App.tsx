@@ -6,6 +6,7 @@ import { Home } from './pages/Home'
 import { Preguntas } from './pages/Preguntas'
 import { PreguntaForm } from './pages/PreguntaForm'
 import { NivelRecorrido } from './pages/NivelRecorrido'
+import { Tematicas } from './pages/Tematicas'
 
 export function App() {
   return (
@@ -18,6 +19,16 @@ export function App() {
             <RequireAuth>
               <PanelLayout>
                 <Home />
+              </PanelLayout>
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/tematicas"
+          element={
+            <RequireAuth>
+              <PanelLayout>
+                <Tematicas />
               </PanelLayout>
             </RequireAuth>
           }
