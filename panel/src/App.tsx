@@ -7,6 +7,7 @@ import { Preguntas } from './pages/Preguntas'
 import { PreguntaForm } from './pages/PreguntaForm'
 import { NivelRecorrido } from './pages/NivelRecorrido'
 import { Tematicas } from './pages/Tematicas'
+import { NivelesTematica } from './pages/NivelesTematica'
 
 export function App() {
   return (
@@ -29,6 +30,16 @@ export function App() {
             <RequireAuth>
               <PanelLayout>
                 <Tematicas />
+              </PanelLayout>
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/tematicas/:id/niveles"
+          element={
+            <RequireAuth>
+              <PanelLayout>
+                <NivelesTematica />
               </PanelLayout>
             </RequireAuth>
           }

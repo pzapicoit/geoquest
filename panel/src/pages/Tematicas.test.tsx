@@ -83,13 +83,12 @@ describe('Tematicas — listado', () => {
     expect(screen.getAllByText('Activa')).toHaveLength(2)
   })
 
-  it('el nombre de la temática no es un enlace navegable', async () => {
+  it('el nombre de la temática enlaza al listado de niveles de esa temática', async () => {
     fetchTematicas.mockResolvedValue([CAPITALES])
     renderTematicas()
 
     const nombre = await screen.findByText('Capitales del mundo')
-    expect(nombre.tagName).not.toBe('A')
-    expect(screen.queryByRole('link')).not.toBeInTheDocument()
+    expect(nombre.closest('a')).toHaveAttribute('href', '/tematicas/t-1/niveles')
   })
 
   it('muestra el estado vacío cuando no hay ninguna temática', async () => {

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ChangeEvent, type DragEvent } from 'react'
+import { Link } from 'react-router-dom'
 import {
   eliminarTematica,
   fetchTematicas,
@@ -167,12 +168,12 @@ function FilaTematica({
         <div className="flex items-center gap-3">
           <Portada tematica={tematica} />
           <div className="min-w-0">
-            <span
-              title="Próximamente: listado de niveles de esta temática"
-              className="block truncate text-sm font-semibold text-brand-night"
+            <Link
+              to={`/tematicas/${tematica.id}/niveles`}
+              className="block truncate text-sm font-semibold text-brand-night hover:text-brand-blue hover:underline"
             >
               {tematica.nombre}
-            </span>
+            </Link>
             <div className="mt-0.5 flex items-center gap-1.5 text-xs text-brand-night/50">
               {esPrimera ? (
                 <span className="font-semibold text-brand-night/45">Sin requisito</span>

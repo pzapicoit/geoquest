@@ -87,15 +87,14 @@ preguntas no se ve afectado.
   "Cancelar"
 - **THEN** la temática no se elimina y el diálogo se cierra
 
-### Requirement: Enlace del nombre deshabilitado hasta que exista el listado de niveles
-El nombre de cada fila SHALL mostrarse sin navegación funcional (marcado
-como "Próximamente") mientras no exista la pantalla de listado de niveles
-de una temática.
+### Requirement: Enlace del nombre habilitado hacia el listado de niveles
+El nombre de cada fila SHALL enlazar a la pantalla de listado de niveles de
+esa temática (`/tematicas/:id/niveles`).
 
 #### Scenario: Click en el nombre de una temática
 - **WHEN** un admin hace click en el nombre de una temática en el listado
-- **THEN** el panel no navega a ninguna pantalla, y el nombre muestra una
-  indicación de "Próximamente"
+- **THEN** el panel navega a la pantalla de listado de niveles de esa
+  temática
 
 ### Requirement: Estado vacío
 Cuando no exista ninguna temática, el listado SHALL mostrar un estado

@@ -9,7 +9,6 @@ const NAV_ITEMS = [
   { label: 'Jugadores', to: '/', enabled: false },
   { label: 'Ranking', to: '/', enabled: false },
   { label: 'Temáticas', to: '/tematicas', enabled: true },
-  { label: 'Niveles', to: '/', enabled: false },
   { label: 'Preguntas/Desafíos', to: '/preguntas', enabled: true },
 ]
 
