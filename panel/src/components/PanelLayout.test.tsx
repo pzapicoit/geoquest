@@ -56,19 +56,13 @@ beforeEach(() => {
 })
 
 describe('PanelLayout', () => {
-  it('muestra la navegación con los 6 enlaces, solo Home, Temáticas y Preguntas/Desafíos navegables', () => {
+  it('muestra la navegación con los 5 enlaces, solo Home, Temáticas y Preguntas/Desafíos navegables', () => {
     renderLayout()
 
-    for (const label of [
-      'Home',
-      'Jugadores',
-      'Ranking',
-      'Temáticas',
-      'Niveles',
-      'Preguntas/Desafíos',
-    ]) {
+    for (const label of ['Home', 'Jugadores', 'Ranking', 'Temáticas', 'Preguntas/Desafíos']) {
       expect(screen.getByText(label)).toBeInTheDocument()
     }
+    expect(screen.queryByText('Niveles')).not.toBeInTheDocument()
 
     expect(screen.getByRole('link', { name: 'Home' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Temáticas' })).toHaveAttribute('href', '/tematicas')
@@ -76,7 +70,7 @@ describe('PanelLayout', () => {
       'href',
       '/preguntas',
     )
-    for (const label of ['Jugadores', 'Ranking', 'Niveles']) {
+    for (const label of ['Jugadores', 'Ranking']) {
       const item = screen.getByText(label)
       expect(item.tagName).not.toBe('A')
       expect(item).toHaveAttribute('aria-disabled', 'true')
