@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { eliminarPregunta, fetchPreguntas, type Pregunta, type TipoDesafio } from '../lib/preguntas'
 
 const PAGE_SIZE = 10
@@ -20,10 +21,8 @@ const TIPO_BADGE: Record<TipoDesafio, string> = {
   pregunta_texto: 'bg-brand-gold/25 text-[#996100]',
 }
 
-const BOTON_DESHABILITADO =
-  'flex cursor-not-allowed items-center gap-2 rounded-xl font-display font-extrabold text-white/70'
-const BOTON_DESHABILITADO_FONDO = {
-  background: 'linear-gradient(140deg, rgba(43,192,168,.55), rgba(27,111,168,.55))',
+const BOTON_FONDO = {
+  background: 'linear-gradient(140deg, #2BC0A8, #1B6FA8)',
 }
 
 function IconoTipo({ tipo }: { tipo: TipoDesafio }) {
@@ -197,14 +196,14 @@ function FilaPregunta({
       </td>
       <td className="px-5 py-3">
         <div className="flex justify-end gap-2">
-          <span
-            aria-disabled="true"
+          <Link
+            to={`/preguntas/${pregunta.id}/editar`}
             aria-label="Editar"
-            title="Próximamente"
-            className="flex h-8 w-8 cursor-not-allowed items-center justify-center rounded-lg border-[1.5px] border-brand-border text-brand-night/30"
+            title="Editar"
+            className="flex h-8 w-8 items-center justify-center rounded-lg border-[1.5px] border-brand-border text-brand-night/60 hover:border-brand-blue hover:text-brand-blue"
           >
             <IconoEditar />
-          </span>
+          </Link>
           <button
             type="button"
             onClick={onEliminar}
@@ -309,14 +308,13 @@ function EstadoVacioBanco() {
       <p className="max-w-md text-sm text-brand-night/55">
         Crea la primera pregunta del banco para empezar a construir niveles.
       </p>
-      <span
-        aria-disabled="true"
-        title="Próximamente"
-        className={`mt-3 px-4 py-2.5 text-sm ${BOTON_DESHABILITADO}`}
-        style={BOTON_DESHABILITADO_FONDO}
+      <Link
+        to="/preguntas/nueva"
+        className="mt-3 flex items-center gap-2 rounded-xl px-4 py-2.5 font-display text-sm font-extrabold text-white"
+        style={BOTON_FONDO}
       >
         <span className="text-base leading-none">+</span>Crear la primera pregunta
-      </span>
+      </Link>
     </div>
   )
 }
@@ -481,14 +479,13 @@ export function Preguntas() {
               : ''}
           </p>
         </div>
-        <span
-          aria-disabled="true"
-          title="Próximamente"
-          className={`px-6 py-4 text-base ${BOTON_DESHABILITADO}`}
-          style={BOTON_DESHABILITADO_FONDO}
+        <Link
+          to="/preguntas/nueva"
+          className="flex items-center gap-2 rounded-xl px-6 py-4 font-display text-base font-extrabold text-white"
+          style={BOTON_FONDO}
         >
           <span className="text-xl leading-none">+</span>Nueva pregunta
-        </span>
+        </Link>
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-brand-border bg-white">
