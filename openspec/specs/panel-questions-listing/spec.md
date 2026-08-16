@@ -88,8 +88,7 @@ El listado SHALL mostrar un estado vacío explicativo con una acción para
 limpiar filtros cuando no hay ningún desafío que coincida con la
 búsqueda/filtros activos; cuando el banco no tiene ningún desafío en
 absoluto, SHALL mostrar un estado vacío distinto con una llamada a la
-acción para crear la primera pregunta (deshabilitada, ver requisito de
-acciones deshabilitadas).
+acción para crear la primera pregunta.
 
 #### Scenario: Sin resultados por filtros
 - **WHEN** los filtros/búsqueda activos no coinciden con ningún desafío,
@@ -122,15 +121,15 @@ la base de datos.
   que no se puede eliminar por estar en uso, y la fila permanece en el
   listado
 
-### Requirement: Acciones deshabilitadas hasta que exista su pantalla
-El botón "Nueva pregunta" y la acción "Editar" de cada fila SHALL
-mostrarse deshabilitados (sin navegar a ninguna ruta al hacer click),
-porque sus pantallas de creación/edición no existen todavía.
+### Requirement: Acciones de creación y edición habilitadas
+El botón "Nueva pregunta" SHALL navegar a `/preguntas/nueva`, y la acción
+"Editar" de cada fila SHALL navegar a `/preguntas/{id}/editar`.
 
 #### Scenario: Click en "Nueva pregunta"
 - **WHEN** un admin hace click en el botón "Nueva pregunta"
-- **THEN** el panel no navega a ninguna ruta
+- **THEN** el panel navega a `/preguntas/nueva`
 
 #### Scenario: Click en "Editar" de una fila
-- **WHEN** un admin hace click en la acción "Editar" de un desafío
-- **THEN** el panel no navega a ninguna ruta
+- **WHEN** un admin hace click en la acción "Editar" de una pregunta con
+  `id = <uuid>`
+- **THEN** el panel navega a `/preguntas/<uuid>/editar`
