@@ -97,7 +97,10 @@ describe('PreguntaForm — creación', () => {
     const user = userEvent.setup()
     renderNueva()
 
-    await user.upload(screen.getByLabelText(/arrastra la imagen/i), archivo('foto.png', 'image/png'))
+    await user.upload(
+      screen.getByLabelText(/arrastra la imagen/i),
+      archivo('foto.png', 'image/png'),
+    )
 
     expect(await screen.findByAltText('')).toBeInTheDocument()
     expect(screen.queryByText('Sin imagen todavía')).not.toBeInTheDocument()
@@ -107,7 +110,10 @@ describe('PreguntaForm — creación', () => {
     const user = userEvent.setup()
     renderNueva()
 
-    await user.upload(screen.getByLabelText(/arrastra la imagen/i), archivo('doc.pdf', 'application/pdf'))
+    await user.upload(
+      screen.getByLabelText(/arrastra la imagen/i),
+      archivo('doc.pdf', 'application/pdf'),
+    )
 
     expect(await screen.findByText(/JPG, PNG o WEBP/)).toBeInTheDocument()
     expect(screen.queryByAltText('')).not.toBeInTheDocument()
