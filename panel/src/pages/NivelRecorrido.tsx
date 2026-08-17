@@ -2,10 +2,15 @@ import { useEffect, useMemo, useState, type DragEvent, type FormEvent } from 're
 import { Link, useParams } from 'react-router-dom'
 import type { TipoDesafio } from '../lib/preguntas'
 import {
+  absolutoDesdePorcentaje,
   agregarPreguntaAlRecorrido,
+  distanciaMediaKm,
   fetchNivelRecorrido,
   fetchPreguntasNoAsignadas,
   guardarConfiguracionNivel,
+  porcentajeDesdeAbsoluto,
+  preguntasEfectivasPorPartida,
+  puntajeMaximoNivel,
   quitarPreguntaDelRecorrido,
   reordenarRecorrido,
   validarConfiguracionNivel,
@@ -32,6 +37,24 @@ const TIPO_BADGE: Record<TipoDesafio, string> = {
 
 const CAMPO_BASE =
   'h-11 rounded-xl border-[1.5px] border-brand-border bg-white px-3.5 text-sm text-brand-night outline-none placeholder:text-brand-night/40 focus:border-brand-teal focus:ring-4 focus:ring-brand-teal/15'
+
+function textoDistanciaMedia(distanciaKm: number | null): string {
+  if (distanciaKm === null) return 'cualquier distancia'
+  return `≤ ~${Math.round(distanciaKm).toLocaleString('es-ES')} km`
+}
+
+function formatearPorcentaje(porcentaje: number): string {
+  return String(Math.round(porcentaje * 10) / 10)
+}
+
+/** `undefined` marca una entrada no vacía pero inválida (no entero positivo). */
+function parseEnteroPositivoOpcional(valor: string): number | null | undefined {
+  const trim = valor.trim()
+  if (trim === '') return null
+  const numero = Number(trim)
+  if (!Number.isInteger(numero) || numero < 1) return undefined
+  return numero
+}
 
 function IconoTipo({ tipo }: { tipo: TipoDesafio }) {
   if (tipo === 'imagen') {
@@ -349,9 +372,8 @@ export function NivelRecorrido() {
 
   const [nombre, setNombre] = useState('')
   const [puntajeMinimo, setPuntajeMinimo] = useState('')
-  const [umbral1, setUmbral1] = useState('')
-  const [umbral2, setUmbral2] = useState('')
-  const [umbral3, setUmbral3] = useState('')
+  const [umbral2Porcentaje, setUmbral2Porcentaje] = useState('')
+  const [umbral3Porcentaje, setUmbral3Porcentaje] = useState('')
   const [preguntasPorPartida, setPreguntasPorPartida] = useState('')
   const [errorConfig, setErrorConfig] = useState('')
   const [guardandoConfig, setGuardandoConfig] = useState(false)
@@ -382,9 +404,16 @@ export function NivelRecorrido() {
         setPreguntas(resultado.preguntas)
         setNombre(resultado.nombre ?? '')
         setPuntajeMinimo(String(resultado.puntajeMinimoSuperar))
-        setUmbral1(String(resultado.umbralEstrella1))
-        setUmbral2(String(resultado.umbralEstrella2))
-        setUmbral3(String(resultado.umbralEstrella3))
+        const maximoCargado = puntajeMaximoNivel(
+          resultado.preguntasPorPartida,
+          resultado.preguntas.length,
+        )
+        setUmbral2Porcentaje(
+          formatearPorcentaje(porcentajeDesdeAbsoluto(resultado.umbralEstrella2, maximoCargado)),
+        )
+        setUmbral3Porcentaje(
+          formatearPorcentaje(porcentajeDesdeAbsoluto(resultado.umbralEstrella3, maximoCargado)),
+        )
         setPreguntasPorPartida(
           resultado.preguntasPorPartida === null ? '' : String(resultado.preguntasPorPartida),
         )
@@ -403,15 +432,29 @@ export function NivelRecorrido() {
     }
   }, [nivelId])
 
-  const numeros = useMemo(
-    () => ({
+  const preguntasPorPartidaLive = useMemo(() => {
+    const parseado = parseEnteroPositivoOpcional(preguntasPorPartida)
+    return typeof parseado === 'number' ? parseado : null
+  }, [preguntasPorPartida])
+
+  const preguntasEfectivas = preguntasEfectivasPorPartida(preguntasPorPartidaLive, preguntas.length)
+  const maximoNivel = puntajeMaximoNivel(preguntasPorPartidaLive, preguntas.length)
+
+  const numeros = useMemo(() => {
+    const umbral2 = absolutoDesdePorcentaje(Number(umbral2Porcentaje), maximoNivel)
+    const umbral3 = absolutoDesdePorcentaje(Number(umbral3Porcentaje), maximoNivel)
+    return {
       puntajeMinimo: Number(puntajeMinimo),
-      umbral1: Number(umbral1),
-      umbral2: Number(umbral2),
-      umbral3: Number(umbral3),
-    }),
-    [puntajeMinimo, umbral1, umbral2, umbral3],
-  )
+      umbral2Pct: Number(umbral2Porcentaje),
+      umbral3Pct: Number(umbral3Porcentaje),
+      umbral2,
+      umbral3,
+    }
+  }, [puntajeMinimo, umbral2Porcentaje, umbral3Porcentaje, maximoNivel])
+
+  const distanciaMinimo = distanciaMediaKm(numeros.puntajeMinimo, preguntasEfectivas)
+  const distanciaUmbral2 = distanciaMediaKm(numeros.umbral2, preguntasEfectivas)
+  const distanciaUmbral3 = distanciaMediaKm(numeros.umbral3, preguntasEfectivas)
 
   async function handleGuardarConfig(e: FormEvent) {
     e.preventDefault()
@@ -419,21 +462,15 @@ export function NivelRecorrido() {
 
     if (
       Number.isNaN(numeros.puntajeMinimo) ||
-      Number.isNaN(numeros.umbral1) ||
-      Number.isNaN(numeros.umbral2) ||
-      Number.isNaN(numeros.umbral3)
+      Number.isNaN(numeros.umbral2Pct) ||
+      Number.isNaN(numeros.umbral3Pct)
     ) {
       setErrorConfig('El puntaje mínimo y los umbrales deben ser números.')
       return
     }
 
-    const preguntasPorPartidaTrim = preguntasPorPartida.trim()
-    const preguntasPorPartidaValor =
-      preguntasPorPartidaTrim === '' ? null : Number(preguntasPorPartidaTrim)
-    if (
-      preguntasPorPartidaValor !== null &&
-      (!Number.isInteger(preguntasPorPartidaValor) || preguntasPorPartidaValor < 1)
-    ) {
+    const preguntasPorPartidaValor = parseEnteroPositivoOpcional(preguntasPorPartida)
+    if (preguntasPorPartidaValor === undefined) {
       setErrorConfig('Las preguntas por partida deben ser un número entero mayor que 0.')
       return
     }
@@ -442,7 +479,6 @@ export function NivelRecorrido() {
     const config = {
       nombre: nombreTrim ? nombreTrim : null,
       puntajeMinimoSuperar: numeros.puntajeMinimo,
-      umbralEstrella1: numeros.umbral1,
       umbralEstrella2: numeros.umbral2,
       umbralEstrella3: numeros.umbral3,
       preguntasPorPartida: preguntasPorPartidaValor,
@@ -638,7 +674,7 @@ export function NivelRecorrido() {
           />
         </label>
 
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           <label className="flex flex-col gap-1.5">
             <span className="text-xs font-medium text-brand-night/60">Puntaje mínimo</span>
             <input
@@ -648,36 +684,37 @@ export function NivelRecorrido() {
               onChange={(e) => setPuntajeMinimo(e.target.value)}
               className={`${CAMPO_BASE} tabular-nums`}
             />
+            <span className="text-[11px] text-brand-night/45">
+              {textoDistanciaMedia(distanciaMinimo)}
+            </span>
           </label>
           <label className="flex flex-col gap-1.5">
-            <span className="text-xs font-medium text-brand-night/60">Umbral 1 estrella</span>
+            <span className="text-xs font-medium text-brand-night/60">Umbral 2 estrellas (%)</span>
             <input
               type="number"
               min={0}
-              value={umbral1}
-              onChange={(e) => setUmbral1(e.target.value)}
+              max={100}
+              value={umbral2Porcentaje}
+              onChange={(e) => setUmbral2Porcentaje(e.target.value)}
               className={`${CAMPO_BASE} tabular-nums`}
             />
+            <span className="text-[11px] text-brand-night/45">
+              {numeros.umbral2} pts · {textoDistanciaMedia(distanciaUmbral2)}
+            </span>
           </label>
           <label className="flex flex-col gap-1.5">
-            <span className="text-xs font-medium text-brand-night/60">Umbral 2 estrellas</span>
+            <span className="text-xs font-medium text-brand-night/60">Umbral 3 estrellas (%)</span>
             <input
               type="number"
               min={0}
-              value={umbral2}
-              onChange={(e) => setUmbral2(e.target.value)}
+              max={100}
+              value={umbral3Porcentaje}
+              onChange={(e) => setUmbral3Porcentaje(e.target.value)}
               className={`${CAMPO_BASE} tabular-nums`}
             />
-          </label>
-          <label className="flex flex-col gap-1.5">
-            <span className="text-xs font-medium text-brand-night/60">Umbral 3 estrellas</span>
-            <input
-              type="number"
-              min={0}
-              value={umbral3}
-              onChange={(e) => setUmbral3(e.target.value)}
-              className={`${CAMPO_BASE} tabular-nums`}
-            />
+            <span className="text-[11px] text-brand-night/45">
+              {numeros.umbral3} pts · {textoDistanciaMedia(distanciaUmbral3)}
+            </span>
           </label>
           <label className="flex flex-col gap-1.5">
             <span className="text-xs font-medium text-brand-night/60">Preguntas por partida</span>

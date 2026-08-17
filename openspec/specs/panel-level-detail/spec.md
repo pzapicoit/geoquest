@@ -18,23 +18,42 @@ de temáticas y niveles.
 
 ### Requirement: Tarjeta de configuración del nivel editable
 La pantalla SHALL ofrecer una tarjeta "Configuración del nivel" con campos
-editables para el nombre del nivel, el puntaje mínimo para superarlo, los
-umbrales de puntaje para 1, 2 y 3 estrellas, y el número de preguntas por
-partida (`preguntas_por_partida`, opcional), y SHALL bloquear el guardado
-si no se cumple `puntaje_minimo_superar <= umbral_estrella_1 <=
-umbral_estrella_2 <= umbral_estrella_3`, o si `preguntas_por_partida` es
-mayor que el número de preguntas ya asignadas al nivel en `nivel_desafios`.
+editables para: el nombre del nivel; el puntaje mínimo para superarlo
+(equivalente a ⭐, en puntos absolutos); los umbrales de 2 y 3 estrellas
+introducidos como **porcentaje del puntaje máximo del nivel** (`N × 5000`,
+con `N` = `preguntas_por_partida` si está definido, o el número de
+preguntas del recorrido si no lo está); y el número de preguntas por
+partida (`preguntas_por_partida`, opcional). Junto al puntaje mínimo y a
+cada umbral de estrella, la tarjeta SHALL mostrar la distancia media en
+kilómetros que implica alcanzarlo. La tarjeta SHALL bloquear el guardado si
+no se cumple `puntaje_minimo_superar <= umbral_estrella_2_absoluto <=
+umbral_estrella_3_absoluto` (absolutos derivados de los porcentajes), o si
+`preguntas_por_partida` es mayor que el número de preguntas ya asignadas al
+nivel en `nivel_desafios`. Al guardar, `umbral_estrella_1` SHALL
+persistirse automáticamente con el mismo valor que `puntaje_minimo_superar`,
+sin tener un campo propio en el formulario.
 
 #### Scenario: Guardar una configuración válida
-- **WHEN** un admin edita el nombre y los umbrales de un nivel manteniendo
-  el orden ascendente exigido y pulsa "Guardar"
-- **THEN** la fila de `niveles` se actualiza con los nuevos valores
+- **WHEN** un admin edita el nombre, el puntaje mínimo y los porcentajes de
+  umbral 2 y 3 estrellas manteniendo el orden ascendente exigido en sus
+  absolutos derivados, y pulsa "Guardar"
+- **THEN** la fila de `niveles` se actualiza con el nombre, el puntaje
+  mínimo, los absolutos de `umbral_estrella_2/3` calculados a partir de los
+  porcentajes introducidos, y `umbral_estrella_1` igual al puntaje mínimo
 
-#### Scenario: Umbrales fuera de orden
-- **WHEN** un admin introduce un `umbral_estrella_2` menor que
-  `umbral_estrella_1`
+#### Scenario: Porcentajes fuera de orden
+- **WHEN** un admin introduce un porcentaje para el umbral de 3 estrellas
+  cuyo absoluto derivado resulta menor que el absoluto derivado del umbral
+  de 2 estrellas
 - **THEN** el formulario bloquea el guardado y muestra un error indicando
   que los umbrales deben ser ascendentes
+
+#### Scenario: Se muestra la distancia media de cada umbral
+- **WHEN** un admin visualiza la tarjeta de configuración de un nivel con
+  puntaje mínimo y umbrales de estrella ya definidos
+- **THEN** junto a cada uno de los tres (puntaje mínimo, umbral 2 estrellas,
+  umbral 3 estrellas) se muestra la distancia media en km que ese puntaje
+  implica según la curva de puntuación vigente
 
 #### Scenario: Se define un número válido de preguntas por partida
 - **WHEN** un admin fija `preguntas_por_partida = 5` en un nivel que tiene
@@ -50,7 +69,9 @@ mayor que el número de preguntas ya asignadas al nivel en `nivel_desafios`.
 #### Scenario: Se deja preguntas_por_partida sin definir
 - **WHEN** un admin guarda la configuración del nivel sin rellenar
   `preguntas_por_partida`
-- **THEN** el formulario guarda `NULL`, sin bloquear el guardado
+- **THEN** el formulario guarda `NULL`, sin bloquear el guardado, y el
+  puntaje máximo del nivel usado para los porcentajes de umbral se calcula
+  con el número de preguntas del recorrido
 
 ### Requirement: Contador de preguntas del recorrido
 La pantalla SHALL mostrar un contador "X preguntas en este recorrido" con el
