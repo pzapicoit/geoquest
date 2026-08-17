@@ -7,7 +7,10 @@ import 'fakes/mundo_de_prueba.dart';
 
 /// Monta el mapa en una pantalla vertical de móvil y espera a que cargue la
 /// geometría y a que el controlador reciba su tamaño.
-Future<MapaMundiController> _montar(WidgetTester tester) async {
+Future<MapaMundiController> _montar(
+  WidgetTester tester, {
+  bool interactivo = true,
+}) async {
   tester.view.physicalSize = const Size(390, 844);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
@@ -18,7 +21,11 @@ Future<MapaMundiController> _montar(WidgetTester tester) async {
   await tester.pumpWidget(
     MaterialApp(
       home: Scaffold(
-        body: MapaMundi(controller: controlador, cargador: cargarMundoDePrueba),
+        body: MapaMundi(
+          controller: controlador,
+          cargador: cargarMundoDePrueba,
+          interactivo: interactivo,
+        ),
       ),
     ),
   );
@@ -131,5 +138,81 @@ void main() {
       findsWidgets,
     );
     expect(controlador.pin, isNotNull);
+  });
+
+  group('revelado', () {
+    testWidgets('con ubicación real se dibujan los dos pines rotulados', (
+      tester,
+    ) async {
+      final controlador = await _montar(tester, interactivo: false);
+
+      controlador.colocarPin(
+        const Coordenada(latitud: 40.4168, longitud: -3.7038),
+      );
+      controlador.revelarUbicacion(
+        const Coordenada(latitud: 41.8902, longitud: 12.4922),
+      );
+      controlador.progresoDeLaLinea = 1;
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(find.byKey(const Key('mapa-pin-real')), findsOneWidget);
+      expect(find.text('TU PIN'), findsOneWidget);
+      expect(find.text('REAL'), findsOneWidget);
+    });
+
+    testWidgets('sin ubicación real el pin del jugador no lleva rótulo', (
+      tester,
+    ) async {
+      final controlador = await _montar(tester);
+
+      controlador.colocarPin(
+        const Coordenada(latitud: 40.4168, longitud: -3.7038),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(find.byKey(const Key('mapa-pin-real')), findsNothing);
+      expect(find.text('TU PIN'), findsNothing);
+    });
+
+    testWidgets('en modo no interactivo un toque no coloca pin', (
+      tester,
+    ) async {
+      final controlador = await _montar(tester, interactivo: false);
+      final encuadre = controlador.camara;
+
+      await tester.tapAt(const Offset(195, 422));
+      await tester.pump();
+
+      expect(controlador.pin, isNull);
+      expect(controlador.camara, encuadre);
+    });
+
+    testWidgets('en modo no interactivo arrastrar no mueve el mapa', (
+      tester,
+    ) async {
+      final controlador = await _montar(tester, interactivo: false);
+      final encuadre = controlador.camara;
+
+      final gesto = await tester.startGesture(const Offset(195, 422));
+      for (var i = 0; i < 3; i++) {
+        await gesto.moveBy(const Offset(30, 0));
+        await tester.pump();
+      }
+      await gesto.up();
+      await tester.pump();
+
+      expect(controlador.camara, encuadre);
+    });
+
+    testWidgets('en modo no interactivo no hay botones de zoom', (
+      tester,
+    ) async {
+      await _montar(tester, interactivo: false);
+
+      expect(find.byKey(const Key('mapa-acercar')), findsNothing);
+      expect(find.byKey(const Key('mapa-alejar')), findsNothing);
+    });
   });
 }

@@ -18,6 +18,26 @@ class RespuestaEnviada {
   final double longitud;
 }
 
+/// Respuesta de ejemplo del servidor, para no repetir el revelado entero en
+/// cada test que solo mira la distancia o los puntos (INT-93).
+RespuestaDesafio respuestaDePrueba({
+  double distanciaKm = 118.4,
+  int puntos = 4700,
+  double latitudReal = 41.8902,
+  double longitudReal = 12.4922,
+  String nombreLugar = 'Coliseo de Roma',
+  int puntosMaximos = 5000,
+}) {
+  return RespuestaDesafio(
+    distanciaKm: distanciaKm,
+    puntos: puntos,
+    latitudReal: latitudReal,
+    longitudReal: longitudReal,
+    nombreLugar: nombreLugar,
+    puntosMaximos: puntosMaximos,
+  );
+}
+
 /// Falso de [NivelJuegoGateway] para probar la pantalla de juego sin salir
 /// a la red (INT-91).
 class FakeNivelJuegoGateway implements NivelJuegoGateway {
@@ -37,11 +57,8 @@ class FakeNivelJuegoGateway implements NivelJuegoGateway {
   Completer<void>? pausaAlIniciar;
 
   /// Lo que devuelve `responderDesafio`; los tests que comprueban el puntaje
-  /// la cambian antes de confirmar (INT-92).
-  RespuestaDesafio respuesta = const RespuestaDesafio(
-    distanciaKm: 118.4,
-    puntos: 4700,
-  );
+  /// o el revelado la cambian antes de confirmar (INT-92, INT-93).
+  RespuestaDesafio respuesta = respuestaDePrueba();
 
   /// Excepción a lanzar en la próxima llamada a `responderDesafio`.
   Object? throwOnNextResponder;

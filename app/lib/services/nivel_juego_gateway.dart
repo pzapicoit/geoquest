@@ -50,14 +50,32 @@ class IntentoNivel {
 
 /// Resultado de responder un desafío, tal como lo devuelve la RPC
 /// `responder_desafio` (INT-78): la distancia y los puntos los calcula
-/// Postgres, la app solo los muestra. No incluye la ubicación real del
-/// desafío — RLS la esconde del jugador, así que el revelado de INT-93
-/// necesitará un cambio de backend aparte.
+/// Postgres, la app solo los muestra.
+///
+/// Desde INT-93 trae también el revelado del desafío respondido —su
+/// ubicación real, el nombre del lugar y el puntaje máximo alcanzable—. Ese
+/// dato solo viaja en la respuesta a la propia jugada (D2 de `design.md`):
+/// RLS lo sigue escondiendo en `desafios`, `desafios_para_jugar` y
+/// `iniciar_intento_nivel`.
 class RespuestaDesafio {
-  const RespuestaDesafio({required this.distanciaKm, required this.puntos});
+  const RespuestaDesafio({
+    required this.distanciaKm,
+    required this.puntos,
+    required this.latitudReal,
+    required this.longitudReal,
+    required this.nombreLugar,
+    required this.puntosMaximos,
+  });
 
   final double distanciaKm;
   final int puntos;
+  final double latitudReal;
+  final double longitudReal;
+  final String nombreLugar;
+
+  /// Puntos que se habrían conseguido con un acierto exacto, calculados por
+  /// el servidor (D3 de `design.md`): la curva de puntaje vive en Postgres.
+  final int puntosMaximos;
 }
 
 /// Superficie mínima de Supabase para jugar un nivel, para poder probar la
@@ -125,22 +143,40 @@ IntentoNivel mapearIntentoNivel(Map<String, dynamic> data) {
   );
 }
 
-/// Mapea la fila de `respuestas_desafio` que devuelve `responder_desafio`.
-/// Función pura, extraída por el mismo motivo que [mapearIntentoNivel]:
-/// poder probar el mapeo sin red.
+/// Mapea el `jsonb` que devuelve `responder_desafio`: la fila registrada en
+/// `respuestas_desafio` más el revelado del desafío (INT-93). Función pura,
+/// extraída por el mismo motivo que [mapearIntentoNivel]: poder probar el
+/// mapeo sin red.
 RespuestaDesafio mapearRespuestaDesafio(Map<String, dynamic> fila) {
   return RespuestaDesafio(
-    // `distancia_km` es `numeric` en Postgres: llega como número, pero
-    // PostgREST lo serializa como texto cuando el valor no cabe en un double
-    // sin perder precisión, así que se acepta cualquiera de las dos formas.
-    distanciaKm: switch (fila['distancia_km']) {
-      final num valor => valor.toDouble(),
-      final String valor => double.parse(valor),
-      _ => throw ArgumentError('distancia_km ausente en la respuesta'),
-    },
-    puntos: (fila['puntos'] as num).toInt(),
+    distanciaKm: _decimal(fila['distancia_km'], 'distancia_km'),
+    puntos: _entero(fila['puntos'], 'puntos'),
+    latitudReal: _decimal(fila['lat_real'], 'lat_real'),
+    longitudReal: _decimal(fila['lng_real'], 'lng_real'),
+    nombreLugar: _texto(fila['nombre_lugar'], 'nombre_lugar'),
+    puntosMaximos: _entero(fila['puntos_maximos'], 'puntos_maximos'),
   );
 }
+
+/// `distancia_km` es `numeric` en Postgres: llega como número, pero PostgREST
+/// lo serializa como texto cuando el valor no cabe en un double sin perder
+/// precisión, así que se acepta cualquiera de las dos formas.
+double _decimal(Object? valor, String campo) => switch (valor) {
+  final num numero => numero.toDouble(),
+  final String texto => double.parse(texto),
+  _ => throw ArgumentError('$campo ausente en la respuesta'),
+};
+
+int _entero(Object? valor, String campo) => switch (valor) {
+  final num numero => numero.toInt(),
+  final String texto => int.parse(texto),
+  _ => throw ArgumentError('$campo ausente en la respuesta'),
+};
+
+String _texto(Object? valor, String campo) => switch (valor) {
+  final String texto => texto,
+  _ => throw ArgumentError('$campo ausente en la respuesta'),
+};
 
 DesafioJuego _mapearDesafio(Map<String, dynamic> fila) {
   return DesafioJuego(
