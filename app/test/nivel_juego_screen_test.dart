@@ -584,7 +584,7 @@ void main() {
       );
     });
 
-    testWidgets('rotar la pantalla a media animación no rompe el revelado', (
+    testWidgets('cambiar de tamaño a media animación no rompe el revelado', (
       tester,
     ) async {
       final gateway = _gatewayCon(const [_desafioTexto, _desafioImagen]);
@@ -596,9 +596,11 @@ void main() {
       await _asentar(tester);
 
       // En pleno tramo de cámara: el encuadre de destino se recalcula para el
-      // tamaño nuevo en vez de seguir hacia el viejo.
+      // tamaño nuevo en vez de seguir hacia el viejo. Desde INT-102 el cambio
+      // ya no puede venir de una rotación, pero sí del teclado o de las barras
+      // del sistema.
       await tester.pump(const Duration(milliseconds: 1400));
-      tester.view.physicalSize = const Size(844, 390);
+      tester.view.physicalSize = const Size(390, 600);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 4200));
 
