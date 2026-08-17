@@ -1,30 +1,4 @@
-# challenge-play Specification
-
-## Purpose
-TBD - created by archiving change int-95-vista-desafios-intento. Update Purpose after archive.
-
-## Requirements
-
-### Requirement: Vista `desafios_para_jugar` expone solo contenido de juego
-
-El sistema SHALL exponer una vista `desafios_para_jugar` con, para cada
-desafío, `id`, `tipo`, `imagen_url`, `video_url`, `texto_pregunta` y
-`activo`. La vista SHALL ser legible por cualquier usuario autenticado
-(incluida una sesión anónima), y SHALL no incluir en ningún caso
-`lat_real`, `lng_real` ni `nombre_lugar`.
-
-#### Scenario: Un jugador lee la vista de desafíos para jugar
-
-- **WHEN** un usuario autenticado (o con sesión anónima) hace `select`
-  sobre `desafios_para_jugar`
-- **THEN** la operación se permite y devuelve `id`, `tipo`, `imagen_url`,
-  `video_url`, `texto_pregunta` y `activo` de cada desafío
-
-#### Scenario: La vista nunca expone la ubicación real
-
-- **WHEN** se inspeccionan las columnas devueltas por `desafios_para_jugar`
-- **THEN** ninguna fila incluye `lat_real`, `lng_real` ni `nombre_lugar`,
-  por ninguna vía (ni siquiera con nombre de columna distinto)
+## MODIFIED Requirements
 
 ### Requirement: RPC `iniciar_intento_nivel` arranca una partida con sus desafíos
 
