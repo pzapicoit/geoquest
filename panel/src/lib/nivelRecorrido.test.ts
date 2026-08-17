@@ -150,26 +150,82 @@ describe('fetchNivelRecorrido', () => {
 describe('validarConfiguracionNivel', () => {
   it('acepta umbrales ascendentes', () => {
     expect(
-      validarConfiguracionNivel({
-        nombre: null,
-        puntajeMinimoSuperar: 10,
-        umbralEstrella1: 20,
-        umbralEstrella2: 30,
-        umbralEstrella3: 40,
-      }),
+      validarConfiguracionNivel(
+        {
+          nombre: null,
+          puntajeMinimoSuperar: 10,
+          umbralEstrella1: 20,
+          umbralEstrella2: 30,
+          umbralEstrella3: 40,
+          preguntasPorPartida: null,
+        },
+        5,
+      ),
     ).toBeNull()
   })
 
   it('rechaza umbrales no ascendentes', () => {
     expect(
-      validarConfiguracionNivel({
-        nombre: null,
-        puntajeMinimoSuperar: 10,
-        umbralEstrella1: 30,
-        umbralEstrella2: 20,
-        umbralEstrella3: 40,
-      }),
+      validarConfiguracionNivel(
+        {
+          nombre: null,
+          puntajeMinimoSuperar: 10,
+          umbralEstrella1: 30,
+          umbralEstrella2: 20,
+          umbralEstrella3: 40,
+          preguntasPorPartida: null,
+        },
+        5,
+      ),
     ).toMatch(/ascendentes/)
+  })
+
+  it('acepta preguntasPorPartida sin definir (se juegan todas)', () => {
+    expect(
+      validarConfiguracionNivel(
+        {
+          nombre: null,
+          puntajeMinimoSuperar: 10,
+          umbralEstrella1: 20,
+          umbralEstrella2: 30,
+          umbralEstrella3: 40,
+          preguntasPorPartida: null,
+        },
+        0,
+      ),
+    ).toBeNull()
+  })
+
+  it('acepta preguntasPorPartida dentro del pool asignado', () => {
+    expect(
+      validarConfiguracionNivel(
+        {
+          nombre: null,
+          puntajeMinimoSuperar: 10,
+          umbralEstrella1: 20,
+          umbralEstrella2: 30,
+          umbralEstrella3: 40,
+          preguntasPorPartida: 5,
+        },
+        8,
+      ),
+    ).toBeNull()
+  })
+
+  it('rechaza preguntasPorPartida por encima del pool asignado', () => {
+    expect(
+      validarConfiguracionNivel(
+        {
+          nombre: null,
+          puntajeMinimoSuperar: 10,
+          umbralEstrella1: 20,
+          umbralEstrella2: 30,
+          umbralEstrella3: 40,
+          preguntasPorPartida: 8,
+        },
+        5,
+      ),
+    ).toMatch(/no pueden superar/)
   })
 })
 
@@ -179,13 +235,18 @@ describe('guardarConfiguracionNivel', () => {
     const update = vi.fn().mockReturnValue({ eq })
     from.mockReturnValue({ update })
 
-    await guardarConfiguracionNivel('n-1', {
-      nombre: 'Costas',
-      puntajeMinimoSuperar: 10,
-      umbralEstrella1: 20,
-      umbralEstrella2: 30,
-      umbralEstrella3: 40,
-    })
+    await guardarConfiguracionNivel(
+      'n-1',
+      {
+        nombre: 'Costas',
+        puntajeMinimoSuperar: 10,
+        umbralEstrella1: 20,
+        umbralEstrella2: 30,
+        umbralEstrella3: 40,
+        preguntasPorPartida: 5,
+      },
+      8,
+    )
 
     expect(from).toHaveBeenCalledWith('niveles')
     expect(update).toHaveBeenCalledWith(
@@ -195,6 +256,7 @@ describe('guardarConfiguracionNivel', () => {
         umbral_estrella_1: 20,
         umbral_estrella_2: 30,
         umbral_estrella_3: 40,
+        preguntas_por_partida: 5,
       }),
     )
     expect(eq).toHaveBeenCalledWith('id', 'n-1')
@@ -202,14 +264,37 @@ describe('guardarConfiguracionNivel', () => {
 
   it('rechaza sin llamar a supabase si los umbrales no son ascendentes', async () => {
     await expect(
-      guardarConfiguracionNivel('n-1', {
-        nombre: null,
-        puntajeMinimoSuperar: 10,
-        umbralEstrella1: 5,
-        umbralEstrella2: 30,
-        umbralEstrella3: 40,
-      }),
+      guardarConfiguracionNivel(
+        'n-1',
+        {
+          nombre: null,
+          puntajeMinimoSuperar: 10,
+          umbralEstrella1: 5,
+          umbralEstrella2: 30,
+          umbralEstrella3: 40,
+          preguntasPorPartida: null,
+        },
+        0,
+      ),
     ).rejects.toThrow(/ascendentes/)
+    expect(from).not.toHaveBeenCalled()
+  })
+
+  it('rechaza sin llamar a supabase si preguntasPorPartida supera el pool', async () => {
+    await expect(
+      guardarConfiguracionNivel(
+        'n-1',
+        {
+          nombre: null,
+          puntajeMinimoSuperar: 10,
+          umbralEstrella1: 20,
+          umbralEstrella2: 30,
+          umbralEstrella3: 40,
+          preguntasPorPartida: 8,
+        },
+        5,
+      ),
+    ).rejects.toThrow(/no pueden superar/)
     expect(from).not.toHaveBeenCalled()
   })
 
@@ -218,13 +303,18 @@ describe('guardarConfiguracionNivel', () => {
     from.mockReturnValue({ update: () => ({ eq }) })
 
     await expect(
-      guardarConfiguracionNivel('n-1', {
-        nombre: null,
-        puntajeMinimoSuperar: 10,
-        umbralEstrella1: 20,
-        umbralEstrella2: 30,
-        umbralEstrella3: 40,
-      }),
+      guardarConfiguracionNivel(
+        'n-1',
+        {
+          nombre: null,
+          puntajeMinimoSuperar: 10,
+          umbralEstrella1: 20,
+          umbralEstrella2: 30,
+          umbralEstrella3: 40,
+          preguntasPorPartida: null,
+        },
+        0,
+      ),
     ).rejects.toThrow('no autorizado')
   })
 })

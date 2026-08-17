@@ -352,6 +352,7 @@ export function NivelRecorrido() {
   const [umbral1, setUmbral1] = useState('')
   const [umbral2, setUmbral2] = useState('')
   const [umbral3, setUmbral3] = useState('')
+  const [preguntasPorPartida, setPreguntasPorPartida] = useState('')
   const [errorConfig, setErrorConfig] = useState('')
   const [guardandoConfig, setGuardandoConfig] = useState(false)
   const [guardadoOk, setGuardadoOk] = useState(false)
@@ -384,6 +385,9 @@ export function NivelRecorrido() {
         setUmbral1(String(resultado.umbralEstrella1))
         setUmbral2(String(resultado.umbralEstrella2))
         setUmbral3(String(resultado.umbralEstrella3))
+        setPreguntasPorPartida(
+          resultado.preguntasPorPartida === null ? '' : String(resultado.preguntasPorPartida),
+        )
       })
       .catch((error: unknown) => {
         if (!isMounted) return
@@ -423,6 +427,17 @@ export function NivelRecorrido() {
       return
     }
 
+    const preguntasPorPartidaTrim = preguntasPorPartida.trim()
+    const preguntasPorPartidaValor =
+      preguntasPorPartidaTrim === '' ? null : Number(preguntasPorPartidaTrim)
+    if (
+      preguntasPorPartidaValor !== null &&
+      (!Number.isInteger(preguntasPorPartidaValor) || preguntasPorPartidaValor < 1)
+    ) {
+      setErrorConfig('Las preguntas por partida deben ser un número entero mayor que 0.')
+      return
+    }
+
     const nombreTrim = nombre.trim()
     const config = {
       nombre: nombreTrim ? nombreTrim : null,
@@ -430,9 +445,10 @@ export function NivelRecorrido() {
       umbralEstrella1: numeros.umbral1,
       umbralEstrella2: numeros.umbral2,
       umbralEstrella3: numeros.umbral3,
+      preguntasPorPartida: preguntasPorPartidaValor,
     }
 
-    const errorValidacion = validarConfiguracionNivel(config)
+    const errorValidacion = validarConfiguracionNivel(config, preguntas.length)
     if (errorValidacion) {
       setErrorConfig(errorValidacion)
       return
@@ -442,7 +458,7 @@ export function NivelRecorrido() {
     setGuardadoOk(false)
     setGuardandoConfig(true)
     try {
-      await guardarConfiguracionNivel(nivelId, config)
+      await guardarConfiguracionNivel(nivelId, config, preguntas.length)
       setGuardadoOk(true)
     } catch (error) {
       setErrorConfig(
@@ -622,7 +638,7 @@ export function NivelRecorrido() {
           />
         </label>
 
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
           <label className="flex flex-col gap-1.5">
             <span className="text-xs font-medium text-brand-night/60">Puntaje mínimo</span>
             <input
@@ -660,6 +676,17 @@ export function NivelRecorrido() {
               min={0}
               value={umbral3}
               onChange={(e) => setUmbral3(e.target.value)}
+              className={`${CAMPO_BASE} tabular-nums`}
+            />
+          </label>
+          <label className="flex flex-col gap-1.5">
+            <span className="text-xs font-medium text-brand-night/60">Preguntas por partida</span>
+            <input
+              type="number"
+              min={1}
+              placeholder="Todas"
+              value={preguntasPorPartida}
+              onChange={(e) => setPreguntasPorPartida(e.target.value)}
               className={`${CAMPO_BASE} tabular-nums`}
             />
           </label>

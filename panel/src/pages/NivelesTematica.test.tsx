@@ -42,8 +42,6 @@ const DATOS: NivelesTematicaData = {
   tematicaId: 't-1',
   tematicaNombre: 'Paisajes de Europa',
   tematicaOrden: 2,
-  tematicaEstrellasRequeridas: 18,
-  tematicaAnteriorNombre: 'Capitales del mundo',
   niveles: [
     {
       id: 'n-1',
@@ -105,28 +103,12 @@ describe('NivelesTematica — listado', () => {
     expect(screen.getByText('2 preguntas').className).toContain('996100')
   })
 
-  it('estado vacío con el contexto de desbloqueo cuando la temática no es la primera', async () => {
+  it('estado vacío sin niveles, sin referencia a estrellas ni a otra temática', async () => {
     fetchNivelesTematica.mockResolvedValue({ ...DATOS, niveles: [] })
     renderNiveles()
 
     expect(await screen.findByText('Esta temática aún no tiene niveles')).toBeInTheDocument()
-    expect(
-      screen.getByText(
-        'Sin niveles todavía · desbloqueo a partir de 18 estrellas en «Capitales del mundo»',
-      ),
-    ).toBeInTheDocument()
-  })
-
-  it('estado vacío de la primera temática no menciona una temática anterior', async () => {
-    fetchNivelesTematica.mockResolvedValue({
-      ...DATOS,
-      tematicaOrden: 1,
-      tematicaAnteriorNombre: null,
-      niveles: [],
-    })
-    renderNiveles()
-
-    expect(await screen.findByText('Sin niveles todavía')).toBeInTheDocument()
+    expect(screen.getByText('Sin niveles todavía')).toBeInTheDocument()
   })
 
   it('muestra un error si falla la carga del listado', async () => {

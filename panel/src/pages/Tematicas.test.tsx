@@ -34,7 +34,6 @@ function tematica(overrides: Partial<Tematica> & { id: string }): Tematica {
     nombre: 'Temática de prueba',
     imagenPortada: 'https://example.test/portada.jpg',
     orden: 1,
-    estrellasRequeridas: 0,
     activo: true,
     cantidadNiveles: 0,
     ...overrides,
@@ -45,7 +44,6 @@ const CAPITALES = tematica({
   id: 't-1',
   nombre: 'Capitales del mundo',
   orden: 1,
-  estrellasRequeridas: 0,
   cantidadNiveles: 12,
 })
 
@@ -53,7 +51,6 @@ const PAISAJES = tematica({
   id: 't-2',
   nombre: 'Paisajes de Europa',
   orden: 2,
-  estrellasRequeridas: 18,
   cantidadNiveles: 9,
 })
 
@@ -70,15 +67,14 @@ beforeEach(() => {
 })
 
 describe('Tematicas — listado', () => {
-  it('muestra una fila por temática con requisito de estrellas, niveles y estado', async () => {
+  it('muestra una fila por temática con nombre, niveles y estado', async () => {
     fetchTematicas.mockResolvedValue([CAPITALES, PAISAJES])
 
     renderTematicas()
 
     expect(await screen.findByText('Capitales del mundo')).toBeInTheDocument()
-    expect(screen.getByText('Sin requisito')).toBeInTheDocument()
     expect(screen.getByText('12 niveles')).toBeInTheDocument()
-    expect(screen.getByText('Requiere estrellas en «Capitales del mundo»')).toBeInTheDocument()
+    expect(screen.getByText('Paisajes de Europa')).toBeInTheDocument()
     expect(screen.getByText('9 niveles')).toBeInTheDocument()
     expect(screen.getAllByText('Activa')).toHaveLength(2)
   })
@@ -188,41 +184,7 @@ describe('Tematicas — carga', () => {
 })
 
 describe('Tematicas — panel de alta/edición', () => {
-  it('crear la primera temática oculta el campo de estrellas', async () => {
-    fetchTematicas.mockResolvedValue([])
-    const user = userEvent.setup()
-    renderTematicas()
-
-    await screen.findByText('Aún no hay temáticas')
-    await user.click(screen.getByRole('button', { name: /crear la primera temática/i }))
-
-    expect(screen.getByText(/siempre desbloqueada/i)).toBeInTheDocument()
-    expect(screen.queryByText(/estrellas requeridas para desbloquearse/i)).not.toBeInTheDocument()
-  })
-
-  it('crear una temática cuando ya existen otras muestra el campo de estrellas', async () => {
-    fetchTematicas.mockResolvedValue([CAPITALES])
-    const user = userEvent.setup()
-    renderTematicas()
-
-    await screen.findByText('Capitales del mundo')
-    await user.click(screen.getByRole('button', { name: /^\+?nueva temática$/i }))
-
-    expect(screen.getByText(/estrellas requeridas para desbloquearse/i)).toBeInTheDocument()
-  })
-
-  it('editar la primera temática oculta el campo de estrellas', async () => {
-    fetchTematicas.mockResolvedValue([CAPITALES, PAISAJES])
-    const user = userEvent.setup()
-    renderTematicas()
-
-    await screen.findByText('Capitales del mundo')
-    await user.click(screen.getAllByLabelText('Editar temática')[0])
-
-    expect(screen.queryByText(/estrellas requeridas para desbloquearse/i)).not.toBeInTheDocument()
-  })
-
-  it('editar una temática que no es la primera precarga sus datos', async () => {
+  it('editar una temática precarga sus datos', async () => {
     fetchTematicas.mockResolvedValue([CAPITALES, PAISAJES])
     const user = userEvent.setup()
     renderTematicas()
@@ -230,9 +192,7 @@ describe('Tematicas — panel de alta/edición', () => {
     await screen.findByText('Paisajes de Europa')
     await user.click(screen.getAllByLabelText('Editar temática')[1])
 
-    const dialog = screen.getByDisplayValue('Paisajes de Europa')
-    expect(dialog).toBeInTheDocument()
-    expect(screen.getByDisplayValue('18')).toBeInTheDocument()
+    expect(screen.getByDisplayValue('Paisajes de Europa')).toBeInTheDocument()
   })
 
   it('bloquea el guardado sin nombre ni portada', async () => {
@@ -264,7 +224,7 @@ describe('Tematicas — panel de alta/edición', () => {
 
     await waitFor(() =>
       expect(guardarTematica).toHaveBeenCalledWith(
-        expect.objectContaining({ nombre: 'Capitales del mundo', esPrimera: true }),
+        expect.objectContaining({ nombre: 'Capitales del mundo' }),
       ),
     )
     await waitFor(() =>
@@ -273,7 +233,7 @@ describe('Tematicas — panel de alta/edición', () => {
     expect(fetchTematicas).toHaveBeenCalledTimes(2)
   })
 
-  it('edita el nombre, las estrellas y el estado de una temática existente', async () => {
+  it('edita el estado (activo) de una temática existente', async () => {
     fetchTematicas.mockResolvedValueOnce([CAPITALES, PAISAJES]).mockResolvedValueOnce([CAPITALES])
     guardarTematica.mockResolvedValue({ id: 't-2' })
     const user = userEvent.setup()
@@ -282,60 +242,14 @@ describe('Tematicas — panel de alta/edición', () => {
     await screen.findByText('Paisajes de Europa')
     await user.click(screen.getAllByLabelText('Editar temática')[1])
 
-    const campoEstrellas = screen.getByDisplayValue('18')
-    await user.clear(campoEstrellas)
-    await user.type(campoEstrellas, '25')
     await user.click(screen.getByRole('checkbox'))
     await user.click(screen.getByRole('button', { name: /^guardar$/i }))
 
     await waitFor(() =>
       expect(guardarTematica).toHaveBeenCalledWith(
-        expect.objectContaining({
-          id: 't-2',
-          estrellasRequeridas: 25,
-          activo: false,
-          esPrimera: false,
-        }),
+        expect.objectContaining({ id: 't-2', activo: false }),
       ),
     )
-  })
-
-  it('bloquea el guardado con estrellas requeridas negativas', async () => {
-    fetchTematicas.mockResolvedValue([CAPITALES, PAISAJES])
-    const user = userEvent.setup()
-    renderTematicas()
-
-    await screen.findByText('Paisajes de Europa')
-    await user.click(screen.getAllByLabelText('Editar temática')[1])
-
-    const campoEstrellas = screen.getByDisplayValue('18')
-    await user.clear(campoEstrellas)
-    await user.type(campoEstrellas, '-5')
-    await user.click(screen.getByRole('button', { name: /^guardar$/i }))
-
-    expect(
-      screen.getByText('Las estrellas requeridas deben ser un número entero igual o mayor a 0.'),
-    ).toBeInTheDocument()
-    expect(guardarTematica).not.toHaveBeenCalled()
-  })
-
-  it('bloquea el guardado con estrellas requeridas no enteras', async () => {
-    fetchTematicas.mockResolvedValue([CAPITALES, PAISAJES])
-    const user = userEvent.setup()
-    renderTematicas()
-
-    await screen.findByText('Paisajes de Europa')
-    await user.click(screen.getAllByLabelText('Editar temática')[1])
-
-    const campoEstrellas = screen.getByDisplayValue('18')
-    await user.clear(campoEstrellas)
-    await user.type(campoEstrellas, '2.5')
-    await user.click(screen.getByRole('button', { name: /^guardar$/i }))
-
-    expect(
-      screen.getByText('Las estrellas requeridas deben ser un número entero igual o mayor a 0.'),
-    ).toBeInTheDocument()
-    expect(guardarTematica).not.toHaveBeenCalled()
   })
 
   it('muestra un error y mantiene el panel abierto si el guardado falla', async () => {
