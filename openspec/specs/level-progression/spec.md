@@ -94,49 +94,37 @@ posteriores.
 - **THEN** `mejor_puntaje` y/o `mejores_estrellas` se actualizan al nuevo
   valor, más alto
 
-### Requirement: Desbloqueo del siguiente nivel de la temática
-El sistema SHALL desbloquear (marcar `desbloqueado = true` en
-`progreso_usuario_nivel`) el siguiente nivel de la misma temática, según
-`orden`, cuando el intento cerrado quede `superado`, si dicho nivel existe.
+### Requirement: Desbloqueo de posiciones del camino por estrellas acumuladas
+El sistema SHALL, al cerrar un intento con `superado = true`, recalcular la
+suma de `mejores_estrellas` del usuario sobre todos los niveles referenciados
+por `camino`, y SHALL desbloquear (`desbloqueado = true` en
+`progreso_usuario_nivel`) todas las posiciones de `camino` cuyo
+`estrellas_requeridas` sea menor o igual que esa suma, sin exigir que el
+usuario haya completado la posición inmediatamente anterior del camino.
 
-#### Scenario: Se supera un nivel con siguiente nivel en la temática
-- **WHEN** se cierra un intento con `superado = true` y existe un nivel con
-  `orden` inmediatamente superior en la misma `tematica_id`
-- **THEN** ese siguiente nivel queda `desbloqueado = true` en
-  `progreso_usuario_nivel` para ese usuario
+#### Scenario: Las estrellas acumuladas alcanzan varias posiciones a la vez
+- **WHEN** tras cerrar un intento, la suma de `mejores_estrellas` del
+  usuario sobre los niveles del camino alcanza el `estrellas_requeridas` de
+  las posiciones 4 y 5, que antes estaban bloqueadas
+- **THEN** ambas posiciones quedan `desbloqueado = true` en
+  `progreso_usuario_nivel` para ese usuario en la misma operación
 
-#### Scenario: Se supera el último nivel de una temática
-- **WHEN** se cierra un intento con `superado = true` para el nivel con el
-  `orden` más alto de su temática
-- **THEN** no se crea ni modifica ninguna fila de desbloqueo de nivel para
-  esa temática
+#### Scenario: Las estrellas acumuladas no alcanzan la siguiente posición
+- **WHEN** tras cerrar un intento, la suma de `mejores_estrellas` del
+  usuario sobre los niveles del camino es menor que `estrellas_requeridas`
+  de la siguiente posición bloqueada
+- **THEN** ninguna posición adicional del camino se desbloquea
 
-#### Scenario: El nivel no queda superado
+#### Scenario: El intento cerrado no queda superado
 - **WHEN** se cierra un intento con `superado = false`
-- **THEN** no se desbloquea ningún nivel adicional
+- **THEN** no se recalcula ni modifica ningún desbloqueo de posiciones del
+  camino
 
-### Requirement: Desbloqueo de la siguiente temática por estrellas acumuladas
-El sistema SHALL desbloquear el primer nivel (`orden = 1`) de la siguiente
-temática (según `orden` de `tematicas`) cuando la suma de
-`mejores_estrellas` del usuario entre los niveles de la temática actual sea
-mayor o igual que `estrellas_requeridas` de la siguiente temática.
-
-#### Scenario: Estrellas acumuladas alcanzan el requisito
-- **WHEN** tras cerrar un intento, la suma de `mejores_estrellas` del
-  usuario en los niveles de la temática actual es mayor o igual que
-  `estrellas_requeridas` de la siguiente temática
-- **THEN** el primer nivel de la siguiente temática queda
-  `desbloqueado = true` en `progreso_usuario_nivel` para ese usuario
-
-#### Scenario: Estrellas acumuladas insuficientes
-- **WHEN** tras cerrar un intento, la suma de `mejores_estrellas` del
-  usuario en los niveles de la temática actual es menor que
-  `estrellas_requeridas` de la siguiente temática
-- **THEN** no se desbloquea ningún nivel de la siguiente temática
-
-#### Scenario: No existe siguiente temática
-- **WHEN** la temática del nivel cerrado es la de `orden` más alto
-- **THEN** no se intenta desbloquear ninguna temática adicional
+#### Scenario: El nivel cerrado no pertenece a ninguna posición del camino
+- **WHEN** se cierra un intento superado de un nivel que no tiene ninguna
+  fila asociada en `camino`
+- **THEN** sus estrellas no participan en el cálculo de desbloqueo de
+  posiciones del camino
 
 ### Requirement: Rejugar un nivel superado no penaliza el progreso
 El sistema SHALL permitir cerrar cualquier número de intentos sobre un

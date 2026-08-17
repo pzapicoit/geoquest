@@ -13,8 +13,6 @@ export interface NivelesTematica {
   tematicaId: string
   tematicaNombre: string
   tematicaOrden: number
-  tematicaEstrellasRequeridas: number
-  tematicaAnteriorNombre: string | null
   niveles: NivelListado[]
 }
 
@@ -22,7 +20,6 @@ interface TematicaRow {
   id: string
   nombre: string
   orden: number
-  estrellas_requeridas: number
 }
 
 interface NivelRow {
@@ -40,23 +37,12 @@ interface NivelDesafioRow {
 export async function fetchNivelesTematica(tematicaId: string): Promise<NivelesTematica> {
   const { data: tematica, error: tematicaError } = await supabase
     .from('tematicas')
-    .select('id, nombre, orden, estrellas_requeridas')
+    .select('id, nombre, orden')
     .eq('id', tematicaId)
     .single()
   if (tematicaError) throw new Error(tematicaError.message)
 
   const tematicaRow = tematica as TematicaRow
-
-  let tematicaAnteriorNombre: string | null = null
-  if (tematicaRow.orden > 1) {
-    const { data: anteriores, error: anteriorError } = await supabase
-      .from('tematicas')
-      .select('nombre')
-      .eq('orden', tematicaRow.orden - 1)
-    if (anteriorError) throw new Error(anteriorError.message)
-    tematicaAnteriorNombre =
-      ((anteriores ?? [])[0] as { nombre: string } | undefined)?.nombre ?? null
-  }
 
   const { data: niveles, error: nivelesError } = await supabase
     .from('niveles')
@@ -83,8 +69,6 @@ export async function fetchNivelesTematica(tematicaId: string): Promise<NivelesT
     tematicaId: tematicaRow.id,
     tematicaNombre: tematicaRow.nombre,
     tematicaOrden: tematicaRow.orden,
-    tematicaEstrellasRequeridas: tematicaRow.estrellas_requeridas,
-    tematicaAnteriorNombre,
     niveles: nivelRows.map((nivel) => ({
       id: nivel.id,
       nombre: nivel.nombre,

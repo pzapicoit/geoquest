@@ -37,15 +37,12 @@ describe('fetchNivelesTematica', () => {
     from.mockImplementation((table: string) => {
       if (table === 'tematicas') {
         return {
-          select: (cols: string) =>
-            cols.includes('estrellas_requeridas')
-              ? selectEqSingle({
-                  id: 't-2',
-                  nombre: 'Paisajes de Europa',
-                  orden: 2,
-                  estrellas_requeridas: 18,
-                })
-              : selectEq([{ nombre: 'Capitales del mundo' }]),
+          select: () =>
+            selectEqSingle({
+              id: 't-2',
+              nombre: 'Paisajes de Europa',
+              orden: 2,
+            }),
         }
       }
       if (table === 'niveles') {
@@ -69,8 +66,6 @@ describe('fetchNivelesTematica', () => {
       tematicaId: 't-2',
       tematicaNombre: 'Paisajes de Europa',
       tematicaOrden: 2,
-      tematicaEstrellasRequeridas: 18,
-      tematicaAnteriorNombre: 'Capitales del mundo',
       niveles: [
         {
           id: 'n-1',
@@ -92,43 +87,17 @@ describe('fetchNivelesTematica', () => {
     })
   })
 
-  it('no consulta la temática anterior cuando es la primera (orden = 1)', async () => {
-    const selectTematicas = vi.fn((cols: string) =>
-      cols.includes('estrellas_requeridas')
-        ? selectEqSingle({
-            id: 't-1',
-            nombre: 'Capitales del mundo',
-            orden: 1,
-            estrellas_requeridas: 0,
-          })
-        : selectEq([]),
-    )
-    from.mockImplementation((table: string) => {
-      if (table === 'tematicas') return { select: selectTematicas }
-      if (table === 'niveles') return { select: () => selectEqOrder([]) }
-      throw new Error(`tabla inesperada: ${table}`)
-    })
-
-    const resultado = await fetchNivelesTematica('t-1')
-
-    expect(resultado.tematicaAnteriorNombre).toBeNull()
-    expect(selectTematicas).toHaveBeenCalledTimes(1)
-  })
-
   it('una temática sin niveles devuelve la lista vacía sin consultar nivel_desafios', async () => {
     const fromNivelDesafios = vi.fn()
     from.mockImplementation((table: string) => {
       if (table === 'tematicas') {
         return {
-          select: (cols: string) =>
-            cols.includes('estrellas_requeridas')
-              ? selectEqSingle({
-                  id: 't-1',
-                  nombre: 'Capitales del mundo',
-                  orden: 1,
-                  estrellas_requeridas: 0,
-                })
-              : selectEq([]),
+          select: () =>
+            selectEqSingle({
+              id: 't-1',
+              nombre: 'Capitales del mundo',
+              orden: 1,
+            }),
         }
       }
       if (table === 'niveles') return { select: () => selectEqOrder([]) }

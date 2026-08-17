@@ -40,7 +40,6 @@ const TEMATICAS = [
     nombre: 'Capitales del mundo',
     imagen_portada: 'https://example.test/t-1.jpg',
     orden: 1,
-    estrellas_requeridas: 0,
     activo: true,
   },
   {
@@ -48,7 +47,6 @@ const TEMATICAS = [
     nombre: 'Paisajes de Europa',
     imagen_portada: 'https://example.test/t-2.jpg',
     orden: 2,
-    estrellas_requeridas: 18,
     activo: true,
   },
 ]
@@ -72,7 +70,6 @@ describe('fetchTematicas', () => {
         nombre: 'Capitales del mundo',
         imagenPortada: 'https://example.test/t-1.jpg',
         orden: 1,
-        estrellasRequeridas: 0,
         activo: true,
         cantidadNiveles: 2,
       },
@@ -81,7 +78,6 @@ describe('fetchTematicas', () => {
         nombre: 'Paisajes de Europa',
         imagenPortada: 'https://example.test/t-2.jpg',
         orden: 2,
-        estrellasRequeridas: 18,
         activo: true,
         cantidadNiveles: 1,
       },
@@ -172,9 +168,7 @@ describe('guardarTematica', () => {
     const { id } = await guardarTematica({
       id: null,
       nombre: 'Nueva temática',
-      estrellasRequeridas: 12,
       activo: true,
-      esPrimera: false,
       archivo: null,
       imagenPortadaActual: 'https://example.test/existing.jpg',
     })
@@ -184,30 +178,9 @@ describe('guardarTematica', () => {
         id,
         nombre: 'Nueva temática',
         orden: 3,
-        estrellas_requeridas: 12,
         activo: true,
       }),
     )
-  })
-
-  it('fuerza estrellas_requeridas a 0 cuando esPrimera es true', async () => {
-    const insert = vi.fn().mockResolvedValue({ error: null })
-    from.mockImplementation(() => ({
-      select: () => Promise.resolve({ data: [], error: null }),
-      insert,
-    }))
-
-    await guardarTematica({
-      id: null,
-      nombre: 'Primera',
-      estrellasRequeridas: 40,
-      activo: true,
-      esPrimera: true,
-      archivo: null,
-      imagenPortadaActual: 'https://example.test/existing.jpg',
-    })
-
-    expect(insert).toHaveBeenCalledWith(expect.objectContaining({ estrellas_requeridas: 0 }))
   })
 
   it('actualiza una temática existente por id', async () => {
@@ -218,15 +191,13 @@ describe('guardarTematica', () => {
     await guardarTematica({
       id: 't-1',
       nombre: 'Editada',
-      estrellasRequeridas: 20,
       activo: false,
-      esPrimera: false,
       archivo: null,
       imagenPortadaActual: 'https://example.test/existing.jpg',
     })
 
     expect(update).toHaveBeenCalledWith(
-      expect.objectContaining({ nombre: 'Editada', estrellas_requeridas: 20, activo: false }),
+      expect.objectContaining({ nombre: 'Editada', activo: false }),
     )
     expect(eq).toHaveBeenCalledWith('id', 't-1')
   })
@@ -245,9 +216,7 @@ describe('guardarTematica', () => {
     await guardarTematica({
       id: 't-1',
       nombre: 'Editada',
-      estrellasRequeridas: 20,
       activo: true,
-      esPrimera: false,
       archivo: archivo('nueva.jpg', 'image/jpeg'),
       imagenPortadaActual: 'https://example.test/vieja.jpg',
     })
@@ -262,9 +231,7 @@ describe('guardarTematica', () => {
       guardarTematica({
         id: null,
         nombre: 'Sin portada',
-        estrellasRequeridas: 0,
         activo: true,
-        esPrimera: true,
         archivo: null,
         imagenPortadaActual: null,
       }),

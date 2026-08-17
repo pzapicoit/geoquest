@@ -460,11 +460,7 @@ export function NivelesTematica() {
   const subtitulo =
     total > 0
       ? `${total} ${total === 1 ? 'nivel' : 'niveles'} · ${activos} activos · ${preguntasTotal} ${preguntasTotal === 1 ? 'pregunta asignada' : 'preguntas asignadas'} en total`
-      : datos.tematicaOrden === 1
-        ? 'Sin niveles todavía'
-        : `Sin niveles todavía · desbloqueo a partir de ${datos.tematicaEstrellasRequeridas} ${
-            datos.tematicaEstrellasRequeridas === 1 ? 'estrella' : 'estrellas'
-          } en «${datos.tematicaAnteriorNombre ?? ''}»`
+      : 'Sin niveles todavía'
 
   function abrirNuevo() {
     setNombreNuevo('')

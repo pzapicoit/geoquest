@@ -5,7 +5,6 @@ export interface Tematica {
   nombre: string
   imagenPortada: string
   orden: number
-  estrellasRequeridas: number
   activo: boolean
   cantidadNiveles: number
 }
@@ -15,7 +14,6 @@ interface TematicaRow {
   nombre: string
   imagen_portada: string
   orden: number
-  estrellas_requeridas: number
   activo: boolean
 }
 
@@ -28,7 +26,7 @@ export async function fetchTematicas(): Promise<Tematica[]> {
     await Promise.all([
       supabase
         .from('tematicas')
-        .select('id, nombre, imagen_portada, orden, estrellas_requeridas, activo')
+        .select('id, nombre, imagen_portada, orden, activo')
         .order('orden', { ascending: true }),
       supabase.from('niveles').select('tematica_id'),
     ])
@@ -48,7 +46,6 @@ export async function fetchTematicas(): Promise<Tematica[]> {
     nombre: tematica.nombre,
     imagenPortada: tematica.imagen_portada,
     orden: tematica.orden,
-    estrellasRequeridas: tematica.estrellas_requeridas,
     activo: tematica.activo,
     cantidadNiveles: cantidadPorTematica.get(tematica.id) ?? 0,
   }))
@@ -87,9 +84,7 @@ export async function subirPortadaTematica(id: string, file: File): Promise<stri
 export interface GuardarTematicaInput {
   id: string | null
   nombre: string
-  estrellasRequeridas: number
   activo: boolean
-  esPrimera: boolean
   archivo: File | null
   imagenPortadaActual: string | null
 }
@@ -105,15 +100,12 @@ export async function guardarTematica(input: GuardarTematicaInput): Promise<{ id
     throw new Error('La temática necesita una imagen de portada.')
   }
 
-  const estrellasRequeridas = input.esPrimera ? 0 : input.estrellasRequeridas
-
   if (input.id) {
     const { error } = await supabase
       .from('tematicas')
       .update({
         nombre: input.nombre,
         imagen_portada: imagenPortada,
-        estrellas_requeridas: estrellasRequeridas,
         activo: input.activo,
       })
       .eq('id', input.id)
@@ -132,7 +124,6 @@ export async function guardarTematica(input: GuardarTematicaInput): Promise<{ id
     nombre: input.nombre,
     imagen_portada: imagenPortada,
     orden: siguienteOrden,
-    estrellas_requeridas: estrellasRequeridas,
     activo: input.activo,
   })
   if (error) throw new Error(error.message)

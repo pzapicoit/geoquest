@@ -17,27 +17,12 @@ que navegue a la pantalla de listado, en lugar de mostrarse deshabilitado.
 ### Requirement: Listado de temáticas con una fila por temática
 La pantalla de listado SHALL mostrar una fila por cada temática existente,
 ordenadas por su columna `orden`, con: miniatura de portada, nombre,
-requisito de estrellas, cantidad de niveles y estado (activo/inactivo).
+cantidad de niveles y estado (activo/inactivo).
 
 #### Scenario: Listado con temáticas existentes
 - **WHEN** existen temáticas creadas
 - **THEN** el listado muestra una fila por temática en el orden de su
-  columna `orden`, con su portada, nombre, requisito de estrellas,
-  cantidad de niveles y estado
-
-### Requirement: Requisito de estrellas relativo a la temática anterior
-Cada fila SHALL mostrar las estrellas requeridas en la temática
-inmediatamente anterior (según `orden`) para desbloquear la temática de esa
-fila, o "Sin requisito" cuando la fila es la primera (`orden = 1`).
-
-#### Scenario: Temática que no es la primera
-- **WHEN** una temática tiene `orden = 3` y `estrellas_requeridas = 24`
-- **THEN** su fila muestra "24 estrellas" como requisito, referido a la
-  temática con `orden = 2`
-
-#### Scenario: Primera temática del recorrido
-- **WHEN** una temática tiene `orden = 1`
-- **THEN** su fila muestra "Sin requisito" en vez de un número de estrellas
+  columna `orden`, con su portada, nombre, cantidad de niveles y estado
 
 ### Requirement: Recuento de niveles por temática
 Cada fila SHALL mostrar cuántos niveles pertenecen a esa temática, contando

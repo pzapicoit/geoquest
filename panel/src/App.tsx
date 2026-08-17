@@ -8,6 +8,7 @@ import { PreguntaForm } from './pages/PreguntaForm'
 import { NivelRecorrido } from './pages/NivelRecorrido'
 import { Tematicas } from './pages/Tematicas'
 import { NivelesTematica } from './pages/NivelesTematica'
+import { Camino } from './pages/Camino'
 
 export function App() {
   return (
@@ -40,6 +41,16 @@ export function App() {
             <RequireAuth>
               <PanelLayout>
                 <NivelesTematica />
+              </PanelLayout>
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/camino"
+          element={
+            <RequireAuth>
+              <PanelLayout>
+                <Camino />
               </PanelLayout>
             </RequireAuth>
           }

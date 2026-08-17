@@ -35,6 +35,7 @@ const NIVEL: NivelRecorridoData = {
   umbralEstrella1: 20,
   umbralEstrella2: 30,
   umbralEstrella3: 40,
+  preguntasPorPartida: null,
   preguntas: [
     { desafioId: 'd-1', orden: 1, tipo: 'imagen', nombreLugar: 'Torre Eiffel', imagenUrl: null },
     { desafioId: 'd-2', orden: 2, tipo: 'video', nombreLugar: 'Coliseo', imagenUrl: null },
@@ -115,10 +116,64 @@ describe('NivelRecorrido — carga y configuración', () => {
           umbralEstrella1: 20,
           umbralEstrella2: 30,
           umbralEstrella3: 40,
+          preguntasPorPartida: null,
         }),
+        2,
       ),
     )
     expect(await screen.findByText('Configuración guardada.')).toBeInTheDocument()
+  })
+
+  it('guarda preguntas_por_partida cuando es un valor válido dentro del pool', async () => {
+    fetchNivelRecorrido.mockResolvedValue(NIVEL)
+    guardarConfiguracionNivel.mockResolvedValue(undefined)
+    const user = userEvent.setup()
+    renderNivel()
+
+    await screen.findByText('2 preguntas en este recorrido')
+    await user.type(screen.getByPlaceholderText('Todas'), '2')
+    await user.click(screen.getByRole('button', { name: /guardar cambios/i }))
+
+    await waitFor(() =>
+      expect(guardarConfiguracionNivel).toHaveBeenCalledWith(
+        'n-1',
+        expect.objectContaining({ preguntasPorPartida: 2 }),
+        2,
+      ),
+    )
+    expect(await screen.findByText('Configuración guardada.')).toBeInTheDocument()
+  })
+
+  it('bloquea el guardado si preguntas_por_partida supera el pool del recorrido', async () => {
+    fetchNivelRecorrido.mockResolvedValue(NIVEL)
+    const user = userEvent.setup()
+    renderNivel()
+
+    await screen.findByText('2 preguntas en este recorrido')
+    await user.type(screen.getByPlaceholderText('Todas'), '5')
+    await user.click(screen.getByRole('button', { name: /guardar cambios/i }))
+
+    expect(await screen.findByText(/no pueden superar/i)).toBeInTheDocument()
+    expect(guardarConfiguracionNivel).not.toHaveBeenCalled()
+  })
+
+  it('guarda preguntas_por_partida vacío como null (se juegan todas)', async () => {
+    fetchNivelRecorrido.mockResolvedValue({ ...NIVEL, preguntasPorPartida: 2 })
+    guardarConfiguracionNivel.mockResolvedValue(undefined)
+    const user = userEvent.setup()
+    renderNivel()
+
+    const inputPreguntas = await screen.findByDisplayValue('2')
+    await user.clear(inputPreguntas)
+    await user.click(screen.getByRole('button', { name: /guardar cambios/i }))
+
+    await waitFor(() =>
+      expect(guardarConfiguracionNivel).toHaveBeenCalledWith(
+        'n-1',
+        expect.objectContaining({ preguntasPorPartida: null }),
+        2,
+      ),
+    )
   })
 
   it('bloquea el guardado si los umbrales no son ascendentes', async () => {

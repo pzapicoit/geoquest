@@ -18,6 +18,7 @@ export interface NivelRecorrido {
   umbralEstrella1: number
   umbralEstrella2: number
   umbralEstrella3: number
+  preguntasPorPartida: number | null
   preguntas: PreguntaRecorrido[]
 }
 
@@ -30,6 +31,7 @@ interface NivelRow {
   umbral_estrella_1: number
   umbral_estrella_2: number
   umbral_estrella_3: number
+  preguntas_por_partida: number | null
 }
 
 interface DesafioBancoRow {
@@ -48,7 +50,7 @@ export async function fetchNivelRecorrido(id: string): Promise<NivelRecorrido> {
   const { data: nivel, error: nivelError } = await supabase
     .from('niveles')
     .select(
-      'id, nombre, orden, tematica_id, puntaje_minimo_superar, umbral_estrella_1, umbral_estrella_2, umbral_estrella_3',
+      'id, nombre, orden, tematica_id, puntaje_minimo_superar, umbral_estrella_1, umbral_estrella_2, umbral_estrella_3, preguntas_por_partida',
     )
     .eq('id', id)
     .single()
@@ -106,6 +108,7 @@ export async function fetchNivelRecorrido(id: string): Promise<NivelRecorrido> {
     umbralEstrella1: row.umbral_estrella_1,
     umbralEstrella2: row.umbral_estrella_2,
     umbralEstrella3: row.umbral_estrella_3,
+    preguntasPorPartida: row.preguntas_por_partida,
     preguntas,
   }
 }
@@ -116,9 +119,13 @@ export interface ConfiguracionNivel {
   umbralEstrella1: number
   umbralEstrella2: number
   umbralEstrella3: number
+  preguntasPorPartida: number | null
 }
 
-export function validarConfiguracionNivel(config: ConfiguracionNivel): string | null {
+export function validarConfiguracionNivel(
+  config: ConfiguracionNivel,
+  preguntasAsignadas: number,
+): string | null {
   const { puntajeMinimoSuperar, umbralEstrella1, umbralEstrella2, umbralEstrella3 } = config
   const ascendente =
     puntajeMinimoSuperar <= umbralEstrella1 &&
@@ -127,14 +134,18 @@ export function validarConfiguracionNivel(config: ConfiguracionNivel): string | 
   if (!ascendente) {
     return 'Los umbrales deben ser ascendentes: puntaje mínimo ≤ 1 estrella ≤ 2 estrellas ≤ 3 estrellas.'
   }
+  if (config.preguntasPorPartida !== null && config.preguntasPorPartida > preguntasAsignadas) {
+    return 'Las preguntas por partida no pueden superar el número de preguntas del recorrido.'
+  }
   return null
 }
 
 export async function guardarConfiguracionNivel(
   id: string,
   config: ConfiguracionNivel,
+  preguntasAsignadas: number,
 ): Promise<void> {
-  const errorValidacion = validarConfiguracionNivel(config)
+  const errorValidacion = validarConfiguracionNivel(config, preguntasAsignadas)
   if (errorValidacion) throw new Error(errorValidacion)
 
   const { error } = await supabase
@@ -145,6 +156,7 @@ export async function guardarConfiguracionNivel(
       umbral_estrella_1: config.umbralEstrella1,
       umbral_estrella_2: config.umbralEstrella2,
       umbral_estrella_3: config.umbralEstrella3,
+      preguntas_por_partida: config.preguntasPorPartida,
     })
     .eq('id', id)
   if (error) throw new Error(error.message)

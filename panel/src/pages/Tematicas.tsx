@@ -123,7 +123,6 @@ function FilaTematica({
   tematica,
   index,
   total,
-  tematicaAnterior,
   error,
   eliminando,
   arrastrando,
@@ -137,7 +136,6 @@ function FilaTematica({
   tematica: Tematica
   index: number
   total: number
-  tematicaAnterior: Tematica | null
   error?: string
   eliminando: boolean
   arrastrando: boolean
@@ -148,8 +146,6 @@ function FilaTematica({
   onEditar: () => void
   onEliminar: () => void
 }) {
-  const esPrimera = index === 0
-
   return (
     <tr
       draggable
@@ -174,21 +170,6 @@ function FilaTematica({
             >
               {tematica.nombre}
             </Link>
-            <div className="mt-0.5 flex items-center gap-1.5 text-xs text-brand-night/50">
-              {esPrimera ? (
-                <span className="font-semibold text-brand-night/45">Sin requisito</span>
-              ) : (
-                <span className="font-semibold text-brand-night">
-                  <span className="text-brand-gold">★</span> {tematica.estrellasRequeridas}
-                </span>
-              )}
-              <span className="text-brand-night/30">·</span>
-              <span className="min-w-0 truncate">
-                {esPrimera
-                  ? 'Primera temática · siempre disponible'
-                  : `Requiere estrellas en «${tematicaAnterior?.nombre ?? ''}»`}
-              </span>
-            </div>
           </div>
         </div>
       </td>
@@ -263,8 +244,8 @@ function EstadoVacio({ onCrear }: { onCrear: () => void }) {
       </div>
       <h4 className="font-display text-xl font-extrabold text-brand-night">Aún no hay temáticas</h4>
       <p className="max-w-md text-sm text-brand-night/55">
-        Las temáticas son los mundos del juego: agrupan un recorrido de niveles. Crea la primera; se
-        desbloquea sin estrellas.
+        Las temáticas son los mundos del juego: agrupan un recorrido de niveles. Crea la primera
+        para empezar.
       </p>
       <button
         type="button"
@@ -330,7 +311,6 @@ function CampoPortada({
 interface FormState {
   id: string | null
   nombre: string
-  estrellas: string
   activo: boolean
   archivo: File | null
   imagenPortadaActual: string | null
@@ -339,7 +319,6 @@ interface FormState {
 const FORM_VACIO: FormState = {
   id: null,
   nombre: '',
-  estrellas: '0',
   activo: true,
   archivo: null,
   imagenPortadaActual: null,
@@ -347,7 +326,6 @@ const FORM_VACIO: FormState = {
 
 function PanelTematica({
   form,
-  esPrimera,
   errores,
   errorGuardado,
   guardando,
@@ -357,7 +335,6 @@ function PanelTematica({
   onCancelar,
 }: {
   form: FormState
-  esPrimera: boolean
   errores: Record<string, string>
   errorGuardado: string
   guardando: boolean
@@ -407,34 +384,6 @@ function PanelTematica({
             onChange={onArchivoSeleccionado}
           />
 
-          {esPrimera ? (
-            <div className="flex items-start gap-2.5 rounded-xl border border-brand-border bg-[#F8FBFC] p-3.5">
-              <span className="mt-1.5 h-1.5 w-1.5 flex-none rounded-full bg-brand-teal" />
-              <span className="text-xs leading-relaxed text-brand-night/65">
-                Es la primera temática del recorrido: está siempre desbloqueada, así que no necesita
-                estrellas.
-              </span>
-            </div>
-          ) : (
-            <label className="flex flex-col gap-1.5">
-              <span className="text-sm font-semibold text-brand-night">
-                Estrellas requeridas para desbloquearse <span className="text-[#E0454A]">*</span>
-              </span>
-              <input
-                type="number"
-                min={0}
-                step={1}
-                value={form.estrellas}
-                onChange={(e) => onCambiar({ ...form, estrellas: e.target.value })}
-                className={`${CAMPO_BASE} max-w-40 tabular-nums ${errores.estrellas ? CAMPO_ERROR : ''}`}
-              />
-              <span className="text-xs text-brand-night/45">
-                Estrellas que el jugador debe acumular en la temática anterior para abrir esta.
-              </span>
-              <ErrorCampo mensaje={errores.estrellas} />
-            </label>
-          )}
-
           <label className="flex cursor-pointer items-center gap-3.5 border-t border-brand-base pt-5">
             <input
               type="checkbox"
@@ -451,7 +400,7 @@ function PanelTematica({
               </span>
               <span className="mt-1 block text-xs text-brand-night/45">
                 {form.activo
-                  ? 'Visible en el mapa del jugador cuando cumpla las estrellas.'
+                  ? 'Visible en el mapa del jugador.'
                   : 'Oculta para los jugadores; puedes seguir editando sus niveles.'}
               </span>
             </span>
@@ -525,7 +474,7 @@ export function Tematicas() {
   const activas = lista.filter((t) => t.activo).length
 
   function abrirNueva() {
-    setForm({ ...FORM_VACIO, estrellas: '0' })
+    setForm(FORM_VACIO)
     setFormErrores({})
     setErrorGuardado('')
     setPanelAbierto(true)
@@ -535,7 +484,6 @@ export function Tematicas() {
     setForm({
       id: tematica.id,
       nombre: tematica.nombre,
-      estrellas: String(tematica.estrellasRequeridas),
       activo: tematica.activo,
       archivo: null,
       imagenPortadaActual: tematica.imagenPortada,
@@ -550,9 +498,6 @@ export function Tematicas() {
     setPanelAbierto(false)
   }
 
-  const editIndex = form.id ? lista.findIndex((t) => t.id === form.id) : lista.length
-  const esPrimera = editIndex === 0
-
   function validarForm(): Record<string, string> {
     const erroresLocal: Record<string, string> = {}
 
@@ -561,13 +506,6 @@ export function Tematicas() {
     }
     if (!form.archivo && !form.imagenPortadaActual) {
       erroresLocal.portada = 'Selecciona una imagen de portada.'
-    }
-    if (!esPrimera) {
-      const valor = Number(form.estrellas)
-      if (form.estrellas.trim() === '' || !Number.isInteger(valor) || valor < 0) {
-        erroresLocal.estrellas =
-          'Las estrellas requeridas deben ser un número entero igual o mayor a 0.'
-      }
     }
 
     return erroresLocal
@@ -590,9 +528,7 @@ export function Tematicas() {
       await guardarTematica({
         id: form.id,
         nombre: form.nombre.trim(),
-        estrellasRequeridas: Number(form.estrellas) || 0,
         activo: form.activo,
-        esPrimera,
         archivo: form.archivo,
         imagenPortadaActual: form.imagenPortadaActual,
       })
@@ -756,7 +692,6 @@ export function Tematicas() {
                     tematica={tematica}
                     index={index}
                     total={lista.length}
-                    tematicaAnterior={index > 0 ? lista[index - 1] : null}
                     error={rowErrors[tematica.id]}
                     eliminando={eliminandoIds.has(tematica.id)}
                     arrastrando={dragIndex === index}
@@ -777,7 +712,6 @@ export function Tematicas() {
       {panelAbierto && (
         <PanelTematica
           form={form}
-          esPrimera={esPrimera}
           errores={formErrores}
           errorGuardado={errorGuardado}
           guardando={guardando}
