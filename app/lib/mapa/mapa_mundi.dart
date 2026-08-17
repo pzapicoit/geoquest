@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'dart:ui' show PointMode;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show OverflowBoxFit;
 import 'package:google_fonts/google_fonts.dart';
 
 import 'gran_circulo.dart';
@@ -160,6 +161,9 @@ class _MapaMundiState extends State<MapaMundi> {
                         // que distinguirlo.
                         rotulo: pinReal == null ? null : 'Tu pin',
                         colorDelRotulo: _pinRotulo,
+                        // Por debajo del pin para que nunca se solape con el
+                        // rótulo del pin real, que va por encima (INT-104).
+                        rotuloDebajo: pinReal != null,
                       ),
                     if (pinReal != null)
                       _PinDelMapa(
@@ -168,7 +172,7 @@ class _MapaMundiState extends State<MapaMundi> {
                         coordenada: pinReal,
                         relleno: _pinRealRelleno,
                         halo: _pinRealHalo,
-                        rotulo: 'Real',
+                        rotulo: controller.nombrePinReal,
                         colorDelRotulo: _pinRealRotulo,
                       ),
                     if (widget.interactivo)
@@ -284,6 +288,7 @@ class _PinDelMapa extends StatelessWidget {
     required this.halo,
     this.rotulo,
     this.colorDelRotulo,
+    this.rotuloDebajo = false,
     this.clave,
   });
 
@@ -291,12 +296,23 @@ class _PinDelMapa extends StatelessWidget {
   static const double _alturaPin = 45;
   static const double _anchoPin = 34;
 
+  /// Ancho máximo del rótulo, independiente del cuadro fijo del pin: un
+  /// nombre de lugar puede necesitar más sitio que los 160px de [_lado]
+  /// (INT-104, D2 de `design.md`).
+  static const double _anchoRotulo = 200;
+
   final Offset? punto;
   final Coordenada coordenada;
   final Color relleno;
   final Color halo;
   final String? rotulo;
   final Color? colorDelRotulo;
+
+  /// Con `true` el rótulo se dibuja por debajo del pin en vez de por
+  /// encima, para que los rótulos del pin del jugador y el real nunca se
+  /// solapen entre sí, caigan donde caigan (INT-104, D6 de `design.md`).
+  final bool rotuloDebajo;
+
   final Key? clave;
 
   @override
@@ -338,19 +354,46 @@ class _PinDelMapa extends StatelessWidget {
               ),
               if (rotulo != null)
                 Positioned(
-                  top: _lado / 2 - _alturaPin - 26,
+                  top: rotuloDebajo ? null : _lado / 2 - _alturaPin - 26,
+                  bottom: rotuloDebajo ? _lado / 2 - _alturaPin - 26 : null,
                   left: 0,
                   right: 0,
                   child: Opacity(
                     opacity: entrada.clamp(0.0, 1.0),
-                    child: Text(
-                      rotulo!.toUpperCase(),
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.outfit(
-                        color: colorDelRotulo,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 1.4,
+                    child: OverflowBox(
+                      maxWidth: _anchoRotulo,
+                      alignment: Alignment.center,
+                      // Sin esto, la altura infinita que le llega desde este
+                      // lado del `Stack` —solo `top` o solo `bottom` está
+                      // fijado— haría que la caja intentara crecer sin
+                      // límite (`OverflowBoxFit.max` es el valor por
+                      // defecto).
+                      fit: OverflowBoxFit.deferToChild,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0E1620)
+                              .withValues(alpha: 0.72),
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.14),
+                          ),
+                        ),
+                        child: Text(
+                          rotulo!.toUpperCase(),
+                          textAlign: TextAlign.center,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.outfit(
+                            color: colorDelRotulo,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 1.4,
+                          ),
+                        ),
                       ),
                     ),
                   ),

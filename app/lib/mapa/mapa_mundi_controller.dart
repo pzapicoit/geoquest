@@ -123,6 +123,9 @@ class MapaMundiController extends ChangeNotifier {
   /// Ubicación real del desafío, que solo se conoce tras responder (INT-93).
   Coordenada? _pinReal;
 
+  /// Nombre del lugar de [_pinReal], para su rótulo en el mapa (INT-104).
+  String? _nombrePinReal;
+
   /// Cuánto de la línea entre los dos pines está trazado, de 0 a 1.
   double _progresoDeLaLinea = 0;
 
@@ -131,6 +134,7 @@ class MapaMundiController extends ChangeNotifier {
   Offset get desplazamiento => _desplazamiento;
   Coordenada? get pin => _pin;
   Coordenada? get pinReal => _pinReal;
+  String? get nombrePinReal => _nombrePinReal;
   double get progresoDeLaLinea => _progresoDeLaLinea;
   bool get tienePin => _pin != null;
   bool get listo => _tamano.width > 0 && _tamano.height > 0;
@@ -244,8 +248,9 @@ class MapaMundiController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Enseña la ubicación real del desafío junto al pin del jugador (INT-93).
-  void revelarUbicacion(Coordenada coordenada) {
+  /// Enseña la ubicación real del desafío junto al pin del jugador (INT-93),
+  /// rotulada con [nombre] (INT-104).
+  void revelarUbicacion(Coordenada coordenada, {required String nombre}) {
     _pinReal = Coordenada(
       latitud: coordenada.latitud.clamp(
         -Mercator.latitudMaxima,
@@ -253,6 +258,7 @@ class MapaMundiController extends ChangeNotifier {
       ),
       longitud: Mercator.normalizarLongitud(coordenada.longitud),
     );
+    _nombrePinReal = nombre;
     notifyListeners();
   }
 
@@ -268,6 +274,7 @@ class MapaMundiController extends ChangeNotifier {
   void limpiarRevelado() {
     if (_pinReal == null && _progresoDeLaLinea == 0) return;
     _pinReal = null;
+    _nombrePinReal = null;
     _progresoDeLaLinea = 0;
     notifyListeners();
   }
