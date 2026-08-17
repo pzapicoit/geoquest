@@ -1,12 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import {
-  fetchNivelRecorrido,
-  validarConfiguracionNivel,
-  guardarConfiguracionNivel,
-  fetchPreguntasNoAsignadas,
+  absolutoDesdePorcentaje,
   agregarPreguntaAlRecorrido,
-  reordenarRecorrido,
+  distanciaMediaKm,
+  fetchNivelRecorrido,
+  fetchPreguntasNoAsignadas,
+  guardarConfiguracionNivel,
+  porcentajeDesdeAbsoluto,
+  preguntasEfectivasPorPartida,
+  puntajeMaximoNivel,
   quitarPreguntaDelRecorrido,
+  reordenarRecorrido,
+  validarConfiguracionNivel,
 } from './nivelRecorrido'
 
 const from = vi.fn()
@@ -30,7 +35,6 @@ const NIVEL_ROW = {
   orden: 3,
   tematica_id: 't-1',
   puntaje_minimo_superar: 10,
-  umbral_estrella_1: 20,
   umbral_estrella_2: 30,
   umbral_estrella_3: 40,
 }
@@ -154,7 +158,6 @@ describe('validarConfiguracionNivel', () => {
         {
           nombre: null,
           puntajeMinimoSuperar: 10,
-          umbralEstrella1: 20,
           umbralEstrella2: 30,
           umbralEstrella3: 40,
           preguntasPorPartida: null,
@@ -170,9 +173,8 @@ describe('validarConfiguracionNivel', () => {
         {
           nombre: null,
           puntajeMinimoSuperar: 10,
-          umbralEstrella1: 30,
-          umbralEstrella2: 20,
-          umbralEstrella3: 40,
+          umbralEstrella2: 40,
+          umbralEstrella3: 30,
           preguntasPorPartida: null,
         },
         5,
@@ -186,7 +188,6 @@ describe('validarConfiguracionNivel', () => {
         {
           nombre: null,
           puntajeMinimoSuperar: 10,
-          umbralEstrella1: 20,
           umbralEstrella2: 30,
           umbralEstrella3: 40,
           preguntasPorPartida: null,
@@ -202,7 +203,6 @@ describe('validarConfiguracionNivel', () => {
         {
           nombre: null,
           puntajeMinimoSuperar: 10,
-          umbralEstrella1: 20,
           umbralEstrella2: 30,
           umbralEstrella3: 40,
           preguntasPorPartida: 5,
@@ -218,7 +218,6 @@ describe('validarConfiguracionNivel', () => {
         {
           nombre: null,
           puntajeMinimoSuperar: 10,
-          umbralEstrella1: 20,
           umbralEstrella2: 30,
           umbralEstrella3: 40,
           preguntasPorPartida: 8,
@@ -240,7 +239,6 @@ describe('guardarConfiguracionNivel', () => {
       {
         nombre: 'Costas',
         puntajeMinimoSuperar: 10,
-        umbralEstrella1: 20,
         umbralEstrella2: 30,
         umbralEstrella3: 40,
         preguntasPorPartida: 5,
@@ -253,13 +251,32 @@ describe('guardarConfiguracionNivel', () => {
       expect.objectContaining({
         nombre: 'Costas',
         puntaje_minimo_superar: 10,
-        umbral_estrella_1: 20,
         umbral_estrella_2: 30,
         umbral_estrella_3: 40,
         preguntas_por_partida: 5,
       }),
     )
     expect(eq).toHaveBeenCalledWith('id', 'n-1')
+  })
+
+  it('fija umbral_estrella_1 = puntaje_minimo_superar sin leerlo de la config', async () => {
+    const eq = vi.fn().mockResolvedValue({ error: null })
+    const update = vi.fn().mockReturnValue({ eq })
+    from.mockReturnValue({ update })
+
+    await guardarConfiguracionNivel(
+      'n-1',
+      {
+        nombre: null,
+        puntajeMinimoSuperar: 1200,
+        umbralEstrella2: 3000,
+        umbralEstrella3: 4500,
+        preguntasPorPartida: null,
+      },
+      5,
+    )
+
+    expect(update).toHaveBeenCalledWith(expect.objectContaining({ umbral_estrella_1: 1200 }))
   })
 
   it('rechaza sin llamar a supabase si los umbrales no son ascendentes', async () => {
@@ -269,9 +286,8 @@ describe('guardarConfiguracionNivel', () => {
         {
           nombre: null,
           puntajeMinimoSuperar: 10,
-          umbralEstrella1: 5,
-          umbralEstrella2: 30,
-          umbralEstrella3: 40,
+          umbralEstrella2: 40,
+          umbralEstrella3: 30,
           preguntasPorPartida: null,
         },
         0,
@@ -287,7 +303,6 @@ describe('guardarConfiguracionNivel', () => {
         {
           nombre: null,
           puntajeMinimoSuperar: 10,
-          umbralEstrella1: 20,
           umbralEstrella2: 30,
           umbralEstrella3: 40,
           preguntasPorPartida: 8,
@@ -308,7 +323,6 @@ describe('guardarConfiguracionNivel', () => {
         {
           nombre: null,
           puntajeMinimoSuperar: 10,
-          umbralEstrella1: 20,
           umbralEstrella2: 30,
           umbralEstrella3: 40,
           preguntasPorPartida: null,
@@ -316,6 +330,61 @@ describe('guardarConfiguracionNivel', () => {
         0,
       ),
     ).rejects.toThrow('no autorizado')
+  })
+})
+
+describe('preguntasEfectivasPorPartida / puntajeMaximoNivel', () => {
+  it('usa preguntasPorPartida cuando está definido', () => {
+    expect(preguntasEfectivasPorPartida(5, 8)).toBe(5)
+    expect(puntajeMaximoNivel(5, 8)).toBe(25000)
+  })
+
+  it('usa el tamaño del pool cuando preguntasPorPartida es null', () => {
+    expect(preguntasEfectivasPorPartida(null, 8)).toBe(8)
+    expect(puntajeMaximoNivel(null, 8)).toBe(40000)
+  })
+})
+
+describe('absolutoDesdePorcentaje / porcentajeDesdeAbsoluto', () => {
+  it('convierte porcentaje a absoluto redondeando', () => {
+    expect(absolutoDesdePorcentaje(40, 10000)).toBe(4000)
+    expect(absolutoDesdePorcentaje(33.33, 10000)).toBe(3333)
+  })
+
+  it('es la inversa de porcentajeDesdeAbsoluto', () => {
+    expect(porcentajeDesdeAbsoluto(4000, 10000)).toBe(40)
+  })
+
+  it('devuelve 0 si el máximo del nivel es 0', () => {
+    expect(porcentajeDesdeAbsoluto(100, 0)).toBe(0)
+  })
+})
+
+describe('distanciaMediaKm', () => {
+  it('d=0 → MAX (1 desafío)', () => {
+    expect(distanciaMediaKm(5000, 1)).toBeCloseTo(0, 5)
+  })
+
+  it('reproduce la tabla de la propuesta (1 desafío)', () => {
+    expect(distanciaMediaKm(4838, 1)).toBeCloseTo(50, 0)
+    expect(distanciaMediaKm(4382, 1)).toBeCloseTo(200, 0)
+    expect(distanciaMediaKm(3597, 1)).toBeCloseTo(500, 0)
+    expect(distanciaMediaKm(2591, 1)).toBeCloseTo(1000, 0)
+    expect(distanciaMediaKm(1355, 1)).toBeCloseTo(2000, -1)
+  })
+
+  it('divide entre el número de desafíos para obtener el promedio', () => {
+    // 10000 pts en 2 desafíos = 5000 pts/desafío = distancia 0
+    expect(distanciaMediaKm(10000, 2)).toBeCloseTo(0, 5)
+  })
+
+  it('devuelve null si el puntaje está en el suelo o por debajo', () => {
+    expect(distanciaMediaKm(50, 1)).toBeNull()
+    expect(distanciaMediaKm(0, 1)).toBeNull()
+  })
+
+  it('devuelve null si no hay desafíos', () => {
+    expect(distanciaMediaKm(1000, 0)).toBeNull()
   })
 })
 

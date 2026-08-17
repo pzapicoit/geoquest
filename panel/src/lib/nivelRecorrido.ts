@@ -1,6 +1,54 @@
 import { supabase } from './supabaseClient'
 import type { TipoDesafio } from './preguntas'
 
+// Deben coincidir con las constantes de calcular_puntaje en
+// backend/supabase/migrations/20260817220000_curva_puntuacion_exponencial.sql
+// (fuente de verdad de la curva real). Duplicadas aquí porque el cálculo de
+// absoluto/distancia media es puramente presentacional y no justifica una RPC.
+export const MAX_PUNTOS_DESAFIO = 5000
+export const PISO_PUNTOS_DESAFIO = 50
+export const K_DISTANCIA_KM = 1500
+
+/** Preguntas que se juegan realmente en una partida del nivel. */
+export function preguntasEfectivasPorPartida(
+  preguntasPorPartida: number | null,
+  preguntasAsignadas: number,
+): number {
+  return preguntasPorPartida ?? preguntasAsignadas
+}
+
+/** Puntaje total máximo alcanzable en el nivel (N desafíos a puntaje MAX). */
+export function puntajeMaximoNivel(
+  preguntasPorPartida: number | null,
+  preguntasAsignadas: number,
+): number {
+  return preguntasEfectivasPorPartida(preguntasPorPartida, preguntasAsignadas) * MAX_PUNTOS_DESAFIO
+}
+
+export function absolutoDesdePorcentaje(porcentaje: number, maximoNivel: number): number {
+  return Math.round((porcentaje / 100) * maximoNivel)
+}
+
+export function porcentajeDesdeAbsoluto(absoluto: number, maximoNivel: number): number {
+  if (maximoNivel <= 0) return 0
+  return (absoluto / maximoNivel) * 100
+}
+
+/**
+ * Distancia media en km que implica un puntaje total, invirtiendo la curva
+ * de calcular_puntaje sobre el puntaje medio por desafío. `null` cuando el
+ * puntaje está en el suelo o por debajo: cualquier distancia lo cumple.
+ */
+export function distanciaMediaKm(puntajeTotal: number, preguntasEfectivas: number): number | null {
+  if (preguntasEfectivas <= 0) return null
+  const puntosPorDesafio = puntajeTotal / preguntasEfectivas
+  const fraccion =
+    (puntosPorDesafio - PISO_PUNTOS_DESAFIO) / (MAX_PUNTOS_DESAFIO - PISO_PUNTOS_DESAFIO)
+  if (fraccion <= 0) return null
+  if (fraccion >= 1) return 0
+  return -K_DISTANCIA_KM * Math.log(fraccion)
+}
+
 export interface PreguntaRecorrido {
   desafioId: string
   orden: number
@@ -15,7 +63,6 @@ export interface NivelRecorrido {
   orden: number
   tematicaNombre: string
   puntajeMinimoSuperar: number
-  umbralEstrella1: number
   umbralEstrella2: number
   umbralEstrella3: number
   preguntasPorPartida: number | null
@@ -28,7 +75,6 @@ interface NivelRow {
   orden: number
   tematica_id: string
   puntaje_minimo_superar: number
-  umbral_estrella_1: number
   umbral_estrella_2: number
   umbral_estrella_3: number
   preguntas_por_partida: number | null
@@ -50,7 +96,7 @@ export async function fetchNivelRecorrido(id: string): Promise<NivelRecorrido> {
   const { data: nivel, error: nivelError } = await supabase
     .from('niveles')
     .select(
-      'id, nombre, orden, tematica_id, puntaje_minimo_superar, umbral_estrella_1, umbral_estrella_2, umbral_estrella_3, preguntas_por_partida',
+      'id, nombre, orden, tematica_id, puntaje_minimo_superar, umbral_estrella_2, umbral_estrella_3, preguntas_por_partida',
     )
     .eq('id', id)
     .single()
@@ -105,7 +151,6 @@ export async function fetchNivelRecorrido(id: string): Promise<NivelRecorrido> {
     orden: row.orden,
     tematicaNombre: (tematica as { nombre: string }).nombre,
     puntajeMinimoSuperar: row.puntaje_minimo_superar,
-    umbralEstrella1: row.umbral_estrella_1,
     umbralEstrella2: row.umbral_estrella_2,
     umbralEstrella3: row.umbral_estrella_3,
     preguntasPorPartida: row.preguntas_por_partida,
@@ -116,7 +161,6 @@ export async function fetchNivelRecorrido(id: string): Promise<NivelRecorrido> {
 export interface ConfiguracionNivel {
   nombre: string | null
   puntajeMinimoSuperar: number
-  umbralEstrella1: number
   umbralEstrella2: number
   umbralEstrella3: number
   preguntasPorPartida: number | null
@@ -126,13 +170,10 @@ export function validarConfiguracionNivel(
   config: ConfiguracionNivel,
   preguntasAsignadas: number,
 ): string | null {
-  const { puntajeMinimoSuperar, umbralEstrella1, umbralEstrella2, umbralEstrella3 } = config
-  const ascendente =
-    puntajeMinimoSuperar <= umbralEstrella1 &&
-    umbralEstrella1 <= umbralEstrella2 &&
-    umbralEstrella2 <= umbralEstrella3
+  const { puntajeMinimoSuperar, umbralEstrella2, umbralEstrella3 } = config
+  const ascendente = puntajeMinimoSuperar <= umbralEstrella2 && umbralEstrella2 <= umbralEstrella3
   if (!ascendente) {
-    return 'Los umbrales deben ser ascendentes: puntaje mínimo ≤ 1 estrella ≤ 2 estrellas ≤ 3 estrellas.'
+    return 'Los umbrales deben ser ascendentes: puntaje mínimo ≤ 2 estrellas ≤ 3 estrellas.'
   }
   if (config.preguntasPorPartida !== null && config.preguntasPorPartida > preguntasAsignadas) {
     return 'Las preguntas por partida no pueden superar el número de preguntas del recorrido.'
@@ -153,7 +194,11 @@ export async function guardarConfiguracionNivel(
     .update({
       nombre: config.nombre,
       puntaje_minimo_superar: config.puntajeMinimoSuperar,
-      umbral_estrella_1: config.umbralEstrella1,
+      // umbral_estrella_1 es una columna muerta (cerrar_intento_nivel no la
+      // lee, ver design.md de INT-101): se fija = puntaje_minimo_superar
+      // para seguir cumpliendo el CHECK de la tabla sin campo propio en el
+      // formulario.
+      umbral_estrella_1: config.puntajeMinimoSuperar,
       umbral_estrella_2: config.umbralEstrella2,
       umbral_estrella_3: config.umbralEstrella3,
       preguntas_por_partida: config.preguntasPorPartida,
