@@ -6,15 +6,15 @@ import '../services/anonymous_session_service.dart';
 import '../services/auth_gateway.dart';
 import '../services/device_id_service.dart';
 import '../services/username_storage.dart';
-import 'topics_map_placeholder_screen.dart';
+import 'camino_screen.dart';
 import 'username_screen.dart';
 
 /// Pantalla de carga inicial (INT-88).
 ///
 /// Crea o recupera la sesión anónima en segundo plano (INT-75) y encamina al
 /// jugador sin que tenga que hacer nada: a "Nombre de usuario" si el
-/// dispositivo no tiene uno guardado, o directo al Mapa de temáticas si ya
-/// lo tiene. Sustituye a `ConnectivityScreen`, que era un destino provisional.
+/// dispositivo no tiene uno guardado, o directo al camino (INT-90) si ya lo
+/// tiene. Sustituye a `ConnectivityScreen`, que era un destino provisional.
 class SplashScreen extends StatefulWidget {
   const SplashScreen({
     super.key,
@@ -83,9 +83,8 @@ class _SplashScreenState extends State<SplashScreen> {
     if (!mounted) return;
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
-        builder: (_) => username == null
-            ? const UsernameScreen()
-            : const TopicsMapPlaceholderScreen(),
+        builder: (_) =>
+            username == null ? const UsernameScreen() : const CaminoScreen(),
       ),
     );
   }

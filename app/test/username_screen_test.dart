@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:geoquest/screens/topics_map_placeholder_screen.dart';
+import 'package:geoquest/screens/camino_screen.dart';
 import 'package:geoquest/screens/username_screen.dart';
 import 'package:geoquest/services/username_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -98,7 +98,7 @@ void main() {
     expect(find.text('16/16'), findsOneWidget);
   });
 
-  testWidgets('guarda el apodo local y remoto, y navega al Mapa de temáticas', (
+  testWidgets('guarda el apodo local y remoto, y navega al camino', (
     tester,
   ) async {
     final profileGateway = FakeProfileGateway();
@@ -118,7 +118,7 @@ void main() {
     expect(profileGateway.updateNicknameCalls, 1);
     expect(profileGateway.lastNickname, 'Ana');
     expect(await usernameStorage.read(), 'Ana');
-    expect(find.byType(TopicsMapPlaceholderScreen), findsOneWidget);
+    expect(find.byType(CaminoScreen), findsOneWidget);
   });
 
   testWidgets(

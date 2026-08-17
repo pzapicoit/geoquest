@@ -6,7 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../services/profile_gateway.dart';
 import '../services/username_storage.dart';
-import 'topics_map_placeholder_screen.dart';
+import 'camino_screen.dart';
 
 const _teal = Color(0xFF2BC0A8);
 const _blue = Color(0xFF1B6FA8);
@@ -113,9 +113,9 @@ class _UsernameScreenState extends State<UsernameScreen> {
     }
 
     if (!mounted) return;
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const TopicsMapPlaceholderScreen()),
-    );
+    Navigator.of(
+      context,
+    ).pushReplacement(MaterialPageRoute(builder: (_) => const CaminoScreen()));
   }
 
   @override

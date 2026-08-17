@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:geoquest/config/app_config.dart';
 import 'package:geoquest/screens/splash_screen.dart';
-import 'package:geoquest/screens/topics_map_placeholder_screen.dart';
+import 'package:geoquest/screens/camino_screen.dart';
 import 'package:geoquest/screens/username_screen.dart';
 import 'package:geoquest/services/anonymous_session_service.dart';
 import 'package:geoquest/services/device_id_service.dart';
@@ -115,21 +115,20 @@ void main() {
     },
   );
 
-  testWidgets(
-    'con nombre de usuario guardado, navega directo al mapa de temáticas',
-    (tester) async {
-      SharedPreferences.setMockInitialValues({'username': 'Ana'});
-      final service = AnonymousSessionService(
-        FakeAuthGateway(),
-        DeviceIdService(),
-      );
+  testWidgets('con nombre de usuario guardado, navega directo al camino', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({'username': 'Ana'});
+    final service = AnonymousSessionService(
+      FakeAuthGateway(),
+      DeviceIdService(),
+    );
 
-      await tester.pumpWidget(_pantalla(service: service));
-      await tester.pumpAndSettle();
+    await tester.pumpWidget(_pantalla(service: service));
+    await tester.pumpAndSettle();
 
-      expect(find.byType(TopicsMapPlaceholderScreen), findsOneWidget);
-    },
-  );
+    expect(find.byType(CaminoScreen), findsOneWidget);
+  });
 
   testWidgets(
     'muestra el fallo con opción de reintentar cuando falla la sesión',
