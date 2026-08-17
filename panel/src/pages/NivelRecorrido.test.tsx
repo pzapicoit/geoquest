@@ -89,10 +89,12 @@ describe('NivelRecorrido — carga y configuración', () => {
 
     await screen.findByText('2 preguntas en este recorrido')
 
-    // umbral 2 estrellas: 30% de 10000 = 3000 pts
-    expect(await screen.findByText(/3000 pts/)).toBeInTheDocument()
-    // umbral 3 estrellas: 60% de 10000 = 6000 pts
-    expect(await screen.findByText(/6000 pts/)).toBeInTheDocument()
+    // umbral 2 estrellas: 30% de 10000 = 3000 pts, con su distancia media
+    expect(await screen.findByText(/3000 pts.*km/)).toBeInTheDocument()
+    // umbral 3 estrellas: 60% de 10000 = 6000 pts, con su distancia media
+    expect(await screen.findByText(/6000 pts.*km/)).toBeInTheDocument()
+    // puntaje mínimo: también muestra distancia media (varios "km" en pantalla)
+    expect(screen.getAllByText(/km/).length).toBeGreaterThanOrEqual(3)
   })
 
   it('precarga el nombre del nivel cuando ya tiene uno asignado', async () => {
