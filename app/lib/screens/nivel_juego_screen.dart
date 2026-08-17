@@ -232,7 +232,8 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
       _mapa.revelarUbicacion(revelado.ubicacionReal);
     }
 
-    // Si la pantalla ha cambiado de tamaño a media animación (una rotación),
+    // Si la pantalla ha cambiado de tamaño a media animación —el teclado, las
+    // barras del sistema o un Split View; desde INT-102 ya no una rotación—,
     // el encuadre de destino que se calculó al arrancar ya no sirve: se
     // recalcula y se sale desde donde esté la cámara ahora. Llegar bien a un
     // encuadre nuevo importa más que la suavidad del tramo que quedaba.

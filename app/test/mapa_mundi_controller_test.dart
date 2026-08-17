@@ -21,11 +21,16 @@ void main() {
     test('los límites salen del tamaño de la pantalla', () {
       final controlador = _controlador();
 
-      // Alejar deja ver el mundo entero; acercar llega a 14× el encuadre
-      // inicial, unos 3,5 km por píxel.
-      expect(controlador.escalaMinima, 390);
-      expect(controlador.escalaInicial, 844);
-      expect(controlador.escalaMaxima, 844 * 14);
+      // El encuadre de partida y el tope de alejar son el mismo número: el
+      // mundo cubre el área visible y no hay forma de destaparla. Acercar
+      // llega a 40× ese encuadre, algo más de 1 km por píxel.
+      expect(controlador.escalaMinima, 844);
+      expect(controlador.escala, controlador.escalaMinima);
+      expect(controlador.escalaMaxima, 844 * 40);
+
+      // Los encuadres calculados sí pueden bajar hasta que el mundo entero
+      // cabe, para poder enseñar dos pines casi antipodales.
+      expect(controlador.escalaMinimaDeEncuadre, 390);
     });
 
     test('sin tamaño todavía, no hay nada que proyectar', () {
@@ -43,7 +48,7 @@ void main() {
   });
 
   group('límites de zoom', () {
-    test('alejar se detiene con el mundo entero en pantalla', () {
+    test('alejar se detiene con el mundo cubriendo el área visible', () {
       final controlador = _controlador();
 
       for (var i = 0; i < 20; i++) {
@@ -51,9 +56,36 @@ void main() {
       }
 
       expect(controlador.escala, controlador.escalaMinima);
+
+      // Y con eso las cuatro esquinas siguen cayendo sobre el planeta: no
+      // asoma fondo por ningún lado, que es el fallo que INT-102 viene a
+      // arreglar.
+      for (final esquina in const [
+        Offset(0, 0),
+        Offset(389, 0),
+        Offset(0, 843),
+        Offset(389, 843),
+      ]) {
+        expect(controlador.pantallaACoordenadas(esquina), isNotNull);
+      }
     });
 
-    test('acercar se detiene en 14× el encuadre inicial', () {
+    test('el gesto no alcanza el suelo de los encuadres calculados', () {
+      final controlador = _controlador();
+
+      for (var i = 0; i < 20; i++) {
+        controlador.alejar();
+      }
+      controlador.zoomEn(0.0001, const Offset(195, 422));
+
+      expect(controlador.escala, controlador.escalaMinima);
+      expect(
+        controlador.escala,
+        greaterThan(controlador.escalaMinimaDeEncuadre),
+      );
+    });
+
+    test('acercar se detiene en 40× el encuadre inicial', () {
       final controlador = _controlador();
 
       for (var i = 0; i < 40; i++) {
@@ -97,34 +129,54 @@ void main() {
       expect(controlador.desplazamiento.dx, 390 - controlador.escala);
     });
 
-    test('con el mundo más pequeño que la pantalla, queda centrado', () {
+    test('al mínimo zoom se arrastra en horizontal y se topa con el borde', () {
       final controlador = _controlador();
       for (var i = 0; i < 20; i++) {
         controlador.alejar();
       }
 
-      final centrado = Offset(
-        (390 - controlador.escala) / 2,
-        (844 - controlador.escala) / 2,
-      );
-      expect(controlador.desplazamiento, centrado);
+      // En vertical, con el mundo cubriendo la altura sobra ancho de mundo
+      // por los lados: el eje X sigue vivo aunque no se pueda alejar más.
+      controlador.desplazar(const Offset(120, 0));
+      expect(controlador.desplazamiento.dx, (390 - 844) / 2 + 120);
 
-      controlador.desplazar(const Offset(120, 120));
-      expect(controlador.desplazamiento, centrado);
+      controlador.desplazar(const Offset(10000, 0));
+      expect(controlador.desplazamiento.dx, 0);
+
+      controlador.desplazar(const Offset(-100000, 0));
+      expect(controlador.desplazamiento.dx, 390 - 844);
     });
 
-    test('rotar la pantalla conserva el centro y respeta los topes', () {
+    test('al mínimo zoom el eje vertical está pegado y no se mueve', () {
+      final controlador = _controlador();
+      for (var i = 0; i < 20; i++) {
+        controlador.alejar();
+      }
+
+      expect(controlador.desplazamiento.dy, 0);
+
+      controlador.desplazar(const Offset(0, 200));
+      expect(controlador.desplazamiento.dy, 0);
+
+      controlador.desplazar(const Offset(0, -200));
+      expect(controlador.desplazamiento.dy, 0);
+    });
+
+    test('cambiar de tamaño conserva el centro y respeta los topes', () {
+      // Ya no es una rotación —INT-102 fija la app en vertical— pero el área
+      // visible sigue encogiendo con el teclado o las barras del sistema.
       final controlador = _controlador();
       final centroAntes = controlador.pantallaACoordenadas(
         const Offset(195, 422),
       )!;
 
-      controlador.ajustarTamano(const Size(844, 390));
+      controlador.ajustarTamano(const Size(390, 600));
 
       final centroDespues = controlador.pantallaACoordenadas(
-        const Offset(422, 195),
+        const Offset(195, 300),
       )!;
       expect(centroDespues.longitud, closeTo(centroAntes.longitud, 1e-6));
+      expect(centroDespues.latitud, closeTo(centroAntes.latitud, 1e-6));
       expect(controlador.escala, lessThanOrEqualTo(controlador.escalaMaxima));
       expect(
         controlador.escala,
@@ -161,11 +213,17 @@ void main() {
 
     test('un toque fuera del mundo no coloca nada', () {
       final controlador = _controlador();
-      for (var i = 0; i < 20; i++) {
-        controlador.alejar();
-      }
 
-      // Alejado del todo sobran franjas arriba y abajo: ahí no hay planeta.
+      // Desde INT-102 el jugador no puede destapar el fondo con el dedo: la
+      // única forma de que sobren franjas es un encuadre calculado que haya
+      // alejado para enseñar dos pines lejanísimos.
+      controlador.aplicarCamara(
+        controlador.camaraPara(const [
+          Coordenada(latitud: 80, longitud: -179),
+          Coordenada(latitud: -80, longitud: 179),
+        ]),
+      );
+
       expect(controlador.colocarPinEn(const Offset(195, 4)), isFalse);
       expect(controlador.pin, isNull);
     });
@@ -270,24 +328,83 @@ void main() {
       expect(camara.escala, controlador.escalaMaxima);
     });
 
+    test('dos coordenadas a unas decenas de km se separan en pantalla', () {
+      final controlador = _controlador();
+
+      // Roma y Ostia, unos 25 km. Con el tope de 14× de INT-92 quedaban a
+      // ~10 px, encimadas bajo un pin que mide 34 de ancho; con 40× pasan de
+      // 25 px y se leen como dos. Bajar de ahí —separar 5 km— pediría un zoom
+      // que el asset 50m no puede dibujar: es el techo que mide INT-103.
+      const roma = Coordenada(latitud: 41.9028, longitud: 12.4964);
+      const ostia = Coordenada(latitud: 41.7333, longitud: 12.2833);
+
+      final camara = controlador.camaraPara(const [
+        roma,
+        ostia,
+      ], margenes: margenes);
+      controlador.aplicarCamara(camara);
+
+      expect(camara.escala, controlador.escalaMaxima);
+      final unPunto = controlador.coordenadasAPantalla(roma)!;
+      final otroPunto = controlador.coordenadasAPantalla(ostia)!;
+      expect((unPunto - otroPunto).distance, greaterThan(25));
+    });
+
+    test('un par que cabe nunca aleja por debajo del encuadre de juego', () {
+      final controlador = _controlador();
+
+      final camara = controlador.camaraPara(const [
+        madrid,
+        roma,
+      ], margenes: margenes);
+
+      expect(camara.escala, greaterThanOrEqualTo(controlador.escalaMinima));
+    });
+
     test(
-      'dos coordenadas en extremos opuestos no bajan de la escala mínima',
+      'dos coordenadas en extremos opuestos alejan hasta caber igualmente',
       () {
         final controlador = _controlador();
 
-        // Con los márgenes del revelado, meter medio planeta en la franja libre
-        // pediría alejar más de lo que el mapa permite.
+        // Casi antipodales: no caben en el encuadre de juego, que en vertical
+        // solo abarca unos 166° de longitud. Entre dejar un pin fuera y
+        // aceptar franjas unos segundos, gana que se vean los dos (D7).
+        const unExtremo = Coordenada(latitud: 80, longitud: -179);
+        const otroExtremo = Coordenada(latitud: -80, longitud: 179);
+
         final camara = controlador.camaraPara(const [
-          Coordenada(latitud: 80, longitud: -179),
-          Coordenada(latitud: -80, longitud: 179),
+          unExtremo,
+          otroExtremo,
         ], margenes: margenes);
 
-        expect(camara.escala, controlador.escalaMinima);
-        // Y el mundo sigue sin dejar hueco a los lados: con la escala mínima
-        // llena el ancho justo.
-        expect(camara.desplazamiento.dx, 0);
+        expect(camara.escala, lessThan(controlador.escalaMinima));
+        expect(camara.escala, controlador.escalaMinimaDeEncuadre);
+
+        // Y los dos pines acaban dentro de la pantalla, que es el punto.
+        controlador.aplicarCamara(camara);
+        for (final coordenada in const [unExtremo, otroExtremo]) {
+          final punto = controlador.coordenadasAPantalla(coordenada)!;
+          expect(punto.dx, inInclusiveRange(0, 390));
+          expect(punto.dy, inInclusiveRange(0, 844));
+        }
       },
     );
+
+    test('el encuadre alejado no sobrevive a pasar de desafío', () {
+      final controlador = _controlador();
+
+      controlador.aplicarCamara(
+        controlador.camaraPara(const [
+          Coordenada(latitud: 80, longitud: -179),
+          Coordenada(latitud: -80, longitud: 179),
+        ], margenes: margenes),
+      );
+      expect(controlador.escala, lessThan(controlador.escalaMinima));
+
+      controlador.reiniciarEncuadre();
+
+      expect(controlador.escala, controlador.escalaMinima);
+    });
 
     test('sin tamaño todavía, el encuadre es el que ya había', () {
       final controlador = MapaMundiController();
@@ -342,7 +459,7 @@ void main() {
 
       controlador.reiniciarEncuadre();
 
-      expect(controlador.escala, controlador.escalaInicial);
+      expect(controlador.escala, controlador.escalaMinima);
       expect(controlador.desplazamiento.dx, (390 - 844) / 2);
       expect(controlador.desplazamiento.dy, 0);
     });

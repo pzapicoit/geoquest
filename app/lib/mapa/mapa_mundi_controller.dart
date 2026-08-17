@@ -83,9 +83,19 @@ class CamaraMapa {
 /// llamando a métodos en vez de simulando pellizcos, y INT-93 tendrá dónde
 /// apoyarse para encuadrar dos pines a la vez.
 class MapaMundiController extends ChangeNotifier {
-  /// Cuánto se puede acercar respecto al encuadre inicial. 14× deja unos
-  /// 3,5 km por píxel, muy por debajo del error de un dedo.
-  static const double factorZoomMaximo = 14;
+  /// Cuánto se puede acercar respecto al encuadre inicial (INT-102, D3).
+  ///
+  /// Con el encuadre de partida de un móvil vertical, 40× deja el mundo en
+  /// unos 34.000 px de ancho: 1,2 km por píxel, así que un error de dedo de
+  /// diez píxeles son doce kilómetros. El 14× de INT-92 dejaba 3,4 km por
+  /// píxel, y con él no se podía apuntar a una ciudad concreta.
+  ///
+  /// El tope no lo pone la pantalla sino el dataset: el asset es Natural
+  /// Earth 1:50m, cuya simplificación conserva rasgos del orden del
+  /// kilómetro, así que por debajo de ~1 km/px la costa empieza a delatarse
+  /// como polígono. Subir de aquí obliga a decidir si se pasa al 10m
+  /// (INT-103), con lo que eso pesa en el bundle.
+  static const double factorZoomMaximo = 40;
 
   /// Cuánto cambia el zoom con cada pulsación de los botones, igual que el
   /// `zoomBy(1.7)` del mockup.
@@ -128,19 +138,44 @@ class MapaMundiController extends ChangeNotifier {
   CamaraMapa get camara =>
       CamaraMapa(escala: _escala, desplazamiento: _desplazamiento);
 
-  /// Escala a la que el mundo entero cabe en pantalla. Es el tope de alejar:
-  /// el mockup no dejaba ver el mundo completo de un vistazo y aquí sí,
-  /// porque situarse en el globo es el primer gesto del jugador.
-  double get escalaMinima => math.min(_tamano.width, _tamano.height);
+  /// Escala a la que el mundo cubre por completo el área visible. Es a la vez
+  /// el encuadre de partida y el tope de alejar (INT-102, D1 y D2).
+  ///
+  /// INT-92 dejaba alejar hasta ver el mundo entero, con el argumento de que
+  /// situarse en el globo es el primer gesto del jugador. El argumento sigue
+  /// siendo bueno pero cuesta más de lo que vale: en una pantalla vertical,
+  /// enseñar el mundo completo obliga a sacrificar más de media altura a
+  /// color de fondo, y esas franjas se leen como un mapa roto, no como un
+  /// planeta pequeño. El encuadre de partida ya deja ver un hemisferio largo
+  /// de un vistazo, que es de sobra para orientarse.
+  ///
+  /// Que el suelo de alejar y el encuadre de juego sean el mismo número es
+  /// además lo que hace que el revelado acerque casi siempre (D4): mientras
+  /// los dos pines quepan, [camaraPara] devuelve una escala igual o mayor que
+  /// esta, o sea igual o más cerca de donde estaba el jugador. La excepción
+  /// —cuando no caben— la gobierna [escalaMinimaDeEncuadre].
+  double get escalaMinima => math.max(_tamano.width, _tamano.height);
 
-  /// Encuadre de partida del diseño: el mundo llena la altura.
-  double get escalaInicial => math.max(_tamano.height, escalaMinima);
+  /// Suelo de los encuadres calculados, que es más bajo que el de los gestos
+  /// (INT-102, D7): la escala a la que el mundo entero cabe en pantalla.
+  ///
+  /// El revelado tiene que enseñar los dos pines sí o sí, y con una respuesta
+  /// casi antipodal eso no cabe dentro de [escalaMinima] —en vertical, el
+  /// encuadre de juego solo abarca unos 166° de longitud—. Entre dejar un pin
+  /// fuera de pantalla y aceptar franjas durante unos segundos, gana que se
+  /// vean los dos: es el momento en que la jugada se explica.
+  ///
+  /// Solo lo alcanzan [camaraPara] y [aplicarCamara], que son la vía por la
+  /// que la pantalla impone un encuadre con el mapa ya cerrado a gestos. El
+  /// jugador no puede llegar aquí con el dedo, ni queda atrapado al acabar:
+  /// pasar de desafío llama a [reiniciarEncuadre].
+  double get escalaMinimaDeEncuadre => math.min(_tamano.width, _tamano.height);
 
-  double get escalaMaxima => escalaInicial * factorZoomMaximo;
+  double get escalaMaxima => escalaMinima * factorZoomMaximo;
 
   /// Se llama desde el layout. La primera vez fija el encuadre inicial; en
-  /// los siguientes (rotación, teclado) conserva zoom y centro dentro de los
-  /// límites nuevos.
+  /// los siguientes —el teclado o las barras del sistema; desde INT-102 ya no
+  /// una rotación— conserva zoom y centro dentro de los límites nuevos.
   void ajustarTamano(Size tamano) {
     if (tamano == _tamano || tamano.isEmpty) return;
 
@@ -270,7 +305,7 @@ class MapaMundiController extends ChangeNotifier {
 
     final escala = math
         .min(ancho / tramoX, alto / tramoY)
-        .clamp(escalaMinima, escalaMaxima);
+        .clamp(escalaMinimaDeEncuadre, escalaMaxima);
     final centroX = (minimoX + maximoX) / 2;
     final centroY = (minimoY + maximoY) / 2;
 
@@ -295,7 +330,7 @@ class MapaMundiController extends ChangeNotifier {
   void aplicarCamara(CamaraMapa nueva) {
     if (!listo) return;
 
-    final escala = nueva.escala.clamp(escalaMinima, escalaMaxima);
+    final escala = nueva.escala.clamp(escalaMinimaDeEncuadre, escalaMaxima);
     final desplazamiento = Offset(
       _recortarEje(nueva.desplazamiento.dx, _tamano.width, escala),
       _recortarEje(nueva.desplazamiento.dy, _tamano.height, escala),
@@ -318,7 +353,7 @@ class MapaMundiController extends ChangeNotifier {
   }
 
   void _encuadrarDeInicio() {
-    _escala = escalaInicial;
+    _escala = escalaMinima;
     _desplazamiento = Offset(
       (_tamano.width - _escala) / 2,
       (_tamano.height - _escala) / 2,
@@ -367,8 +402,10 @@ class MapaMundiController extends ChangeNotifier {
     );
   }
 
-  /// En cada eje: si el mundo es mayor que la pantalla se pega a los bordes
-  /// y no deja hueco; si es menor, se queda centrado y no se puede mover.
+  /// En cada eje: si el mundo es mayor que el área visible se pega a los
+  /// bordes y no deja hueco; si es menor —solo alcanzable desde un encuadre
+  /// calculado, ver [escalaMinimaDeEncuadre]— se queda centrado y no se puede
+  /// mover.
   void _recortarDesplazamiento() {
     _desplazamiento = Offset(
       _recortarEje(_desplazamiento.dx, _tamano.width, _escala),
