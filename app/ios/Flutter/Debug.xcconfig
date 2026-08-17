@@ -1,1 +1,13 @@
 #include "Generated.xcconfig"
+
+// Identidad de firma del proyecto. El .pbxproj referencia estas dos variables
+// en vez de llevar los valores dentro, para que instalar en un dispositivo
+// propio no ensucie el proyecto: crea `Local.xcconfig` en esta carpeta
+// —ignorado por git— redefiniendo lo que necesites.
+//
+//   GEOQUEST_DEVELOPMENT_TEAM = TUEQUIPO
+//   GEOQUEST_BUNDLE_ID = es.loquesea.geoquest
+GEOQUEST_DEVELOPMENT_TEAM = TYZG5ZZWXC
+GEOQUEST_BUNDLE_ID = es.intermarkit.geoquest
+
+#include? "Local.xcconfig"
