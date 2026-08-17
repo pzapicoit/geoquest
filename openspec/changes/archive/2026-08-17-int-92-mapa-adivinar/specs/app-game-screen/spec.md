@@ -1,44 +1,4 @@
-# app-game-screen Specification
-
-## Purpose
-
-La pantalla donde se juega a GeoQuest. Arranca un intento real del nivel,
-enseña la pista de cada desafío, deja adivinar sobre el mapa mundial y manda
-la respuesta al servidor, llevando la cuenta del progreso y del puntaje del
-intento hasta que el jugador termina o abandona.
-
-## Requirements
-
-### Requirement: Entrar a la pantalla de juego arranca un intento real
-
-Al montarse, la pantalla de juego del nivel SHALL llamar a la RPC
-`iniciar_intento_nivel` con el `nivel_id` de la parada tocada, y usar el
-`intento_id` y la lista de desafíos de la respuesta para su contenido. La
-pantalla SHALL mostrar un estado de carga mientras la llamada está en
-curso.
-
-#### Scenario: La pantalla arranca el intento al abrirse
-
-- **WHEN** el jugador toca una parada desbloqueada del camino y se abre la
-  pantalla de juego
-- **THEN** la app llama a `iniciar_intento_nivel(nivel_id)` y, al recibir
-  respuesta, deja de mostrar el estado de carga y muestra la pista del
-  primer desafío recibido
-
-#### Scenario: Arrancar el intento falla
-
-- **WHEN** la llamada a `iniciar_intento_nivel` falla (sin red, nivel
-  inactivo u otro error)
-- **THEN** la pantalla muestra un mensaje de error y una opción para
-  reintentar, sin dejar ningún estado de carga colgado
-
-#### Scenario: El intento no tiene desafíos disponibles
-
-- **WHEN** `iniciar_intento_nivel` responde correctamente pero con una
-  lista de desafíos vacía
-- **THEN** la pantalla muestra un mensaje explicando que el nivel no
-  tiene desafíos disponibles, con opción de reintentar, en vez de
-  fallar al intentar mostrar un desafío inexistente
+## MODIFIED Requirements
 
 ### Requirement: Toast de pista muestra el contenido según el tipo de desafío
 
@@ -152,6 +112,8 @@ el botón de reabrir la pista.
 - **WHEN** hay un pin colocado
 - **THEN** la indicación pasa a decir que se puede tocar para ajustarlo y
   muestra las coordenadas del pin en grados con su hemisferio
+
+## ADDED Requirements
 
 ### Requirement: Confirmar envía la respuesta y avanza al siguiente desafío
 

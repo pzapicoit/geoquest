@@ -30,8 +30,11 @@ class ConnectivityFailure extends ConnectivityResult {
 /// publicable ("Only secret API keys can be used for this endpoint"), así que
 /// daría un falso negativo.
 class ConnectivityCheck {
-  ConnectivityCheck(this.config, {http.Client? client, this.timeout = const Duration(seconds: 10)})
-      : _client = client ?? http.Client();
+  ConnectivityCheck(
+    this.config, {
+    http.Client? client,
+    this.timeout = const Duration(seconds: 10),
+  }) : _client = client ?? http.Client();
 
   final AppConfig config;
   final Duration timeout;
@@ -40,10 +43,12 @@ class ConnectivityCheck {
   Future<ConnectivityResult> run() async {
     final stopwatch = Stopwatch()..start();
     try {
-      final response = await _client.get(
-        Uri.parse('${config.supabaseUrl}/auth/v1/health'),
-        headers: {'apikey': config.supabasePublishableKey},
-      ).timeout(timeout);
+      final response = await _client
+          .get(
+            Uri.parse('${config.supabaseUrl}/auth/v1/health'),
+            headers: {'apikey': config.supabasePublishableKey},
+          )
+          .timeout(timeout);
       stopwatch.stop();
 
       if (response.statusCode == 200) {

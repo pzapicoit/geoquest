@@ -75,6 +75,10 @@ flutter:
 
   assets:
     - assets/branding/geoquest-logo.png
+    # Geometría del mundo para el mapa de juego (INT-92). Se regenera con
+    # `dart run tool/build_world_asset.dart`; se commitea para que ni la
+    # build ni los tests dependan de tener red.
+    - assets/world/world_50m.bin
 
   # To add assets to your application, add an assets section, like this:
   # assets:

@@ -25,13 +25,18 @@ class MissingConfigError extends Error {
 }
 
 class AppConfig {
-  const AppConfig._({required this.supabaseUrl, required this.supabasePublishableKey});
+  const AppConfig._({
+    required this.supabaseUrl,
+    required this.supabasePublishableKey,
+  });
 
   final String supabaseUrl;
   final String supabasePublishableKey;
 
   static const _url = String.fromEnvironment('SUPABASE_URL');
-  static const _publishableKey = String.fromEnvironment('SUPABASE_PUBLISHABLE_KEY');
+  static const _publishableKey = String.fromEnvironment(
+    'SUPABASE_PUBLISHABLE_KEY',
+  );
 
   /// Lee y valida la configuración.
   ///
@@ -39,9 +44,16 @@ class AppConfig {
   /// de dejar la app en un estado a medias que reventaría más tarde en una
   /// pantalla cualquiera.
   factory AppConfig.fromEnvironment() {
-    if (_url.isEmpty) throw MissingConfigError('SUPABASE_URL');
-    if (_publishableKey.isEmpty) throw MissingConfigError('SUPABASE_PUBLISHABLE_KEY');
-    return AppConfig._(supabaseUrl: _url, supabasePublishableKey: _publishableKey);
+    if (_url.isEmpty) {
+      throw MissingConfigError('SUPABASE_URL');
+    }
+    if (_publishableKey.isEmpty) {
+      throw MissingConfigError('SUPABASE_PUBLISHABLE_KEY');
+    }
+    return AppConfig._(
+      supabaseUrl: _url,
+      supabasePublishableKey: _publishableKey,
+    );
   }
 
   /// Construye una config sin pasar por las variables de compilación, que en el

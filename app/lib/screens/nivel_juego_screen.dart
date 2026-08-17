@@ -1,27 +1,49 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:video_player/video_player.dart';
 
+import '../mapa/mapa_mundi.dart';
+import '../mapa/mapa_mundi_controller.dart';
 import '../services/nivel_juego_gateway.dart';
 
 const _ink = Color(0xFF0E1620);
 const _cardBg = Color(0xFF16242F);
 const _teal = Color(0xFF2BC0A8);
+const _azul = Color(0xFF1B6FA8);
 const _gold = Color(0xFFFFC53D);
+const _rojo = Color(0xFFFF5A5F);
 
-/// Fase 1 ("pista") de la pantalla de juego (INT-91): arranca un intento
-/// real vía `iniciar_intento_nivel` y muestra su primer desafío en un
-/// toast. Cerrar el toast revela el estado de mapa a pantalla completa,
-/// que queda como stub hasta que INT-92 lo implemente (ver D1 de
-/// `design.md` de `openspec/changes/int-91-pista-toast`).
+/// Pantalla de juego de un nivel: arranca un intento real
+/// (`iniciar_intento_nivel`), muestra la pista de cada desafío en un toast y,
+/// al cerrarlo, deja al jugador adivinar sobre el mapa mundial (INT-92).
+///
+/// Confirmar manda el pin a `responder_desafio`, suma los puntos que devuelve
+/// el servidor y pasa al siguiente desafío. El revelado animado del resultado
+/// es INT-93, y cerrar el intento al terminar el nivel es INT-94 — hoy
+/// imposible por INT-100 (ver D12 de `design.md`).
 class NivelJuegoScreen extends StatefulWidget {
-  const NivelJuegoScreen({super.key, required this.nivelId, this.gateway});
+  const NivelJuegoScreen({
+    super.key,
+    required this.nivelId,
+    this.nivelNombre,
+    this.gateway,
+    this.cargadorDeMundo,
+  });
 
   final String nivelId;
 
+  /// Nombre que se enseña en el HUD. Llega desde el camino, que ya lo tiene
+  /// cargado (D9 de `design.md`), en vez de costar una consulta extra.
+  final String? nivelNombre;
+
   /// Inyectable para poder probar la pantalla sin salir a la red.
   final NivelJuegoGateway? gateway;
+
+  /// Inyectable para poder probar la pantalla sin leer el asset del mundo.
+  final CargadorDeMundo? cargadorDeMundo;
 
   @override
   State<NivelJuegoScreen> createState() => _NivelJuegoScreenState();
@@ -31,13 +53,17 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen> {
   late final NivelJuegoGateway _gateway =
       widget.gateway ?? SupabaseNivelJuegoGateway(Supabase.instance.client);
 
+  final MapaMundiController _mapa = MapaMundiController();
+
   late Future<IntentoNivel> _futuro;
 
-  /// Posición dentro del intento (D4 de `design.md`): arranca en 0 y, tal
-  /// cual queda esta pantalla tras INT-91, nunca avanza — eso ocurrirá al
-  /// resolver en el mapa (INT-92).
-  final int _indice = 0;
+  /// Posición dentro del intento: avanza al confirmar cada desafío.
+  int _indice = 0;
   bool _pistaVisible = true;
+  bool _enviando = false;
+  int _puntaje = 0;
+  String? _mensaje;
+  Timer? _temporizadorDelMensaje;
 
   @override
   void initState() {
@@ -45,53 +71,182 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen> {
     _futuro = _gateway.iniciarIntento(widget.nivelId);
   }
 
+  @override
+  void dispose() {
+    _temporizadorDelMensaje?.cancel();
+    _mapa.dispose();
+    super.dispose();
+  }
+
   void _cerrarPista() => setState(() => _pistaVisible = false);
+
+  void _abrirPista() => setState(() => _pistaVisible = true);
+
+  void _avisar(String mensaje) {
+    setState(() => _mensaje = mensaje);
+    _temporizadorDelMensaje?.cancel();
+    _temporizadorDelMensaje = Timer(const Duration(milliseconds: 2600), () {
+      if (mounted) setState(() => _mensaje = null);
+    });
+  }
+
+  Future<void> _confirmar(IntentoNivel intento) async {
+    final pin = _mapa.pin;
+    if (pin == null || _enviando) return;
+
+    setState(() => _enviando = true);
+    try {
+      final respuesta = await _gateway.responderDesafio(
+        intentoId: intento.intentoId,
+        desafioId: intento.desafios[_indice].id,
+        latitud: pin.latitud,
+        longitud: pin.longitud,
+      );
+      if (!mounted) return;
+
+      final esElUltimo = _indice >= intento.desafios.length - 1;
+      if (esElUltimo) {
+        // D12 de `design.md`: el intento no se cierra aquí. Calcular
+        // estrellas es INT-94 y hoy `cerrar_intento_nivel` ni siquiera puede
+        // con un nivel que reparte preguntas al azar (INT-100).
+        Navigator.of(context).pop();
+        return;
+      }
+
+      _mapa.limpiarPin();
+      setState(() {
+        _puntaje += respuesta.puntos;
+        _indice++;
+        _pistaVisible = true;
+        _enviando = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      // El pin se conserva: el jugador ya había decidido dónde, y volver a
+      // colocarlo tras un fallo de red sería castigarle por la red.
+      setState(() => _enviando = false);
+      _avisar('No se pudo enviar tu respuesta. Inténtalo de nuevo.');
+    }
+  }
+
+  Future<void> _pedirSalir() async {
+    final salir = await showDialog<bool>(
+      context: context,
+      barrierColor: const Color(0xC7060E14),
+      builder: (_) => _ModalSalir(puntaje: _puntaje, posicion: _indice + 1),
+    );
+    if (salir == true && mounted) Navigator.of(context).pop();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _ink,
-      body: SafeArea(
-        child: FutureBuilder<IntentoNivel>(
-          future: _futuro,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState != ConnectionState.done) {
-              return const Center(
-                child: CircularProgressIndicator(color: _teal),
-              );
-            }
-            void reintentar() => setState(() {
-              _futuro = _gateway.iniciarIntento(widget.nivelId);
-            });
+      body: FutureBuilder<IntentoNivel>(
+        future: _futuro,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState != ConnectionState.done) {
+            return const Center(child: CircularProgressIndicator(color: _teal));
+          }
 
-            if (snapshot.hasError) {
-              return _ErrorIntento(onRetry: reintentar);
-            }
+          void reintentar() => setState(() {
+            _futuro = _gateway.iniciarIntento(widget.nivelId);
+          });
 
-            final desafios = snapshot.data!.desafios;
-            if (desafios.isEmpty) {
-              return _ErrorIntento(
+          if (snapshot.hasError) {
+            return SafeArea(child: _ErrorIntento(onRetry: reintentar));
+          }
+
+          final desafios = snapshot.data!.desafios;
+          if (desafios.isEmpty) {
+            return SafeArea(
+              child: _ErrorIntento(
                 mensaje: 'Este nivel todavía no tiene desafíos disponibles',
                 onRetry: reintentar,
-              );
-            }
-            final desafioActual = desafios[_indice];
+              ),
+            );
+          }
 
-            return Stack(
-              children: [
-                const Positioned.fill(child: _MapaStub()),
-                if (_pistaVisible)
-                  Positioned.fill(
-                    child: _ToastPista(
-                      desafio: desafioActual,
-                      posicion: _indice + 1,
-                      total: desafios.length,
-                      onListo: _cerrarPista,
+          final intento = snapshot.data!;
+          final desafioActual = desafios[_indice];
+
+          return Stack(
+            children: [
+              Positioned.fill(
+                child: MapaMundi(
+                  controller: _mapa,
+                  cargador: widget.cargadorDeMundo,
+                ),
+              ),
+              const Positioned(
+                left: 0,
+                right: 0,
+                top: 0,
+                height: 150,
+                child: IgnorePointer(child: _DegradadoSuperior()),
+              ),
+              if (!_pistaVisible)
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: AnimatedBuilder(
+                    animation: _mapa,
+                    builder: (context, _) => _ControlesAdivinar(
+                      pin: _mapa.pin,
+                      enviando: _enviando,
+                      onVerPista: _abrirPista,
+                      onConfirmar: () => _confirmar(intento),
                     ),
                   ),
-              ],
-            );
-          },
+                ),
+              if (_pistaVisible)
+                Positioned.fill(
+                  child: _ToastPista(
+                    desafio: desafioActual,
+                    posicion: _indice + 1,
+                    onListo: _cerrarPista,
+                  ),
+                ),
+              Positioned(
+                left: 0,
+                right: 0,
+                top: 0,
+                child: _HudJuego(
+                  posicion: _indice + 1,
+                  total: desafios.length,
+                  puntaje: _puntaje,
+                  nombreDelNivel: widget.nivelNombre,
+                  onSalir: _pedirSalir,
+                ),
+              ),
+              if (_mensaje != null)
+                Positioned(
+                  left: 20,
+                  right: 20,
+                  bottom: 110,
+                  child: _Aviso(texto: _mensaje!),
+                ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _DegradadoSuperior extends StatelessWidget {
+  const _DegradadoSuperior();
+
+  @override
+  Widget build(BuildContext context) {
+    return const DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xE0060E14), Color(0x8C060E14), Color(0x00060E14)],
+          stops: [0, 0.58, 1],
         ),
       ),
     );
@@ -134,35 +289,669 @@ class _ErrorIntento extends StatelessWidget {
   }
 }
 
-/// Estado de mapa a pantalla completa tras cerrar el toast. Sustituye al
-/// antiguo `NivelJuegoPlaceholderScreen`: sigue siendo un stub visual hasta
-/// que INT-92 implemente el mapa real.
-class _MapaStub extends StatelessWidget {
-  const _MapaStub();
+/// Capa fija sobre el mapa con salida, progreso y puntaje. Vive fuera del
+/// toast (D8 de `design.md`) para seguir visible mientras se adivina, que es
+/// justo cuando el jugador quiere saber por dónde va.
+class _HudJuego extends StatelessWidget {
+  const _HudJuego({
+    required this.posicion,
+    required this.total,
+    required this.puntaje,
+    required this.nombreDelNivel,
+    required this.onSalir,
+  });
+
+  final int posicion;
+  final int total;
+  final int puntaje;
+  final String? nombreDelNivel;
+  final VoidCallback onSalir;
 
   @override
   Widget build(BuildContext context) {
-    return ColoredBox(
-      color: _ink,
-      child: Center(
+    return SafeArea(
+      bottom: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 2, 20, 0),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            _BotonDeCristal(
+              clave: const Key('nivel-juego-salir'),
+              etiqueta: 'Salir del nivel',
+              onPressed: onSalir,
+              child: const Icon(
+                Icons.close_rounded,
+                color: Colors.white,
+                size: 19,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _TarjetaDeProgreso(
+                posicion: posicion,
+                total: total,
+                nombreDelNivel: nombreDelNivel,
+              ),
+            ),
+            const SizedBox(width: 10),
+            _PildoraDePuntaje(puntaje: puntaje),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TarjetaDeProgreso extends StatelessWidget {
+  const _TarjetaDeProgreso({
+    required this.posicion,
+    required this.total,
+    required this.nombreDelNivel,
+  });
+
+  final int posicion;
+  final int total;
+  final String? nombreDelNivel;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 8, 14, 9),
+      decoration: BoxDecoration(
+        color: _ink.withValues(alpha: 0.6),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Flexible(
+                child: Text(
+                  'Desafío $posicion de $total',
+                  key: const Key('nivel-juego-progreso'),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.baloo2(
+                    color: Colors.white,
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              if (nombreDelNivel != null) ...[
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    nombreDelNivel!.toUpperCase(),
+                    key: const Key('nivel-juego-nombre-nivel'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.outfit(
+                      color: Colors.white.withValues(alpha: 0.45),
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 7),
+          Row(
+            key: const Key('nivel-juego-segmentos'),
+            children: [
+              for (var i = 0; i < total; i++) ...[
+                if (i > 0) const SizedBox(width: 4),
+                Expanded(
+                  child: Container(
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: switch (i) {
+                        _ when i < posicion - 1 => _teal,
+                        _ when i == posicion - 1 => _gold,
+                        _ => Colors.white.withValues(alpha: 0.16),
+                      },
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PildoraDePuntaje extends StatelessWidget {
+  const _PildoraDePuntaje({required this.puntaje});
+
+  final int puntaje;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+      decoration: BoxDecoration(
+        color: _gold.withValues(alpha: 0.16),
+        border: Border.all(color: _gold.withValues(alpha: 0.42), width: 1.5),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text(
+            '★',
+            style: TextStyle(
+              color: _gold,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            formatearPuntaje(puntaje),
+            key: const Key('nivel-juego-puntaje'),
+            style: GoogleFonts.baloo2(
+              color: const Color(0xFFFFE9A8),
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Separador de millares a la española, sin depender de `intl`.
+String formatearPuntaje(int puntaje) {
+  final digitos = puntaje.abs().toString();
+  final partes = <String>[];
+  for (var fin = digitos.length; fin > 0; fin -= 3) {
+    partes.insert(0, digitos.substring(fin - 3 < 0 ? 0 : fin - 3, fin));
+  }
+  return '${puntaje < 0 ? '-' : ''}${partes.join('.')}';
+}
+
+/// Controles de la fase de adivinar: reabrir la pista, la indicación de qué
+/// hacer y el botón de confirmar.
+class _ControlesAdivinar extends StatelessWidget {
+  const _ControlesAdivinar({
+    required this.pin,
+    required this.enviando,
+    required this.onVerPista,
+    required this.onConfirmar,
+  });
+
+  final Coordenada? pin;
+  final bool enviando;
+  final VoidCallback onVerPista;
+  final VoidCallback onConfirmar;
+
+  @override
+  Widget build(BuildContext context) {
+    final habilitado = pin != null && !enviando;
+
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.bottomCenter,
+          end: Alignment.topCenter,
+          colors: [Color(0xE6060E14), Color(0x80060E14), Color(0x00060E14)],
+          stops: [0, 0.52, 1],
+        ),
+      ),
+      child: SafeArea(
+        top: false,
         child: Padding(
-          padding: const EdgeInsets.all(32),
+          padding: const EdgeInsets.fromLTRB(20, 40, 20, 30),
           child: Column(
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(Icons.map_outlined, color: _teal, size: 48),
-              const SizedBox(height: 16),
-              Text(
-                'Mapa pendiente (INT-92)',
-                key: const Key('nivel-juego-mapa-stub'),
-                textAlign: TextAlign.center,
-                style: GoogleFonts.outfit(
-                  color: Colors.white.withValues(alpha: 0.6),
-                  fontSize: 14,
+              _BotonVerPista(onPressed: onVerPista),
+              const SizedBox(height: 14),
+              Align(child: _PildoraDeIndicacion(pin: pin)),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(18),
+                    gradient: habilitado
+                        ? const LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [_teal, _azul],
+                          )
+                        : null,
+                    color: habilitado
+                        ? null
+                        : Colors.white.withValues(alpha: 0.08),
+                    boxShadow: habilitado
+                        ? const [
+                            BoxShadow(
+                              color: Color(0x990B4266),
+                              offset: Offset(0, 6),
+                            ),
+                          ]
+                        : null,
+                  ),
+                  child: TextButton(
+                    key: const Key('nivel-juego-confirmar'),
+                    onPressed: habilitado ? onConfirmar : null,
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 19),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                    ),
+                    child: Text(
+                      'Confirmar',
+                      style: GoogleFonts.baloo2(
+                        color: habilitado
+                            ? Colors.white
+                            : Colors.white.withValues(alpha: 0.34),
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BotonVerPista extends StatelessWidget {
+  const _BotonVerPista({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 280),
+      curve: Curves.easeOutBack,
+      builder: (context, valor, hijo) =>
+          Transform.scale(scale: valor.clamp(0.0, 1.2), child: hijo),
+      child: InkWell(
+        key: const Key('nivel-juego-ver-pista'),
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(999),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(10, 9, 15, 9),
+          decoration: BoxDecoration(
+            color: _ink.withValues(alpha: 0.78),
+            border: Border.all(color: _teal.withValues(alpha: 0.5)),
+            borderRadius: BorderRadius.circular(999),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x59000000),
+                blurRadius: 20,
+                offset: Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 28,
+                height: 28,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [_teal, _azul],
+                  ),
+                ),
+                child: const Icon(
+                  Icons.lightbulb_outline_rounded,
+                  color: Colors.white,
+                  size: 16,
+                ),
+              ),
+              const SizedBox(width: 9),
+              Text(
+                'Ver la pista',
+                style: GoogleFonts.outfit(
+                  color: Colors.white.withValues(alpha: 0.9),
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PildoraDeIndicacion extends StatelessWidget {
+  const _PildoraDeIndicacion({required this.pin});
+
+  final Coordenada? pin;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(
+        color: _ink.withValues(alpha: 0.72),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.13)),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: pin == null
+            ? [
+                const _PuntoQueLate(),
+                const SizedBox(width: 9),
+                Flexible(
+                  child: Text(
+                    'Toca el mapa para colocar tu pin',
+                    key: const Key('nivel-juego-indicacion-sin-pin'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.outfit(
+                      color: Colors.white.withValues(alpha: 0.82),
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ]
+            : [
+                const Icon(Icons.place_outlined, color: _rojo, size: 14),
+                const SizedBox(width: 9),
+                Flexible(
+                  child: Text(
+                    'Toca para ajustar',
+                    key: const Key('nivel-juego-indicacion-con-pin'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.outfit(
+                      color: Colors.white.withValues(alpha: 0.82),
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 9),
+                Flexible(
+                  child: Text(
+                    formatearCoordenadas(pin!),
+                    key: const Key('nivel-juego-coordenadas'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.outfit(
+                      color: Colors.white.withValues(alpha: 0.42),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+      ),
+    );
+  }
+}
+
+/// "40,4° N · 3,7° O", con coma decimal y hemisferio, como el mockup.
+String formatearCoordenadas(Coordenada coordenada) {
+  String grados(double valor, String positivo, String negativo) {
+    final texto = valor.abs().toStringAsFixed(1).replaceAll('.', ',');
+    return '$texto° ${valor >= 0 ? positivo : negativo}';
+  }
+
+  return '${grados(coordenada.latitud, 'N', 'S')} · '
+      '${grados(coordenada.longitud, 'E', 'O')}';
+}
+
+class _PuntoQueLate extends StatefulWidget {
+  const _PuntoQueLate();
+
+  @override
+  State<_PuntoQueLate> createState() => _PuntoQueLateState();
+}
+
+class _PuntoQueLateState extends State<_PuntoQueLate>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controlador = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1600),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _controlador.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controlador,
+      builder: (context, _) {
+        final t = Curves.easeInOut.transform(_controlador.value);
+        return Transform.scale(
+          scale: 1 + t * 0.14,
+          child: Opacity(
+            opacity: 0.9 - t * 0.45,
+            child: Container(
+              width: 9,
+              height: 9,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                color: _gold,
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _Aviso extends StatelessWidget {
+  const _Aviso({required this.texto});
+
+  final String texto;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: const Key('nivel-juego-aviso'),
+      padding: const EdgeInsets.symmetric(horizontal: 17, vertical: 14),
+      decoration: BoxDecoration(
+        color: _ink,
+        border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x80000000),
+            blurRadius: 34,
+            offset: Offset(0, 14),
+          ),
+        ],
+      ),
+      child: Text(
+        texto,
+        style: GoogleFonts.outfit(
+          color: Colors.white,
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+}
+
+class _BotonDeCristal extends StatelessWidget {
+  const _BotonDeCristal({
+    required this.clave,
+    required this.etiqueta,
+    required this.onPressed,
+    required this.child,
+  });
+
+  final Key clave;
+  final String etiqueta;
+  final VoidCallback onPressed;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: etiqueta,
+      child: InkWell(
+        key: clave,
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(15),
+        child: Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: _ink.withValues(alpha: 0.6),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
+            borderRadius: BorderRadius.circular(15),
+          ),
+          child: Center(child: child),
+        ),
+      ),
+    );
+  }
+}
+
+class _ModalSalir extends StatelessWidget {
+  const _ModalSalir({required this.puntaje, required this.posicion});
+
+  final int puntaje;
+  final int posicion;
+
+  @override
+  Widget build(BuildContext context) {
+    final resueltos = posicion > 2 ? '1–${posicion - 1}' : 'anteriores';
+
+    return Dialog(
+      backgroundColor: _cardBg,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 26),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(26),
+        side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(24, 26, 24, 22),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                color: _rojo.withValues(alpha: 0.16),
+                border: Border.all(color: _rojo.withValues(alpha: 0.4)),
+                borderRadius: BorderRadius.circular(15),
+              ),
+              child: const Icon(
+                Icons.warning_amber_rounded,
+                color: _rojo,
+                size: 22,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              '¿Salir del nivel?',
+              style: GoogleFonts.baloo2(
+                color: Colors.white,
+                fontSize: 23,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 9),
+            Text(
+              'Perderás este intento completo: los '
+              '${formatearPuntaje(puntaje)} puntos de los desafíos '
+              '$resueltos y tendrás que empezar el nivel de nuevo.',
+              key: const Key('nivel-juego-salir-detalle'),
+              style: GoogleFonts.outfit(
+                color: Colors.white.withValues(alpha: 0.62),
+                fontSize: 14.5,
+                height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 22),
+            SizedBox(
+              width: double.infinity,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  gradient: const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [_teal, _azul],
+                  ),
+                ),
+                child: TextButton(
+                  key: const Key('nivel-juego-seguir-jugando'),
+                  onPressed: () => Navigator.of(context).pop(false),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 17),
+                  ),
+                  child: Text(
+                    'Seguir jugando',
+                    style: GoogleFonts.baloo2(
+                      color: Colors.white,
+                      fontSize: 16.5,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 9),
+            SizedBox(
+              width: double.infinity,
+              child: TextButton(
+                key: const Key('nivel-juego-salir-confirmar'),
+                onPressed: () => Navigator.of(context).pop(true),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    side: BorderSide(color: _rojo.withValues(alpha: 0.42)),
+                  ),
+                ),
+                child: Text(
+                  'Salir y perder el intento',
+                  style: GoogleFonts.outfit(
+                    color: const Color(0xFFFF7B7F),
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -173,131 +962,256 @@ class _ToastPista extends StatelessWidget {
   const _ToastPista({
     required this.desafio,
     required this.posicion,
-    required this.total,
     required this.onListo,
   });
 
   final DesafioJuego desafio;
   final int posicion;
-  final int total;
   final VoidCallback onListo;
 
   @override
   Widget build(BuildContext context) {
-    return ColoredBox(
-      color: Colors.black.withValues(alpha: 0.55),
-      child: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _CabeceraJuego(posicion: posicion, total: total),
-              const SizedBox(height: 16),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: _cardBg,
-                  borderRadius: BorderRadius.circular(24),
-                  border: Border.all(color: Colors.white12),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _ContenidoPista(desafio: desafio),
-                    const SizedBox(height: 20),
-                    SizedBox(
-                      width: double.infinity,
-                      child: FilledButton(
-                        key: const Key('nivel-juego-boton-listo'),
-                        onPressed: onListo,
-                        style: FilledButton.styleFrom(
-                          backgroundColor: _teal,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                        ),
-                        child: Text(
-                          'Listo, voy a adivinar',
-                          style: GoogleFonts.baloo2(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 16,
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: IgnorePointer(
+            child: TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0, end: 1),
+              duration: const Duration(milliseconds: 220),
+              builder: (context, valor, _) => ColoredBox(
+                color: const Color(0xFF060E14).withValues(alpha: 0.82 * valor),
+              ),
+            ),
+          ),
+        ),
+        // El cierre al tocar fuera envuelve toda la capa de contenido, no
+        // solo el fondo pintado: si no, el área vacía del scroll se comería
+        // el toque y la pista no se cerraría.
+        Positioned.fill(
+          child: GestureDetector(
+            key: const Key('nivel-juego-fondo-pista'),
+            onTap: onListo,
+            behavior: HitTestBehavior.opaque,
+            child: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(18, 108, 18, 24),
+                child: SingleChildScrollView(
+                  child: GestureDetector(
+                    // La tarjeta no cierra: solo lo hacen sus botones.
+                    onTap: () {},
+                    child: TweenAnimationBuilder<double>(
+                      tween: Tween(begin: 0, end: 1),
+                      duration: const Duration(milliseconds: 320),
+                      curve: const Cubic(0.2, 0.9, 0.3, 1),
+                      builder: (context, valor, hijo) => Opacity(
+                        opacity: valor.clamp(0.0, 1.0),
+                        child: Transform.translate(
+                          offset: Offset(0, 26 * (1 - valor)),
+                          child: Transform.scale(
+                            scale: 0.97 + 0.03 * valor,
+                            child: hijo,
                           ),
                         ),
                       ),
+                      child: _TarjetaDePista(
+                        desafio: desafio,
+                        posicion: posicion,
+                        onListo: onListo,
+                      ),
                     ),
-                  ],
+                  ),
                 ),
               ),
-            ],
+            ),
           ),
         ),
+      ],
+    );
+  }
+}
+
+class _TarjetaDePista extends StatelessWidget {
+  const _TarjetaDePista({
+    required this.desafio,
+    required this.posicion,
+    required this.onListo,
+  });
+
+  final DesafioJuego desafio;
+  final int posicion;
+  final VoidCallback onListo;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: _cardBg,
+        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x8C000000),
+            blurRadius: 60,
+            offset: Offset(0, 26),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _CabeceraDePista(
+            desafio: desafio,
+            posicion: posicion,
+            onCerrar: onListo,
+          ),
+          const SizedBox(height: 13),
+          _ContenidoPista(desafio: desafio),
+          const SizedBox(height: 14),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Text(
+              pieDePista(desafio.tipo),
+              key: const Key('nivel-juego-pie-pista'),
+              style: GoogleFonts.outfit(
+                color: Colors.white.withValues(alpha: 0.6),
+                fontSize: 13.5,
+                height: 1.45,
+              ),
+            ),
+          ),
+          const SizedBox(height: 15),
+          SizedBox(
+            width: double.infinity,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [_teal, _azul],
+                ),
+                boxShadow: const [
+                  BoxShadow(color: Color(0x990B4266), offset: Offset(0, 6)),
+                ],
+              ),
+              child: TextButton(
+                key: const Key('nivel-juego-boton-listo'),
+                onPressed: onListo,
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 18),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+                child: Text(
+                  'Listo, voy a adivinar',
+                  style: GoogleFonts.baloo2(
+                    color: Colors.white,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
-class _CabeceraJuego extends StatelessWidget {
-  const _CabeceraJuego({required this.posicion, required this.total});
+/// Pie explicativo fijo por tipo de pista (D10 de `design.md`): `desafios` no
+/// tiene ninguna columna equivalente y el texto no varía por desafío.
+String pieDePista(TipoDesafio tipo) => switch (tipo) {
+  TipoDesafio.imagen =>
+    '¿Dónde se tomó esta imagen? Coloca tu pin lo más cerca que puedas.',
+  TipoDesafio.video =>
+    '¿Dónde se grabó este vídeo? Coloca tu pin lo más cerca que puedas.',
+  TipoDesafio.preguntaTexto =>
+    'Coloca tu pin en el lugar que responde a la pregunta.',
+};
 
+String kickerDePista(TipoDesafio tipo, int posicion) => switch (tipo) {
+  TipoDesafio.imagen => 'FOTO · PISTA $posicion',
+  TipoDesafio.video => 'VÍDEO · PISTA $posicion',
+  TipoDesafio.preguntaTexto => 'PREGUNTA · PISTA $posicion',
+};
+
+class _CabeceraDePista extends StatelessWidget {
+  const _CabeceraDePista({
+    required this.desafio,
+    required this.posicion,
+    required this.onCerrar,
+  });
+
+  final DesafioJuego desafio;
   final int posicion;
-  final int total;
+  final VoidCallback onCerrar;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          'Desafío $posicion de $total',
-          key: const Key('nivel-juego-progreso'),
-          style: GoogleFonts.outfit(
-            color: Colors.white,
-            fontSize: 13,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
-          decoration: BoxDecoration(
-            color: _gold.withValues(alpha: 0.16),
-            border: Border.all(
-              color: _gold.withValues(alpha: 0.45),
-              width: 1.5,
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 2, 0, 0),
+      child: Row(
+        children: [
+          Container(
+            width: 26,
+            height: 26,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(9),
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [_teal, _azul],
+              ),
             ),
-            borderRadius: BorderRadius.circular(999),
+            child: Icon(
+              switch (desafio.tipo) {
+                TipoDesafio.imagen => Icons.image_outlined,
+                TipoDesafio.video => Icons.videocam_outlined,
+                TipoDesafio.preguntaTexto => Icons.help_outline_rounded,
+              },
+              color: Colors.white,
+              size: 15,
+            ),
           ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                '★',
-                style: TextStyle(
-                  color: _gold,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                ),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Text(
+              kickerDePista(desafio.tipo, posicion),
+              key: const Key('nivel-juego-kicker'),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.outfit(
+                color: _teal.withValues(alpha: 0.95),
+                fontSize: 10.5,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 1.7,
               ),
-              const SizedBox(width: 7),
-              Text(
-                // D3 de `design.md`: un intento recién creado no tiene
-                // respuestas todavía, así que el puntaje siempre es 0
-                // mientras no exista la resolución de desafíos (INT-92).
-                '0',
-                key: const Key('nivel-juego-puntaje'),
-                style: GoogleFonts.baloo2(
-                  color: const Color(0xFFFFE9A8),
-                  fontSize: 15,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ],
+            ),
           ),
-        ),
-      ],
+          InkWell(
+            key: const Key('nivel-juego-cerrar-pista'),
+            onTap: onCerrar,
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              width: 30,
+              height: 30,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                Icons.close_rounded,
+                size: 15,
+                color: Colors.white.withValues(alpha: 0.75),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -325,7 +1239,7 @@ class _PistaImagen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ClipRRect(
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(20),
       child: AspectRatio(
         aspectRatio: 4 / 3,
         child: Image.network(
@@ -346,25 +1260,52 @@ class _PistaTexto extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 24),
-      child: Text(
-        texto,
-        key: const Key('nivel-juego-texto-pregunta'),
-        textAlign: TextAlign.center,
-        style: GoogleFonts.baloo2(
-          color: Colors.white,
-          fontSize: 22,
-          fontWeight: FontWeight.w800,
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 34),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _teal.withValues(alpha: 0.28)),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            _teal.withValues(alpha: 0.16),
+            _azul.withValues(alpha: 0.14),
+          ],
         ),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            texto,
+            key: const Key('nivel-juego-texto-pregunta'),
+            style: GoogleFonts.outfit(
+              color: Colors.white,
+              fontSize: 25,
+              height: 1.28,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Sin nombres en el mapa: fíate de la forma de la costa.',
+            style: GoogleFonts.outfit(
+              color: Colors.white.withValues(alpha: 0.5),
+              fontSize: 14,
+              height: 1.45,
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
-/// Vídeo de pista en autoplay, en bucle y sin sonido (D5 de
-/// `design.md`): son clips ambientales de un lugar, no llevan audio
-/// relevante para adivinar.
+/// Vídeo de pista en autoplay, en bucle y sin sonido (D5 de INT-91): son
+/// clips ambientales de un lugar, no llevan audio relevante para adivinar.
 class _PistaVideo extends StatefulWidget {
   const _PistaVideo({required this.url});
 
@@ -407,7 +1348,7 @@ class _PistaVideoState extends State<_PistaVideo> {
   @override
   Widget build(BuildContext context) {
     return ClipRRect(
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(20),
       child: AspectRatio(
         aspectRatio: 4 / 3,
         child: FutureBuilder<bool>(
