@@ -1,94 +1,4 @@
-# app-game-screen Specification
-
-## Purpose
-
-La pantalla donde se juega a GeoQuest. Arranca un intento real del nivel,
-enseña la pista de cada desafío, deja adivinar sobre el mapa mundial y manda
-la respuesta al servidor, llevando la cuenta del progreso y del puntaje del
-intento hasta que el jugador termina o abandona.
-
-## Requirements
-
-### Requirement: Entrar a la pantalla de juego arranca un intento real
-
-Al montarse, la pantalla de juego del nivel SHALL llamar a la RPC
-`iniciar_intento_nivel` con el `nivel_id` de la parada tocada, y usar el
-`intento_id` y la lista de desafíos de la respuesta para su contenido. La
-pantalla SHALL mostrar un estado de carga mientras la llamada está en
-curso.
-
-#### Scenario: La pantalla arranca el intento al abrirse
-
-- **WHEN** el jugador toca una parada desbloqueada del camino y se abre la
-  pantalla de juego
-- **THEN** la app llama a `iniciar_intento_nivel(nivel_id)` y, al recibir
-  respuesta, deja de mostrar el estado de carga y muestra la pista del
-  primer desafío recibido
-
-#### Scenario: Arrancar el intento falla
-
-- **WHEN** la llamada a `iniciar_intento_nivel` falla (sin red, nivel
-  inactivo u otro error)
-- **THEN** la pantalla muestra un mensaje de error y una opción para
-  reintentar, sin dejar ningún estado de carga colgado
-
-#### Scenario: El intento no tiene desafíos disponibles
-
-- **WHEN** `iniciar_intento_nivel` responde correctamente pero con una
-  lista de desafíos vacía
-- **THEN** la pantalla muestra un mensaje explicando que el nivel no
-  tiene desafíos disponibles, con opción de reintentar, en vez de
-  fallar al intentar mostrar un desafío inexistente
-
-### Requirement: Toast de pista muestra el contenido según el tipo de desafío
-
-La pantalla SHALL mostrar el contenido del desafío actual en una tarjeta
-superpuesta (toast) sobre un fondo oscurecido, eligiendo qué mostrar según
-el campo `tipo` del desafío: una imagen a buen tamaño cuando `tipo` es
-`imagen`, un vídeo reproduciéndose cuando `tipo` es `video`, o el texto de
-la pregunta en tamaño grande cuando `tipo` es `pregunta_texto`.
-
-El toast SHALL llevar una cabecera que identifique el tipo de pista y su
-número dentro del intento, un botón de cerrar en esa cabecera, un pie
-explicativo de qué se le pide al jugador, y el botón "Listo, voy a
-adivinar". Tocar el fondo oscurecido SHALL cerrar el toast igual que
-cualquiera de sus botones de cierre.
-
-#### Scenario: Desafío de tipo imagen
-
-- **WHEN** el desafío actual tiene `tipo = 'imagen'`
-- **THEN** el toast muestra `imagen_url` a buen tamaño y no intenta
-  reproducir ningún vídeo ni mostrar texto de pregunta
-
-#### Scenario: Desafío de tipo video
-
-- **WHEN** el desafío actual tiene `tipo = 'video'`
-- **THEN** el toast reproduce `video_url`
-
-#### Scenario: El video de un desafío no puede reproducirse
-
-- **WHEN** el desafío actual tiene `tipo = 'video'` y la reproducción
-  falla al inicializarse (URL rota, sin red)
-- **THEN** el toast muestra un aviso de que el vídeo no está disponible,
-  en vez de quedarse en una pantalla en negro sin explicación
-
-#### Scenario: Desafío de tipo pregunta de texto
-
-- **WHEN** el desafío actual tiene `tipo = 'pregunta_texto'`
-- **THEN** el toast muestra `texto_pregunta` en tamaño grande
-
-#### Scenario: Cabecera del toast según el tipo
-
-- **WHEN** se muestra el toast del tercer desafío de un intento y su `tipo`
-  es `video`
-- **THEN** la cabecera del toast lo identifica como pista de vídeo y como
-  la número 3
-
-#### Scenario: Cerrar tocando el fondo
-
-- **WHEN** el toast está abierto y el jugador toca el fondo oscurecido
-  fuera de la tarjeta
-- **THEN** el toast se cierra y la pantalla queda en la fase de adivinar
+## MODIFIED Requirements
 
 ### Requirement: Progreso y puntaje del intento visibles
 
@@ -138,31 +48,18 @@ SHALL pasar a marcarse como respondido.
 - **THEN** el puntaje de la capa de progreso muestra 2000 y el segmento del
   desafío revelado queda marcado como respondido
 
-### Requirement: Cerrar el toast revela el estado de mapa a pantalla completa
+## REMOVED Requirements
 
-La pantalla SHALL ofrecer un botón para cerrar el toast ("Listo, voy a
-adivinar"). Al tocarlo, el toast SHALL dejar de mostrarse y la pantalla
-SHALL pasar a la fase de adivinar: el mapa mundial a pantalla completa con
-sus controles de zoom, la indicación de qué hacer, el botón "Confirmar" y
-el botón de reabrir la pista.
+### Requirement: Confirmar envía la respuesta y avanza al siguiente desafío
+**Reason**: Confirmar deja de avanzar al desafío siguiente: ahora entra en
+la fase de revelado del resultado, y el avance pasa a ser un acto explícito
+del jugador desde ese revelado.
+**Migration**: Sustituido por "Confirmar envía la respuesta y revela el
+resultado" (envío y entrada en el revelado) y "Avanzar desde el revelado es
+un acto del jugador" (avance al desafío siguiente y vuelta al camino tras el
+último). El envío a `responder_desafio` y el trato de sus fallos no cambian.
 
-#### Scenario: Cerrar el toast
-
-- **WHEN** el jugador toca "Listo, voy a adivinar"
-- **THEN** el toast deja de mostrarse y la pantalla queda en la fase de
-  adivinar sobre el mapa a pantalla completa
-
-#### Scenario: Indicación de qué hacer sin pin colocado
-
-- **WHEN** la pantalla está en la fase de adivinar y no hay ningún pin
-  colocado
-- **THEN** se muestra la indicación de tocar el mapa para colocar el pin
-
-#### Scenario: Indicación con pin colocado
-
-- **WHEN** hay un pin colocado
-- **THEN** la indicación pasa a decir que se puede tocar para ajustarlo y
-  muestra las coordenadas del pin en grados con su hemisferio
+## ADDED Requirements
 
 ### Requirement: Confirmar envía la respuesta y revela el resultado
 
@@ -299,45 +196,3 @@ servidor.
 - **THEN** la secuencia vuelve a correr desde el principio, con los
   contadores otra vez desde 0, sin llamar de nuevo a `responder_desafio` y
   sin alterar el puntaje acumulado del intento
-
-### Requirement: Reabrir la pista del desafío actual
-
-En la fase de adivinar, la pantalla SHALL ofrecer un botón flotante para
-volver a abrir el toast de la pista del desafío actual. Reabrir la pista
-SHALL conservar el pin ya colocado y el encuadre del mapa.
-
-#### Scenario: Reabrir la pista
-
-- **WHEN** el jugador toca el botón de ver la pista
-- **THEN** vuelve a mostrarse el toast con el contenido del desafío actual
-
-#### Scenario: Reabrir la pista no pierde el pin
-
-- **WHEN** el jugador coloca un pin, reabre la pista y la cierra otra vez
-- **THEN** el pin sigue colocado en el mismo sitio y "Confirmar" sigue
-  habilitado
-
-### Requirement: Salir del nivel pide confirmación
-
-La pantalla SHALL ofrecer un botón de salir (X), visible en todo momento.
-Pulsarlo SHALL abrir un aviso que explique que se pierde el intento
-completo, incluidos los puntos ya conseguidos, con una opción de seguir
-jugando y otra de salir. Solo la opción de salir SHALL abandonar la
-pantalla y volver al camino de niveles.
-
-#### Scenario: Pedir salir y arrepentirse
-
-- **WHEN** el jugador pulsa la X y luego elige seguir jugando
-- **THEN** el aviso se cierra y la pantalla sigue en el mismo desafío, con
-  el pin y el puntaje intactos
-
-#### Scenario: Salir y perder el intento
-
-- **WHEN** el jugador pulsa la X y confirma que quiere salir
-- **THEN** la pantalla vuelve al camino de niveles
-
-#### Scenario: El aviso dice cuántos puntos se pierden
-
-- **WHEN** el jugador lleva 1200 puntos acumulados en el intento y pulsa
-  la X
-- **THEN** el aviso menciona esos 1200 puntos como lo que va a perder

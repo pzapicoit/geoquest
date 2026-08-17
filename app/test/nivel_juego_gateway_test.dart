@@ -108,7 +108,7 @@ void main() {
   });
 
   group('mapearRespuestaDesafio', () {
-    test('lee la distancia y los puntos que calculó el servidor', () {
+    test('lee lo que calculó el servidor y el revelado del desafío', () {
       final respuesta = mapearRespuestaDesafio({
         'id': 'r1',
         'intento_id': 'i1',
@@ -118,10 +118,18 @@ void main() {
         'distancia_km': 247.5,
         'puntos': 4381,
         'respondido_en': '2026-08-17T12:00:00Z',
+        'lat_real': 41.8902,
+        'lng_real': 12.4922,
+        'nombre_lugar': 'Coliseo de Roma',
+        'puntos_maximos': 5000,
       });
 
       expect(respuesta.distanciaKm, closeTo(247.5, 1e-9));
       expect(respuesta.puntos, 4381);
+      expect(respuesta.latitudReal, closeTo(41.8902, 1e-9));
+      expect(respuesta.longitudReal, closeTo(12.4922, 1e-9));
+      expect(respuesta.nombreLugar, 'Coliseo de Roma');
+      expect(respuesta.puntosMaximos, 5000);
     });
 
     test('acepta una distancia serializada como texto', () {
@@ -130,6 +138,10 @@ void main() {
       final respuesta = mapearRespuestaDesafio({
         'distancia_km': '1234.5678',
         'puntos': 0,
+        'lat_real': 0,
+        'lng_real': 0,
+        'nombre_lugar': 'Isla nula',
+        'puntos_maximos': 5000,
       });
 
       expect(respuesta.distanciaKm, closeTo(1234.5678, 1e-9));
@@ -138,6 +150,22 @@ void main() {
 
     test('una respuesta sin distancia falla en vez de inventarse un 0', () {
       expect(() => mapearRespuestaDesafio({'puntos': 10}), throwsArgumentError);
+    });
+
+    test('una respuesta sin revelado falla en vez de dejarlo a medias', () {
+      // Si la RPC dejara de mandar el revelado, la pantalla no podría
+      // enseñarlo: mejor fallar al mapear que pintar una hoja de resultado
+      // con un lugar vacío en el 0,0 del Atlántico.
+      expect(
+        () => mapearRespuestaDesafio({
+          'distancia_km': 10,
+          'puntos': 100,
+          'lat_real': 41.8902,
+          'lng_real': 12.4922,
+          'puntos_maximos': 5000,
+        }),
+        throwsArgumentError,
+      );
     });
   });
 }

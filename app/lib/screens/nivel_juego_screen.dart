@@ -20,10 +20,11 @@ const _rojo = Color(0xFFFF5A5F);
 /// (`iniciar_intento_nivel`), muestra la pista de cada desafío en un toast y,
 /// al cerrarlo, deja al jugador adivinar sobre el mapa mundial (INT-92).
 ///
-/// Confirmar manda el pin a `responder_desafio`, suma los puntos que devuelve
-/// el servidor y pasa al siguiente desafío. El revelado animado del resultado
-/// es INT-93, y cerrar el intento al terminar el nivel es INT-94 — hoy
-/// imposible por INT-100 (ver D12 de `design.md`).
+/// Confirmar manda el pin a `responder_desafio` y revela el resultado sobre el
+/// mismo mapa (INT-93): la ubicación real, el encuadre de los dos pines, la
+/// línea entre ellos y los contadores de distancia y puntos. De ahí se avanza
+/// con "Siguiente". Cerrar el intento al terminar el nivel es INT-94 — hoy
+/// imposible por INT-100 (ver D12 de `design.md` de INT-92).
 class NivelJuegoScreen extends StatefulWidget {
   const NivelJuegoScreen({
     super.key,
@@ -49,21 +50,78 @@ class NivelJuegoScreen extends StatefulWidget {
   State<NivelJuegoScreen> createState() => _NivelJuegoScreenState();
 }
 
-class _NivelJuegoScreenState extends State<NivelJuegoScreen> {
+/// Lo que la pantalla necesita recordar mientras enseña el resultado de una
+/// jugada. Sin banderas sueltas (D8 de `design.md`): o hay revelado con todos
+/// sus datos, o no hay revelado.
+class _Revelado {
+  const _Revelado({
+    required this.respuesta,
+    required this.pin,
+    required this.desafio,
+    required this.esElUltimo,
+  });
+
+  final RespuestaDesafio respuesta;
+
+  /// Dónde había clavado el pin el jugador al confirmar.
+  final Coordenada pin;
+
+  /// El desafío respondido, para la miniatura de su pista.
+  final DesafioJuego desafio;
+
+  final bool esElUltimo;
+
+  Coordenada get ubicacionReal => Coordenada(
+    latitud: respuesta.latitudReal,
+    longitud: respuesta.longitudReal,
+  );
+}
+
+class _NivelJuegoScreenState extends State<NivelJuegoScreen>
+    with SingleTickerProviderStateMixin {
+  /// Coreografía del revelado, con los tiempos del diseño (D4 de
+  /// `design.md`): una sola fuente de tiempo para los cinco tramos.
+  static const Duration _duracionDelRevelado = Duration(milliseconds: 5440);
+  static const int _pinRealDesde = 620;
+  static const int _pinRealHasta = 1140;
+  static const int _encuadreDesde = 1140;
+  static const int _encuadreHasta = 2540;
+  static const int _lineaDesde = 2540;
+  static const int _lineaHasta = 3540;
+  static const int _distanciaDesde = 3540;
+  static const int _distanciaHasta = 4540;
+  static const int _puntosDesde = 4540;
+  static const int _puntosHasta = 5440;
+
   late final NivelJuegoGateway _gateway =
       widget.gateway ?? SupabaseNivelJuegoGateway(Supabase.instance.client);
 
   final MapaMundiController _mapa = MapaMundiController();
 
+  late final AnimationController _coreografia = AnimationController(
+    vsync: this,
+    duration: _duracionDelRevelado,
+  )..addListener(_alAvanzarLaCoreografia);
+
   late Future<IntentoNivel> _futuro;
 
-  /// Posición dentro del intento: avanza al confirmar cada desafío.
+  /// Posición dentro del intento: avanza al pulsar "Siguiente".
   int _indice = 0;
   bool _pistaVisible = true;
   bool _enviando = false;
   int _puntaje = 0;
   String? _mensaje;
   Timer? _temporizadorDelMensaje;
+  _Revelado? _revelado;
+
+  /// Encuadre desde el que arranca la animación de cámara: el que tenía el
+  /// jugador al confirmar. Se guarda para poder repetir la animación.
+  CamaraMapa? _camaraDelJugador;
+  CamaraMapa? _camaraDelRevelado;
+
+  /// Tamaño del mapa cuando se calculó [_camaraDelRevelado]. Si cambia a media
+  /// animación (una rotación), ese encuadre hay que recalcularlo.
+  Size? _tamanoDelRevelado;
 
   @override
   void initState() {
@@ -74,6 +132,7 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen> {
   @override
   void dispose() {
     _temporizadorDelMensaje?.cancel();
+    _coreografia.dispose();
     _mapa.dispose();
     super.dispose();
   }
@@ -104,22 +163,16 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen> {
       );
       if (!mounted) return;
 
-      final esElUltimo = _indice >= intento.desafios.length - 1;
-      if (esElUltimo) {
-        // D12 de `design.md`: el intento no se cierra aquí. Calcular
-        // estrellas es INT-94 y hoy `cerrar_intento_nivel` ni siquiera puede
-        // con un nivel que reparte preguntas al azar (INT-100).
-        Navigator.of(context).pop();
-        return;
-      }
-
-      _mapa.limpiarPin();
       setState(() {
-        _puntaje += respuesta.puntos;
-        _indice++;
-        _pistaVisible = true;
         _enviando = false;
+        _revelado = _Revelado(
+          respuesta: respuesta,
+          pin: pin,
+          desafio: intento.desafios[_indice],
+          esElUltimo: _indice >= intento.desafios.length - 1,
+        );
       });
+      _lanzarElRevelado();
     } catch (_) {
       if (!mounted) return;
       // El pin se conserva: el jugador ya había decidido dónde, y volver a
@@ -129,11 +182,134 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen> {
     }
   }
 
+  /// Márgenes que el encuadre del revelado tiene que respetar: arriba el HUD,
+  /// abajo la hoja de resultado. Son las proporciones del diseño (20 % y 48 %
+  /// de la altura), no píxeles fijos, para que en una pantalla pequeña la hoja
+  /// tampoco tape un pin.
+  EdgeInsets get _margenesDelRevelado {
+    final alto = _mapa.tamano.height;
+    return EdgeInsets.fromLTRB(62, alto * 0.2, 62, alto * 0.48);
+  }
+
+  /// Lanza —o relanza— la coreografía del revelado. Repetirla no vuelve a
+  /// llamar al servidor: todo lo que hace falta está ya en [_revelado] (D11).
+  void _lanzarElRevelado() {
+    final revelado = _revelado;
+    if (revelado == null) return;
+
+    final origen = _camaraDelJugador ??= _mapa.camara;
+    _mapa
+      ..limpiarRevelado()
+      ..aplicarCamara(origen);
+    _calcularElEncuadreDelRevelado(revelado);
+
+    _coreografia.forward(from: 0);
+  }
+
+  void _calcularElEncuadreDelRevelado(_Revelado revelado) {
+    _tamanoDelRevelado = _mapa.tamano;
+    _camaraDelRevelado = _mapa.camaraPara([
+      revelado.pin,
+      revelado.ubicacionReal,
+    ], margenes: _margenesDelRevelado);
+  }
+
+  /// Cuánto ha avanzado el tramo que va de [desdeMs] a [hastaMs], de 0 a 1.
+  double _tramo(int desdeMs, int hastaMs) {
+    final transcurrido =
+        _coreografia.value * _duracionDelRevelado.inMilliseconds;
+    return ((transcurrido - desdeMs) / (hastaMs - desdeMs)).clamp(0.0, 1.0);
+  }
+
+  /// Lo que la coreografía empuja al mapa: el pin real, el encuadre y la
+  /// línea. Los contadores no pasan por aquí — los leen sus propios widgets
+  /// para no reconstruir la pantalla entera en cada fotograma (D8).
+  void _alAvanzarLaCoreografia() {
+    final revelado = _revelado;
+    if (revelado == null) return;
+
+    if (_tramo(_pinRealDesde, _pinRealHasta) > 0 && _mapa.pinReal == null) {
+      _mapa.revelarUbicacion(revelado.ubicacionReal);
+    }
+
+    // Si la pantalla ha cambiado de tamaño a media animación (una rotación),
+    // el encuadre de destino que se calculó al arrancar ya no sirve: se
+    // recalcula y se sale desde donde esté la cámara ahora. Llegar bien a un
+    // encuadre nuevo importa más que la suavidad del tramo que quedaba.
+    if (_tamanoDelRevelado != _mapa.tamano) {
+      _camaraDelJugador = _mapa.camara;
+      _calcularElEncuadreDelRevelado(revelado);
+    }
+
+    final origen = _camaraDelJugador;
+    final destino = _camaraDelRevelado;
+    final encuadre = _tramo(_encuadreDesde, _encuadreHasta);
+    if (encuadre > 0 && origen != null && destino != null) {
+      _mapa.aplicarCamara(
+        CamaraMapa.interpolar(
+          origen,
+          destino,
+          Curves.easeInOutCubic.transform(encuadre),
+        ),
+      );
+    }
+
+    _mapa.progresoDeLaLinea = _tramo(_lineaDesde, _lineaHasta);
+  }
+
+  /// Los contadores suben con una desaceleración, como el `1 - (1 - t)³` del
+  /// diseño.
+  double get _avanceDeLaDistancia =>
+      Curves.easeOutCubic.transform(_tramo(_distanciaDesde, _distanciaHasta));
+
+  double get _avanceDeLosPuntos =>
+      Curves.easeOutCubic.transform(_tramo(_puntosDesde, _puntosHasta));
+
+  int get _puntosDelContador {
+    final revelado = _revelado;
+    if (revelado == null) return 0;
+    return (revelado.respuesta.puntos * _avanceDeLosPuntos).round();
+  }
+
+  /// Puntaje del intento contando la jugada que se está revelando, que ya está
+  /// registrada en el servidor.
+  int get _puntajeConElRevelado =>
+      _puntaje + (_revelado?.respuesta.puntos ?? 0);
+
+  void _avanzarDesdeElRevelado() {
+    final revelado = _revelado;
+    if (revelado == null) return;
+
+    if (revelado.esElUltimo) {
+      // D12 de `design.md` de INT-92: el intento no se cierra aquí. Calcular
+      // estrellas es INT-94 y hoy `cerrar_intento_nivel` ni siquiera puede
+      // con un nivel que reparte preguntas al azar (INT-100).
+      Navigator.of(context).pop();
+      return;
+    }
+
+    _coreografia.stop();
+    _mapa
+      ..limpiarPin()
+      ..limpiarRevelado()
+      ..reiniciarEncuadre();
+    setState(() {
+      _puntaje += revelado.respuesta.puntos;
+      _indice++;
+      _pistaVisible = true;
+      _revelado = null;
+      _camaraDelJugador = null;
+      _camaraDelRevelado = null;
+      _tamanoDelRevelado = null;
+    });
+  }
+
   Future<void> _pedirSalir() async {
     final salir = await showDialog<bool>(
       context: context,
       barrierColor: const Color(0xC7060E14),
-      builder: (_) => _ModalSalir(puntaje: _puntaje, posicion: _indice + 1),
+      builder: (_) =>
+          _ModalSalir(puntaje: _puntajeConElRevelado, posicion: _indice + 1),
     );
     if (salir == true && mounted) Navigator.of(context).pop();
   }
@@ -169,6 +345,8 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen> {
 
           final intento = snapshot.data!;
           final desafioActual = desafios[_indice];
+          final revelado = _revelado;
+          final revelando = revelado != null;
 
           return Stack(
             children: [
@@ -176,6 +354,9 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen> {
                 child: MapaMundi(
                   controller: _mapa,
                   cargador: widget.cargadorDeMundo,
+                  // La jugada ya está cerrada: el encuadre lo lleva la
+                  // coreografía y el pin no se mueve de donde se confirmó.
+                  interactivo: !revelando,
                 ),
               ),
               const Positioned(
@@ -185,7 +366,7 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen> {
                 height: 150,
                 child: IgnorePointer(child: _DegradadoSuperior()),
               ),
-              if (!_pistaVisible)
+              if (!revelando && !_pistaVisible)
                 Positioned(
                   left: 0,
                   right: 0,
@@ -200,7 +381,7 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen> {
                     ),
                   ),
                 ),
-              if (_pistaVisible)
+              if (!revelando && _pistaVisible)
                 Positioned.fill(
                   child: _ToastPista(
                     desafio: desafioActual,
@@ -208,16 +389,39 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen> {
                     onListo: _cerrarPista,
                   ),
                 ),
+              if (revelando)
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: AnimatedBuilder(
+                    animation: _coreografia,
+                    builder: (context, _) => _HojaDeRevelado(
+                      revelado: revelado,
+                      distanciaKm:
+                          revelado.respuesta.distanciaKm * _avanceDeLaDistancia,
+                      puntos: _puntosDelContador,
+                      avanceDelDestello: _avanceDeLosPuntos,
+                      onContinuar: _avanzarDesdeElRevelado,
+                      onRepetir: _lanzarElRevelado,
+                    ),
+                  ),
+                ),
               Positioned(
                 left: 0,
                 right: 0,
                 top: 0,
-                child: _HudJuego(
-                  posicion: _indice + 1,
-                  total: desafios.length,
-                  puntaje: _puntaje,
-                  nombreDelNivel: widget.nivelNombre,
-                  onSalir: _pedirSalir,
+                child: AnimatedBuilder(
+                  animation: _coreografia,
+                  builder: (context, _) => _HudJuego(
+                    posicion: _indice + 1,
+                    total: desafios.length,
+                    // El total sube a la vez que el contador de puntos.
+                    puntaje: _puntaje + _puntosDelContador,
+                    resueltos: _indice + (revelando ? 1 : 0),
+                    nombreDelNivel: widget.nivelNombre,
+                    onSalir: _pedirSalir,
+                  ),
                 ),
               ),
               if (_mensaje != null)
@@ -297,6 +501,7 @@ class _HudJuego extends StatelessWidget {
     required this.posicion,
     required this.total,
     required this.puntaje,
+    required this.resueltos,
     required this.nombreDelNivel,
     required this.onSalir,
   });
@@ -304,6 +509,11 @@ class _HudJuego extends StatelessWidget {
   final int posicion;
   final int total;
   final int puntaje;
+
+  /// Cuántos desafíos del intento están ya respondidos. Con el revelado en
+  /// pantalla incluye el que se está enseñando.
+  final int resueltos;
+
   final String? nombreDelNivel;
   final VoidCallback onSalir;
 
@@ -331,6 +541,7 @@ class _HudJuego extends StatelessWidget {
               child: _TarjetaDeProgreso(
                 posicion: posicion,
                 total: total,
+                resueltos: resueltos,
                 nombreDelNivel: nombreDelNivel,
               ),
             ),
@@ -347,11 +558,13 @@ class _TarjetaDeProgreso extends StatelessWidget {
   const _TarjetaDeProgreso({
     required this.posicion,
     required this.total,
+    required this.resueltos,
     required this.nombreDelNivel,
   });
 
   final int posicion;
   final int total;
+  final int resueltos;
   final String? nombreDelNivel;
 
   @override
@@ -414,7 +627,7 @@ class _TarjetaDeProgreso extends StatelessWidget {
                     height: 4,
                     decoration: BoxDecoration(
                       color: switch (i) {
-                        _ when i < posicion - 1 => _teal,
+                        _ when i < resueltos => _teal,
                         _ when i == posicion - 1 => _gold,
                         _ => Colors.white.withValues(alpha: 0.16),
                       },
@@ -764,6 +977,473 @@ class _PuntoQueLateState extends State<_PuntoQueLate>
               ),
             ),
           ),
+        );
+      },
+    );
+  }
+}
+
+/// "247" o "0,4". El diseño enseña kilómetros enteros y así se dejan, pero por
+/// debajo de 10 km se muestra un decimal (D12 de `design.md`): un pin a 400 m
+/// del sitio leído como "0 km" parece un fallo justo en el mejor acierto.
+String formatearDistancia(double kilometros) {
+  if (kilometros < 10) {
+    return kilometros.toStringAsFixed(1).replaceAll('.', ',');
+  }
+  return formatearPuntaje(kilometros.round());
+}
+
+/// Hoja de resultado del revelado: de dónde era el lugar, cuánto te has
+/// desviado, cuántos puntos te llevas y cómo seguir.
+class _HojaDeRevelado extends StatelessWidget {
+  const _HojaDeRevelado({
+    required this.revelado,
+    required this.distanciaKm,
+    required this.puntos,
+    required this.avanceDelDestello,
+    required this.onContinuar,
+    required this.onRepetir,
+  });
+
+  final _Revelado revelado;
+
+  /// Valor que enseña el contador de distancia en este fotograma.
+  final double distanciaKm;
+
+  /// Valor que enseña el contador de puntos en este fotograma.
+  final int puntos;
+
+  final double avanceDelDestello;
+  final VoidCallback onContinuar;
+  final VoidCallback onRepetir;
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 420),
+      curve: const Cubic(0.2, 0.9, 0.3, 1),
+      builder: (context, entrada, hijo) => Transform.translate(
+        offset: Offset(0, 46 * (1 - entrada.clamp(0.0, 1.0))),
+        child: Opacity(opacity: entrada.clamp(0.0, 1.0), child: hijo),
+      ),
+      child: Container(
+        key: const Key('nivel-juego-revelado'),
+        decoration: BoxDecoration(
+          color: _cardBg,
+          border: Border(
+            top: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+          ),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x73000000),
+              blurRadius: 44,
+              offset: Offset(0, -18),
+            ),
+          ],
+        ),
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    _MiniaturaDeLaPista(desafio: revelado.desafio),
+                    const SizedBox(width: 13),
+                    Expanded(child: _LugarRevelado(revelado: revelado)),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                // Las dos tarjetas miden lo mismo aunque una de ellas parta el
+                // texto de su cabecera en dos líneas.
+                IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(
+                        child: _TarjetaDeDistancia(kilometros: distanciaKm),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _TarjetaDePuntos(
+                          puntos: puntos,
+                          maximo: revelado.respuesta.puntosMaximos,
+                          avanceDelDestello: avanceDelDestello,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(18),
+                      gradient: const LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [_teal, _azul],
+                      ),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0x990B4266),
+                          offset: Offset(0, 6),
+                        ),
+                      ],
+                    ),
+                    child: TextButton(
+                      key: const Key('nivel-juego-siguiente'),
+                      onPressed: onContinuar,
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 19),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                      ),
+                      child: Text(
+                        revelado.esElUltimo ? 'Ver resultados' : 'Siguiente',
+                        style: GoogleFonts.baloo2(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                Align(
+                  child: TextButton(
+                    key: const Key('nivel-juego-repetir'),
+                    onPressed: onRepetir,
+                    child: Text(
+                      'Repetir animación',
+                      style: GoogleFonts.outfit(
+                        color: Colors.white.withValues(alpha: 0.42),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Miniatura de la pista original. Solo el desafío de imagen tiene algo que
+/// enseñar; para vídeo y pregunta se usa el distintivo de su tipo (D9 de
+/// `design.md`).
+class _MiniaturaDeLaPista extends StatelessWidget {
+  const _MiniaturaDeLaPista({required this.desafio});
+
+  final DesafioJuego desafio;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 62,
+      height: 62,
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFFFFFDF8), Color(0xFFE9F2F1)],
+        ),
+      ),
+      child: switch (desafio.tipo) {
+        TipoDesafio.imagen => Image.network(
+          desafio.imagenUrl!,
+          key: const Key('nivel-juego-miniatura-imagen'),
+          fit: BoxFit.cover,
+          errorBuilder: (_, _, _) => _distintivoDelTipo(desafio.tipo),
+        ),
+        _ => _distintivoDelTipo(desafio.tipo),
+      },
+    );
+  }
+}
+
+Widget _distintivoDelTipo(TipoDesafio tipo) {
+  return Center(
+    child: Icon(
+      switch (tipo) {
+        TipoDesafio.imagen => Icons.image_outlined,
+        TipoDesafio.video => Icons.videocam_rounded,
+        TipoDesafio.preguntaTexto => Icons.help_outline_rounded,
+      },
+      key: const Key('nivel-juego-miniatura-tipo'),
+      color: _azul,
+      size: 26,
+    ),
+  );
+}
+
+class _LugarRevelado extends StatelessWidget {
+  const _LugarRevelado({required this.revelado});
+
+  final _Revelado revelado;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          'UBICACIÓN REAL',
+          style: GoogleFonts.outfit(
+            color: _teal.withValues(alpha: 0.95),
+            fontSize: 10,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 1.6,
+          ),
+        ),
+        const SizedBox(height: 5),
+        Text(
+          revelado.respuesta.nombreLugar,
+          key: const Key('nivel-juego-lugar'),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: GoogleFonts.baloo2(
+            color: Colors.white,
+            fontSize: 21,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 3),
+        Text(
+          formatearCoordenadas(revelado.ubicacionReal),
+          key: const Key('nivel-juego-coordenadas-reales'),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: GoogleFonts.outfit(
+            color: Colors.white.withValues(alpha: 0.55),
+            fontSize: 13,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _TarjetaDeDistancia extends StatelessWidget {
+  const _TarjetaDeDistancia({required this.kilometros});
+
+  final double kilometros;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 15, 16, 16),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.05),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.change_history_rounded,
+                size: 14,
+                color: Colors.white.withValues(alpha: 0.45),
+              ),
+              const SizedBox(width: 7),
+              Expanded(
+                child: Text(
+                  'TE HAS DESVIADO',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.outfit(
+                    color: Colors.white.withValues(alpha: 0.45),
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 1.5,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 9),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Flexible(
+                child: Text(
+                  formatearDistancia(kilometros),
+                  key: const Key('nivel-juego-distancia'),
+                  maxLines: 1,
+                  style: GoogleFonts.baloo2(
+                    color: Colors.white,
+                    fontSize: 34,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 5),
+              Text(
+                'km',
+                style: GoogleFonts.outfit(
+                  color: Colors.white.withValues(alpha: 0.5),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TarjetaDePuntos extends StatelessWidget {
+  const _TarjetaDePuntos({
+    required this.puntos,
+    required this.maximo,
+    required this.avanceDelDestello,
+  });
+
+  final int puntos;
+  final int maximo;
+  final double avanceDelDestello;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: _gold.withValues(alpha: 0.12),
+        border: Border.all(color: _gold.withValues(alpha: 0.4)),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Stack(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 15, 16, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    const Text(
+                      '★',
+                      style: TextStyle(
+                        color: _gold,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(width: 7),
+                    Expanded(
+                      child: Text(
+                        'HAS GANADO',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.outfit(
+                          color: _gold.withValues(alpha: 0.8),
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 1.5,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 9),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                  textBaseline: TextBaseline.alphabetic,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        '+${formatearPuntaje(puntos)}',
+                        key: const Key('nivel-juego-puntos-ganados'),
+                        maxLines: 1,
+                        style: GoogleFonts.baloo2(
+                          color: const Color(0xFFFFE9A8),
+                          fontSize: 34,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 5),
+                    Text(
+                      '/ ${formatearPuntaje(maximo)}',
+                      key: const Key('nivel-juego-puntos-maximos'),
+                      style: GoogleFonts.outfit(
+                        color: _gold.withValues(alpha: 0.6),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          if (avanceDelDestello > 0 && avanceDelDestello < 1)
+            Positioned.fill(
+              child: IgnorePointer(child: _Destello(avance: avanceDelDestello)),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Brillo que cruza la tarjeta de puntos mientras sube el contador, como el
+/// `gq-shine` del diseño.
+class _Destello extends StatelessWidget {
+  const _Destello({required this.avance});
+
+  final double avance;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, restricciones) {
+        const ancho = 42.0;
+        final recorrido = restricciones.maxWidth + ancho * 2;
+
+        return Stack(
+          children: [
+            Positioned(
+              left: -ancho + recorrido * avance,
+              top: 0,
+              bottom: 0,
+              width: ancho,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      Colors.white.withValues(alpha: 0),
+                      Colors.white.withValues(alpha: 0.22),
+                      Colors.white.withValues(alpha: 0),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
         );
       },
     );

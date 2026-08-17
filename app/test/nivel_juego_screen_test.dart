@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:geoquest/mapa/mapa_mundi.dart';
 import 'package:geoquest/screens/nivel_juego_screen.dart';
 import 'package:geoquest/services/nivel_juego_gateway.dart';
 
@@ -93,6 +94,19 @@ Future<void> _colocarPin(WidgetTester tester) async {
   await tester.tapAt(_sobreElMapa);
   await tester.pump();
   await tester.pump(const Duration(milliseconds: 400));
+}
+
+/// Confirma el pin y deja que la coreografía del revelado llegue al final
+/// (INT-93: 5,44 s de secuencia).
+Future<void> _confirmarYRevelar(WidgetTester tester) async {
+  await tester.tap(find.byKey(const Key('nivel-juego-confirmar')));
+  await _asentar(tester);
+  await tester.pump(const Duration(milliseconds: 5600));
+}
+
+Future<void> _avanzarDesdeElRevelado(WidgetTester tester) async {
+  await tester.tap(find.byKey(const Key('nivel-juego-siguiente')));
+  await _asentar(tester);
 }
 
 FakeNivelJuegoGateway _gatewayCon(List<DesafioJuego> desafios) =>
@@ -301,8 +315,16 @@ void main() {
 
       await _cerrarPista(tester);
       await _colocarPin(tester);
-      await tester.tap(find.byKey(const Key('nivel-juego-confirmar')));
-      await _asentar(tester);
+      await _confirmarYRevelar(tester);
+
+      // Con el revelado en pantalla el desafío ya cuenta como respondido.
+      expect(_coloresDeSegmentos(tester), [
+        _respondido,
+        _pendiente,
+        _pendiente,
+      ]);
+
+      await _avanzarDesdeElRevelado(tester);
 
       expect(_coloresDeSegmentos(tester), [_respondido, _actual, _pendiente]);
     });
@@ -415,43 +437,24 @@ void main() {
       expect(enviada.longitud, inInclusiveRange(-180, 180));
     });
 
-    testWidgets('suma los puntos y pasa al siguiente desafío', (tester) async {
-      final gateway = _gatewayCon(const [_desafioTexto, _desafioImagen])
-        ..respuesta = const RespuestaDesafio(distanciaKm: 12, puntos: 1200);
+    testWidgets('confirmar revela el resultado sin avanzar de desafío', (
+      tester,
+    ) async {
+      final gateway = _gatewayCon(const [_desafioTexto, _desafioImagen]);
 
       await _abrirNivel(tester, gateway);
       await _cerrarPista(tester);
       await _colocarPin(tester);
-      await tester.tap(find.byKey(const Key('nivel-juego-confirmar')));
-      await _asentar(tester);
+      await _confirmarYRevelar(tester);
 
-      expect(find.text('Desafío 2 de 2'), findsOneWidget);
-      expect(find.text('1.200'), findsOneWidget);
-      // El siguiente desafío llega con su pista abierta y el mapa sin pin.
-      expect(find.byKey(const Key('nivel-juego-imagen')), findsOneWidget);
-
-      await _cerrarPista(tester);
-      expect(
-        find.byKey(const Key('nivel-juego-indicacion-sin-pin')),
-        findsOneWidget,
-      );
+      expect(find.byKey(const Key('nivel-juego-revelado')), findsOneWidget);
+      expect(find.text('Desafío 1 de 2'), findsOneWidget);
+      // Ni la pista del siguiente ni los controles de adivinar.
+      expect(find.byKey(const Key('nivel-juego-imagen')), findsNothing);
+      expect(find.byKey(const Key('nivel-juego-confirmar')), findsNothing);
     });
 
-    testWidgets('tras el último desafío se vuelve al camino', (tester) async {
-      final gateway = _gatewayCon(const [_desafioTexto]);
-      await _abrirNivel(tester, gateway);
-      await _cerrarPista(tester);
-      await _colocarPin(tester);
-
-      await tester.tap(find.byKey(const Key('nivel-juego-confirmar')));
-      await _asentar(tester);
-      await tester.pump(const Duration(milliseconds: 500));
-
-      expect(gateway.respuestasEnviadas, hasLength(1));
-      expect(find.text('Ir al nivel'), findsOneWidget);
-    });
-
-    testWidgets('si enviar falla, avisa y conserva el pin sin avanzar', (
+    testWidgets('si enviar falla, avisa y conserva el pin sin revelar', (
       tester,
     ) async {
       final gateway = _gatewayCon(const [_desafioTexto, _desafioImagen])
@@ -464,6 +467,7 @@ void main() {
       await _asentar(tester);
 
       expect(find.byKey(const Key('nivel-juego-aviso')), findsOneWidget);
+      expect(find.byKey(const Key('nivel-juego-revelado')), findsNothing);
       expect(find.text('Desafío 1 de 2'), findsOneWidget);
       expect(find.text('0'), findsOneWidget);
       expect(
@@ -487,11 +491,202 @@ void main() {
       await tester.tap(find.byKey(const Key('nivel-juego-confirmar')));
       await _asentar(tester);
 
+      await _confirmarYRevelar(tester);
+
+      expect(gateway.respuestasEnviadas, hasLength(2));
+      expect(find.byKey(const Key('nivel-juego-revelado')), findsOneWidget);
+    });
+  });
+
+  group('revelado de la respuesta', () {
+    testWidgets(
+      'la secuencia acaba con la distancia y los puntos del servidor',
+      (tester) async {
+        final gateway = _gatewayCon(const [_desafioTexto, _desafioImagen])
+          ..respuesta = respuestaDePrueba(
+            distanciaKm: 247.4,
+            puntos: 520,
+            puntosMaximos: 5000,
+          );
+
+        await _abrirNivel(tester, gateway);
+        await _cerrarPista(tester);
+        await _colocarPin(tester);
+        await _confirmarYRevelar(tester);
+
+        expect(find.text('247'), findsOneWidget);
+        expect(find.text('+520'), findsOneWidget);
+        expect(find.text('/ 5.000'), findsOneWidget);
+        // Y el puntaje del intento en el HUD ya cuenta esos puntos.
+        expect(find.text('520'), findsOneWidget);
+      },
+    );
+
+    testWidgets('el lugar real y sus coordenadas se revelan', (tester) async {
+      final gateway = _gatewayCon(const [_desafioTexto])
+        ..respuesta = respuestaDePrueba(
+          nombreLugar: 'Coliseo de Roma',
+          latitudReal: 41.8902,
+          longitudReal: 12.4922,
+        );
+
+      await _abrirNivel(tester, gateway);
+      await _cerrarPista(tester);
+      await _colocarPin(tester);
+      await _confirmarYRevelar(tester);
+
+      expect(find.text('Coliseo de Roma'), findsOneWidget);
+      final coordenadas = tester.widget<Text>(
+        find.byKey(const Key('nivel-juego-coordenadas-reales')),
+      );
+      expect(coordenadas.data, '41,9° N · 12,5° E');
+    });
+
+    testWidgets('la miniatura enseña la imagen de la pista', (tester) async {
+      await _abrirNivel(tester, _gatewayCon(const [_desafioImagen]));
+      await _cerrarPista(tester);
+      await _colocarPin(tester);
+      await _confirmarYRevelar(tester);
+
+      expect(
+        find.byKey(const Key('nivel-juego-miniatura-imagen')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('una pista sin imagen enseña el distintivo de su tipo', (
+      tester,
+    ) async {
+      await _abrirNivel(tester, _gatewayCon(const [_desafioVideo]));
+      await _cerrarPista(tester);
+      await _colocarPin(tester);
+      await _confirmarYRevelar(tester);
+
+      expect(
+        find.byKey(const Key('nivel-juego-miniatura-tipo')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('nivel-juego-miniatura-imagen')),
+        findsNothing,
+      );
+    });
+
+    testWidgets('el mapa deja de aceptar gestos', (tester) async {
+      await _abrirNivel(tester, _gatewayCon(const [_desafioTexto]));
+      await _cerrarPista(tester);
+      await _colocarPin(tester);
+      await _confirmarYRevelar(tester);
+
+      expect(
+        tester.widget<MapaMundi>(find.byType(MapaMundi)).interactivo,
+        isFalse,
+      );
+    });
+
+    testWidgets('rotar la pantalla a media animación no rompe el revelado', (
+      tester,
+    ) async {
+      final gateway = _gatewayCon(const [_desafioTexto, _desafioImagen]);
+
+      await _abrirNivel(tester, gateway);
+      await _cerrarPista(tester);
+      await _colocarPin(tester);
       await tester.tap(find.byKey(const Key('nivel-juego-confirmar')));
       await _asentar(tester);
 
-      expect(gateway.respuestasEnviadas, hasLength(2));
+      // En pleno tramo de cámara: el encuadre de destino se recalcula para el
+      // tamaño nuevo en vez de seguir hacia el viejo.
+      await tester.pump(const Duration(milliseconds: 1400));
+      tester.view.physicalSize = const Size(844, 390);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 4200));
+
+      expect(tester.takeException(), isNull);
+      expect(find.byKey(const Key('nivel-juego-revelado')), findsOneWidget);
+    });
+
+    testWidgets('el revelado no avanza solo', (tester) async {
+      final gateway = _gatewayCon(const [_desafioTexto, _desafioImagen]);
+
+      await _abrirNivel(tester, gateway);
+      await _cerrarPista(tester);
+      await _colocarPin(tester);
+      await _confirmarYRevelar(tester);
+      await tester.pump(const Duration(seconds: 10));
+
+      expect(find.byKey(const Key('nivel-juego-revelado')), findsOneWidget);
+      expect(find.text('Desafío 1 de 2'), findsOneWidget);
+    });
+
+    testWidgets('avanzar abre la pista del siguiente con el mapa limpio', (
+      tester,
+    ) async {
+      final gateway = _gatewayCon(const [_desafioTexto, _desafioImagen])
+        ..respuesta = respuestaDePrueba(distanciaKm: 12, puntos: 1200);
+
+      await _abrirNivel(tester, gateway);
+      await _cerrarPista(tester);
+      await _colocarPin(tester);
+      await _confirmarYRevelar(tester);
+      await _avanzarDesdeElRevelado(tester);
+
+      expect(find.byKey(const Key('nivel-juego-revelado')), findsNothing);
       expect(find.text('Desafío 2 de 2'), findsOneWidget);
+      expect(find.text('1.200'), findsOneWidget);
+      expect(find.byKey(const Key('nivel-juego-imagen')), findsOneWidget);
+
+      await _cerrarPista(tester);
+      expect(
+        find.byKey(const Key('nivel-juego-indicacion-sin-pin')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('en el último desafío el botón lleva al camino', (
+      tester,
+    ) async {
+      final gateway = _gatewayCon(const [_desafioTexto]);
+
+      await _abrirNivel(tester, gateway);
+      await _cerrarPista(tester);
+      await _colocarPin(tester);
+      await _confirmarYRevelar(tester);
+
+      expect(find.text('Ver resultados'), findsOneWidget);
+      expect(find.text('Siguiente'), findsNothing);
+
+      await tester.tap(find.byKey(const Key('nivel-juego-siguiente')));
+      await _asentar(tester);
+      await tester.pump(const Duration(milliseconds: 500));
+
+      expect(gateway.respuestasEnviadas, hasLength(1));
+      expect(find.text('Ir al nivel'), findsOneWidget);
+    });
+
+    testWidgets('repetir la animación no vuelve a llamar al servidor', (
+      tester,
+    ) async {
+      final gateway = _gatewayCon(const [_desafioTexto, _desafioImagen])
+        ..respuesta = respuestaDePrueba(distanciaKm: 247.4, puntos: 1200);
+
+      await _abrirNivel(tester, gateway);
+      await _cerrarPista(tester);
+      await _colocarPin(tester);
+      await _confirmarYRevelar(tester);
+
+      await tester.tap(find.byKey(const Key('nivel-juego-repetir')));
+      await tester.pump();
+
+      // Los contadores vuelven a empezar y el servidor no se toca.
+      expect(gateway.respuestasEnviadas, hasLength(1));
+      expect(find.text('+0'), findsOneWidget);
+
+      await tester.pump(const Duration(milliseconds: 5600));
+
+      // Y al acabar el puntaje del intento sigue siendo el de una jugada.
+      expect(find.text('+1.200'), findsOneWidget);
+      expect(find.text('1.200'), findsOneWidget);
     });
   });
 
@@ -533,13 +728,12 @@ void main() {
 
     testWidgets('el aviso dice cuántos puntos se pierden', (tester) async {
       final gateway = _gatewayCon(const [_desafioTexto, _desafioImagen])
-        ..respuesta = const RespuestaDesafio(distanciaKm: 8, puntos: 1200);
+        ..respuesta = respuestaDePrueba(distanciaKm: 8, puntos: 1200);
 
       await _abrirNivel(tester, gateway);
       await _cerrarPista(tester);
       await _colocarPin(tester);
-      await tester.tap(find.byKey(const Key('nivel-juego-confirmar')));
-      await _asentar(tester);
+      await _confirmarYRevelar(tester);
 
       await tester.tap(find.byKey(const Key('nivel-juego-salir')));
       await _asentar(tester);
@@ -558,6 +752,16 @@ void main() {
       expect(formatearPuntaje(1200), '1.200');
       expect(formatearPuntaje(24500), '24.500');
       expect(formatearPuntaje(1234567), '1.234.567');
+    });
+
+    test('la distancia lleva un decimal por debajo de 10 km', () {
+      // Un acierto casi exacto no puede leerse como "0 km" (D12).
+      expect(formatearDistancia(0), '0,0');
+      expect(formatearDistancia(0.42), '0,4');
+      expect(formatearDistancia(9.94), '9,9');
+      expect(formatearDistancia(10), '10');
+      expect(formatearDistancia(247.4), '247');
+      expect(formatearDistancia(1234.6), '1.235');
     });
   });
 }

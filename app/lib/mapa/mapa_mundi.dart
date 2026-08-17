@@ -1,7 +1,11 @@
 import 'dart:math' as math;
+import 'dart:ui' show PointMode;
 
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
+import 'gran_circulo.dart';
+import 'guiones.dart';
 import 'mapa_mundi_controller.dart';
 import 'mundo_geometria.dart';
 
@@ -11,7 +15,13 @@ const Color _tierra = Color(0xFF20323D);
 const Color _frontera = Color(0x472BC0A8);
 const Color _reticula = Color(0x1A2BC0A8);
 const Color _pinRelleno = Color(0xFFFF5A5F);
+const Color _pinHalo = Color(0x38FF5A5F);
+const Color _pinRotulo = Color(0xFFFF9B9E);
+const Color _pinRealRelleno = Color(0xFF2BC0A8);
+const Color _pinRealHalo = Color(0x382BC0A8);
+const Color _pinRealRotulo = Color(0xFF7FE3D2);
 const Color _pinBorde = Color(0xFFFFFDF8);
+const Color _lineaDelRevelado = Color(0xFFFFC53D);
 
 typedef CargadorDeMundo = Future<MundoGeometria> Function();
 
@@ -20,13 +30,25 @@ typedef CargadorDeMundo = Future<MundoGeometria> Function();
 /// Dibuja la geometría empaquetada en la app (INT-92, D1 de `design.md`): sin
 /// teselas, sin red y sin un solo topónimo, porque adivinar en GeoQuest
 /// consiste en reconocer la forma de la costa.
+///
+/// Cuando el controlador tiene ubicación real (INT-93) dibuja además el
+/// segundo pin y la línea punteada entre los dos.
 class MapaMundi extends StatefulWidget {
-  const MapaMundi({super.key, required this.controller, this.cargador});
+  const MapaMundi({
+    super.key,
+    required this.controller,
+    this.cargador,
+    this.interactivo = true,
+  });
 
   final MapaMundiController controller;
 
   /// Inyectable para poder montar el mapa en tests sin leer el asset real.
   final CargadorDeMundo? cargador;
+
+  /// Con `false` el mapa no acepta gestos ni enseña los botones de zoom: la
+  /// jugada ya está cerrada y el encuadre lo decide la pantalla (INT-93).
+  final bool interactivo;
 
   @override
   State<MapaMundi> createState() => _MapaMundiState();
@@ -93,41 +115,77 @@ class _MapaMundiState extends State<MapaMundi> {
               if (mounted) widget.controller.ajustarTamano(tamano);
             });
 
-            return GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTapUp: _alTocar,
-              onScaleStart: _alEmpezarGesto,
-              onScaleUpdate: _alActualizarGesto,
-              child: AnimatedBuilder(
-                animation: widget.controller,
-                builder: (context, _) {
-                  final controller = widget.controller;
-                  return Stack(
-                    children: [
+            final mapa = AnimatedBuilder(
+              animation: widget.controller,
+              builder: (context, _) {
+                final controller = widget.controller;
+                final pin = controller.pin;
+                final pinReal = controller.pinReal;
+
+                return Stack(
+                  children: [
+                    Positioned.fill(
+                      child: RepaintBoundary(
+                        child: CustomPaint(
+                          painter: _PintorMundo(
+                            geometria: snapshot.data!,
+                            escala: controller.escala,
+                            desplazamiento: controller.desplazamiento,
+                          ),
+                          size: Size.infinite,
+                        ),
+                      ),
+                    ),
+                    if (pin != null && pinReal != null)
                       Positioned.fill(
-                        child: RepaintBoundary(
+                        child: IgnorePointer(
                           child: CustomPaint(
-                            painter: _PintorMundo(
-                              geometria: snapshot.data!,
-                              escala: controller.escala,
-                              desplazamiento: controller.desplazamiento,
+                            painter: _PintorLineaDelRevelado(
+                              desde: pin,
+                              hasta: pinReal,
+                              avance: controller.progresoDeLaLinea,
+                              camara: controller.camara,
                             ),
                             size: Size.infinite,
                           ),
                         ),
                       ),
-                      if (controller.pin != null)
-                        _PinDelJugador(
-                          punto: controller.coordenadasAPantalla(
-                            controller.pin!,
-                          ),
-                          coordenada: controller.pin!,
-                        ),
+                    if (pin != null)
+                      _PinDelMapa(
+                        punto: controller.coordenadasAPantalla(pin),
+                        coordenada: pin,
+                        relleno: _pinRelleno,
+                        halo: _pinHalo,
+                        // El rótulo solo hace falta cuando hay otro pin del
+                        // que distinguirlo.
+                        rotulo: pinReal == null ? null : 'Tu pin',
+                        colorDelRotulo: _pinRotulo,
+                      ),
+                    if (pinReal != null)
+                      _PinDelMapa(
+                        clave: const Key('mapa-pin-real'),
+                        punto: controller.coordenadasAPantalla(pinReal),
+                        coordenada: pinReal,
+                        relleno: _pinRealRelleno,
+                        halo: _pinRealHalo,
+                        rotulo: 'Real',
+                        colorDelRotulo: _pinRealRotulo,
+                      ),
+                    if (widget.interactivo)
                       _BotonesDeZoom(controller: controller),
-                    ],
-                  );
-                },
-              ),
+                  ],
+                );
+              },
+            );
+
+            if (!widget.interactivo) return mapa;
+
+            return GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTapUp: _alTocar,
+              onScaleStart: _alEmpezarGesto,
+              onScaleUpdate: _alActualizarGesto,
+              child: mapa,
             );
           },
         );
@@ -212,23 +270,41 @@ class _PintorMundo extends CustomPainter {
       anterior.geometria != geometria;
 }
 
-/// Pin del jugador: la punta clavada en el punto tocado, un halo que late y
-/// una entrada con rebote al colocarse.
-class _PinDelJugador extends StatelessWidget {
-  const _PinDelJugador({required this.punto, required this.coordenada});
+/// Pin del mapa: la punta clavada en el punto, un halo que late y una entrada
+/// con rebote al colocarse.
+///
+/// D7 de `design.md` (INT-93): el mismo dibujo sirve para el pin del jugador y
+/// para el de la ubicación real, que en el diseño solo se diferencian en el
+/// color y en el rótulo de encima.
+class _PinDelMapa extends StatelessWidget {
+  const _PinDelMapa({
+    required this.punto,
+    required this.coordenada,
+    required this.relleno,
+    required this.halo,
+    this.rotulo,
+    this.colorDelRotulo,
+    this.clave,
+  });
 
-  static const double _lado = 92;
+  static const double _lado = 160;
   static const double _alturaPin = 45;
   static const double _anchoPin = 34;
 
   final Offset? punto;
   final Coordenada coordenada;
+  final Color relleno;
+  final Color halo;
+  final String? rotulo;
+  final Color? colorDelRotulo;
+  final Key? clave;
 
   @override
   Widget build(BuildContext context) {
     if (punto == null) return const SizedBox.shrink();
 
     return Positioned(
+      key: clave,
       left: punto!.dx - _lado / 2,
       top: punto!.dy - _lado / 2,
       width: _lado,
@@ -244,7 +320,7 @@ class _PinDelJugador extends StatelessWidget {
           builder: (context, entrada, _) => Stack(
             alignment: Alignment.center,
             children: [
-              const _HaloDelPin(),
+              _HaloDelPin(color: halo),
               Align(
                 alignment: Alignment.center,
                 child: Transform.translate(
@@ -252,14 +328,33 @@ class _PinDelJugador extends StatelessWidget {
                   child: Transform.scale(
                     scale: entrada,
                     alignment: Alignment.bottomCenter,
-                    child: const SizedBox(
+                    child: SizedBox(
                       width: _anchoPin,
                       height: _alturaPin,
-                      child: CustomPaint(painter: _PintorPin()),
+                      child: CustomPaint(painter: _PintorPin(relleno: relleno)),
                     ),
                   ),
                 ),
               ),
+              if (rotulo != null)
+                Positioned(
+                  top: _lado / 2 - _alturaPin - 26,
+                  left: 0,
+                  right: 0,
+                  child: Opacity(
+                    opacity: entrada.clamp(0.0, 1.0),
+                    child: Text(
+                      rotulo!.toUpperCase(),
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.outfit(
+                        color: colorDelRotulo,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1.4,
+                      ),
+                    ),
+                  ),
+                ),
             ],
           ),
         ),
@@ -268,8 +363,59 @@ class _PinDelJugador extends StatelessWidget {
   }
 }
 
+/// Línea punteada entre el pin del jugador y la ubicación real, trazada poco a
+/// poco (D6 de `design.md`).
+///
+/// Se pinta en espacio de pantalla, no dentro de la transformación del mundo,
+/// para que los guiones midan lo mismo a cualquier zoom.
+class _PintorLineaDelRevelado extends CustomPainter {
+  const _PintorLineaDelRevelado({
+    required this.desde,
+    required this.hasta,
+    required this.avance,
+    required this.camara,
+  });
+
+  final Coordenada desde;
+  final Coordenada hasta;
+  final double avance;
+  final CamaraMapa camara;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (avance <= 0 || camara.escala <= 0) return;
+
+    final pincel = Paint()
+      ..color = _lineaDelRevelado
+      ..strokeWidth = 3
+      ..strokeCap = StrokeCap.round;
+
+    for (final tramo in partirEnElAntimeridiano(
+      interpolarGranCirculo(desde, hasta, avance: avance),
+    )) {
+      final guiones = trocearEnGuiones([
+        for (final coordenada in tramo) camara.puntoDe(coordenada),
+      ]);
+      if (guiones.isEmpty) continue;
+
+      canvas.drawPoints(PointMode.lines, [
+        for (final guion in guiones) ...[guion.$1, guion.$2],
+      ], pincel);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_PintorLineaDelRevelado anterior) =>
+      anterior.desde != desde ||
+      anterior.hasta != hasta ||
+      anterior.avance != avance ||
+      anterior.camara != camara;
+}
+
 class _HaloDelPin extends StatefulWidget {
-  const _HaloDelPin();
+  const _HaloDelPin({required this.color});
+
+  final Color color;
 
   @override
   State<_HaloDelPin> createState() => _HaloDelPinState();
@@ -301,9 +447,9 @@ class _HaloDelPinState extends State<_HaloDelPin>
             child: Container(
               width: 38,
               height: 38,
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: Color(0x38FF5A5F),
+                color: widget.color,
               ),
             ),
           ),
@@ -314,7 +460,9 @@ class _HaloDelPinState extends State<_HaloDelPin>
 }
 
 class _PintorPin extends CustomPainter {
-  const _PintorPin();
+  const _PintorPin({required this.relleno});
+
+  final Color relleno;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -342,7 +490,7 @@ class _PintorPin extends CustomPainter {
       ..close();
 
     canvas
-      ..drawPath(gota, Paint()..color = _pinRelleno)
+      ..drawPath(gota, Paint()..color = relleno)
       ..drawPath(
         gota,
         Paint()
@@ -355,7 +503,7 @@ class _PintorPin extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_PintorPin anterior) => false;
+  bool shouldRepaint(_PintorPin anterior) => anterior.relleno != relleno;
 }
 
 class _BotonesDeZoom extends StatelessWidget {
