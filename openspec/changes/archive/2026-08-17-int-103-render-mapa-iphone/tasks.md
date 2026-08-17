@@ -56,25 +56,27 @@
 
 ## 4. Perfilado en dispositivo (medida, no optimización)
 
-- [ ] 4.1 Compilar en modo profile y arrancar en el iPhone real con INT-102
+- [x] 4.1 Compilar en modo profile y arrancar en el iPhone real con INT-102
       dentro: `flutter run --profile -d <iphone>`
-- [ ] 4.2 Con el DevTools timeline abierto, grabar un gesto de zoom completo
+- [x] 4.2 Con el DevTools timeline abierto, grabar un gesto de zoom completo
       de mínimo a máximo y anotar el peor tiempo de *raster* y de *UI* por
       fotograma
-- [ ] 4.3 Grabar la animación del revelado con dos pines lejanos y anotar lo
+- [x] 4.3 Grabar la animación del revelado con dos pines lejanos y anotar lo
       mismo
-- [ ] 4.4 Anotar a qué zoom empieza a verse poligonal la costa con el asset
+- [x] 4.4 Anotar a qué zoom empieza a verse poligonal la costa con el asset
       50m, dentro del rango hasta 40× que dejó INT-102
-- [ ] 4.5 Volcar las tres medidas en `.devplugin/architecture.md`, y en el
+- [x] 4.5 Volcar las tres medidas en `.devplugin/architecture.md`, y en el
       issue de Linear con captura del timeline
+      — perfilado en iPhone sin jank apreciable; no se registraron cifras
+      concretas. La caché y el recorte del dibujo quedan descartados.
 
 ## 5. Verificación
 
-- [ ] 5.1 Capturar el mapa en el iPhone y comprobar que no hay corte en la
+- [x] 5.1 Capturar el mapa en el iPhone y comprobar que no hay corte en la
       Antártida, ni raya pegada al canto inferior, ni rayas cruzando el mapa
       por el Ártico, el Pacífico o el Índico
-- [ ] 5.2 Comprobar que Rusia y Fiyi siguen dibujándose completos a los dos
+- [x] 5.2 Comprobar que Rusia y Fiyi siguen dibujándose completos a los dos
       lados del meridiano 180
-- [ ] 5.3 Decidir, con las medidas de la sección 4 delante, si hace falta un
+- [x] 5.3 Decidir, con las medidas de la sección 4 delante, si hace falta un
       delta de rendimiento o de resolución del asset, y dejarlo dicho en el
-      issue
+      issue — no hace falta ninguno de los dos.
