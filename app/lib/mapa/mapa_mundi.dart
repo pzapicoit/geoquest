@@ -1,0 +1,448 @@
+import 'dart:math' as math;
+
+import 'package:flutter/material.dart';
+
+import 'mapa_mundi_controller.dart';
+import 'mundo_geometria.dart';
+
+const Color _fueraDelMundo = Color(0xFF0B1A24);
+const Color _oceano = Color(0xFF0F2632);
+const Color _tierra = Color(0xFF20323D);
+const Color _frontera = Color(0x472BC0A8);
+const Color _reticula = Color(0x1A2BC0A8);
+const Color _pinRelleno = Color(0xFFFF5A5F);
+const Color _pinBorde = Color(0xFFFFFDF8);
+
+typedef CargadorDeMundo = Future<MundoGeometria> Function();
+
+/// Mapa mundial a pantalla completa donde el jugador marca su respuesta.
+///
+/// Dibuja la geometría empaquetada en la app (INT-92, D1 de `design.md`): sin
+/// teselas, sin red y sin un solo topónimo, porque adivinar en GeoQuest
+/// consiste en reconocer la forma de la costa.
+class MapaMundi extends StatefulWidget {
+  const MapaMundi({super.key, required this.controller, this.cargador});
+
+  final MapaMundiController controller;
+
+  /// Inyectable para poder montar el mapa en tests sin leer el asset real.
+  final CargadorDeMundo? cargador;
+
+  @override
+  State<MapaMundi> createState() => _MapaMundiState();
+}
+
+class _MapaMundiState extends State<MapaMundi> {
+  late Future<MundoGeometria> _mundo;
+  double _escalaDelGesto = 1;
+
+  @override
+  void initState() {
+    super.initState();
+    _mundo = (widget.cargador ?? cargarMundo)();
+  }
+
+  void _alTocar(TapUpDetails detalles) {
+    widget.controller.colocarPinEn(detalles.localPosition);
+  }
+
+  void _alEmpezarGesto(ScaleStartDetails detalles) => _escalaDelGesto = 1;
+
+  void _alActualizarGesto(ScaleUpdateDetails detalles) {
+    if (detalles.scale != _escalaDelGesto && _escalaDelGesto > 0) {
+      widget.controller.zoomEn(
+        detalles.scale / _escalaDelGesto,
+        detalles.localFocalPoint,
+      );
+      _escalaDelGesto = detalles.scale;
+    }
+    widget.controller.desplazar(detalles.focalPointDelta);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<MundoGeometria>(
+      future: _mundo,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const ColoredBox(
+            color: _fueraDelMundo,
+            child: Center(
+              child: SizedBox(
+                key: Key('mapa-cargando'),
+                width: 26,
+                height: 26,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.4,
+                  color: Color(0xFF2BC0A8),
+                ),
+              ),
+            ),
+          );
+        }
+        if (snapshot.hasError) {
+          return const _MundoNoDisponible();
+        }
+
+        return LayoutBuilder(
+          builder: (context, restricciones) {
+            final tamano = restricciones.biggest;
+            // El controlador notifica a sus oyentes, así que no se puede
+            // tocar en pleno build: se ajusta justo después del fotograma.
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) widget.controller.ajustarTamano(tamano);
+            });
+
+            return GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTapUp: _alTocar,
+              onScaleStart: _alEmpezarGesto,
+              onScaleUpdate: _alActualizarGesto,
+              child: AnimatedBuilder(
+                animation: widget.controller,
+                builder: (context, _) {
+                  final controller = widget.controller;
+                  return Stack(
+                    children: [
+                      Positioned.fill(
+                        child: RepaintBoundary(
+                          child: CustomPaint(
+                            painter: _PintorMundo(
+                              geometria: snapshot.data!,
+                              escala: controller.escala,
+                              desplazamiento: controller.desplazamiento,
+                            ),
+                            size: Size.infinite,
+                          ),
+                        ),
+                      ),
+                      if (controller.pin != null)
+                        _PinDelJugador(
+                          punto: controller.coordenadasAPantalla(
+                            controller.pin!,
+                          ),
+                          coordenada: controller.pin!,
+                        ),
+                      _BotonesDeZoom(controller: controller),
+                    ],
+                  );
+                },
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class _MundoNoDisponible extends StatelessWidget {
+  const _MundoNoDisponible();
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: _fueraDelMundo,
+      child: Center(
+        child: Text(
+          'No se ha podido cargar el mapa',
+          key: const Key('mapa-error'),
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.45),
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Dibuja el mundo con una única transformación del canvas sobre unos `Path`
+/// que se construyen una sola vez (D3/D7 de `design.md`): arrastrar solo
+/// cambia la traslación, y el pin —que late— vive fuera del pintor.
+class _PintorMundo extends CustomPainter {
+  const _PintorMundo({
+    required this.geometria,
+    required this.escala,
+    required this.desplazamiento,
+  });
+
+  final MundoGeometria geometria;
+  final double escala;
+  final Offset desplazamiento;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.drawRect(Offset.zero & size, Paint()..color = _fueraDelMundo);
+    if (escala <= 0) return;
+
+    canvas.save();
+    canvas.translate(desplazamiento.dx, desplazamiento.dy);
+    canvas.scale(escala);
+
+    // El grosor se divide por la escala para que la línea mida siempre lo
+    // mismo en pantalla, como el `non-scaling-stroke` del mockup.
+    final grosor = 0.6 / escala;
+
+    canvas.drawRect(const Rect.fromLTWH(0, 0, 1, 1), Paint()..color = _oceano);
+    canvas.drawPath(
+      geometria.reticula,
+      Paint()
+        ..color = _reticula
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = grosor,
+    );
+    canvas.drawPath(geometria.tierra, Paint()..color = _tierra);
+    canvas.drawPath(
+      geometria.tierra,
+      Paint()
+        ..color = _frontera
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = grosor,
+    );
+
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_PintorMundo anterior) =>
+      anterior.escala != escala ||
+      anterior.desplazamiento != desplazamiento ||
+      anterior.geometria != geometria;
+}
+
+/// Pin del jugador: la punta clavada en el punto tocado, un halo que late y
+/// una entrada con rebote al colocarse.
+class _PinDelJugador extends StatelessWidget {
+  const _PinDelJugador({required this.punto, required this.coordenada});
+
+  static const double _lado = 92;
+  static const double _alturaPin = 45;
+  static const double _anchoPin = 34;
+
+  final Offset? punto;
+  final Coordenada coordenada;
+
+  @override
+  Widget build(BuildContext context) {
+    if (punto == null) return const SizedBox.shrink();
+
+    return Positioned(
+      left: punto!.dx - _lado / 2,
+      top: punto!.dy - _lado / 2,
+      width: _lado,
+      height: _lado,
+      child: IgnorePointer(
+        child: TweenAnimationBuilder<double>(
+          // La clave cambia con cada coordenada nueva, así que reposicionar
+          // el pin lo vuelve a animar en su sitio.
+          key: ValueKey(coordenada),
+          tween: Tween(begin: 0, end: 1),
+          duration: const Duration(milliseconds: 320),
+          curve: Curves.easeOutBack,
+          builder: (context, entrada, _) => Stack(
+            alignment: Alignment.center,
+            children: [
+              const _HaloDelPin(),
+              Align(
+                alignment: Alignment.center,
+                child: Transform.translate(
+                  offset: const Offset(0, -_alturaPin / 2),
+                  child: Transform.scale(
+                    scale: entrada,
+                    alignment: Alignment.bottomCenter,
+                    child: const SizedBox(
+                      width: _anchoPin,
+                      height: _alturaPin,
+                      child: CustomPaint(painter: _PintorPin()),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _HaloDelPin extends StatefulWidget {
+  const _HaloDelPin();
+
+  @override
+  State<_HaloDelPin> createState() => _HaloDelPinState();
+}
+
+class _HaloDelPinState extends State<_HaloDelPin>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controlador = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 2200),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _controlador.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controlador,
+      builder: (context, _) {
+        final t = _controlador.value;
+        return Transform.scale(
+          scale: 0.7 + t * 1.4,
+          child: Opacity(
+            opacity: (0.85 * (1 - t)).clamp(0.0, 1.0),
+            child: Container(
+              width: 38,
+              height: 38,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                color: Color(0x38FF5A5F),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _PintorPin extends CustomPainter {
+  const _PintorPin();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Gota clásica: la punta abajo del todo y un círculo arriba, unidos por
+    // las dos tangentes que salen de la punta.
+    final radio = size.width * 0.4;
+    final centro = Offset(size.width / 2, radio + size.height * 0.045);
+    final punta = Offset(size.width / 2, size.height);
+    final distancia = punta.dy - centro.dy;
+    final beta = math.acos((radio / distancia).clamp(-1.0, 1.0));
+
+    final desde = math.pi / 2 + beta;
+    final gota = Path()
+      ..moveTo(punta.dx, punta.dy)
+      ..lineTo(
+        centro.dx + radio * math.cos(desde),
+        centro.dy + radio * math.sin(desde),
+      )
+      ..arcTo(
+        Rect.fromCircle(center: centro, radius: radio),
+        desde,
+        2 * math.pi - 2 * beta,
+        false,
+      )
+      ..close();
+
+    canvas
+      ..drawPath(gota, Paint()..color = _pinRelleno)
+      ..drawPath(
+        gota,
+        Paint()
+          ..color = _pinBorde
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2.4
+          ..strokeJoin = StrokeJoin.round,
+      )
+      ..drawCircle(centro, radio * 0.38, Paint()..color = _pinBorde);
+  }
+
+  @override
+  bool shouldRepaint(_PintorPin anterior) => false;
+}
+
+class _BotonesDeZoom extends StatelessWidget {
+  const _BotonesDeZoom({required this.controller});
+
+  final MapaMundiController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      right: 14,
+      top: 0,
+      bottom: 0,
+      child: Center(
+        child: Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF0E1620).withValues(alpha: 0.72),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          padding: const EdgeInsets.all(4),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _BotonDeZoom(
+                clave: const Key('mapa-acercar'),
+                etiqueta: 'Acercar',
+                simbolo: '+',
+                onPressed: controller.acercar,
+              ),
+              Container(
+                height: 1,
+                width: 24,
+                color: Colors.white.withValues(alpha: 0.14),
+              ),
+              _BotonDeZoom(
+                clave: const Key('mapa-alejar'),
+                etiqueta: 'Alejar',
+                simbolo: '−',
+                onPressed: controller.alejar,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BotonDeZoom extends StatelessWidget {
+  const _BotonDeZoom({
+    required this.clave,
+    required this.etiqueta,
+    required this.simbolo,
+    required this.onPressed,
+  });
+
+  final Key clave;
+  final String etiqueta;
+  final String simbolo;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: etiqueta,
+      child: InkWell(
+        key: clave,
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(13),
+        child: SizedBox(
+          width: 40,
+          height: 40,
+          child: Center(
+            child: Text(
+              simbolo,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 22,
+                fontWeight: FontWeight.w600,
+                height: 1,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

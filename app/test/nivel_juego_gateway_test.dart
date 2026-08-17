@@ -106,4 +106,38 @@ void main() {
       expect(intento.desafios, isEmpty);
     });
   });
+
+  group('mapearRespuestaDesafio', () {
+    test('lee la distancia y los puntos que calculó el servidor', () {
+      final respuesta = mapearRespuestaDesafio({
+        'id': 'r1',
+        'intento_id': 'i1',
+        'desafio_id': 'd1',
+        'lat_adivinada': 40.4,
+        'lng_adivinada': -3.7,
+        'distancia_km': 247.5,
+        'puntos': 4381,
+        'respondido_en': '2026-08-17T12:00:00Z',
+      });
+
+      expect(respuesta.distanciaKm, closeTo(247.5, 1e-9));
+      expect(respuesta.puntos, 4381);
+    });
+
+    test('acepta una distancia serializada como texto', () {
+      // `distancia_km` es `numeric` en Postgres, así que PostgREST puede
+      // mandarla como cadena para no perder precisión.
+      final respuesta = mapearRespuestaDesafio({
+        'distancia_km': '1234.5678',
+        'puntos': 0,
+      });
+
+      expect(respuesta.distanciaKm, closeTo(1234.5678, 1e-9));
+      expect(respuesta.puntos, 0);
+    });
+
+    test('una respuesta sin distancia falla en vez de inventarse un 0', () {
+      expect(() => mapearRespuestaDesafio({'puntos': 10}), throwsArgumentError);
+    });
+  });
 }

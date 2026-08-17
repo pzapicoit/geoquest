@@ -7,9 +7,9 @@ import 'package:http/testing.dart';
 /// Config de prueba. No usa AppConfig.fromEnvironment porque eso lee variables
 /// de compilación, que en el entorno de test no están definidas.
 AppConfig _config() => AppConfig.forTesting(
-      supabaseUrl: 'https://proyecto.supabase.co',
-      supabasePublishableKey: 'sb_publishable_test',
-    );
+  supabaseUrl: 'https://proyecto.supabase.co',
+  supabasePublishableKey: 'sb_publishable_test',
+);
 
 void main() {
   group('ConnectivityCheck', () {
@@ -60,13 +60,18 @@ void main() {
       expect(result.reason, contains('Invalid API key'));
     });
 
-    test('devuelve fallo sin propagar la excepcion cuando la red falla', () async {
-      final client = MockClient((_) async => throw const SocketExceptionStub());
+    test(
+      'devuelve fallo sin propagar la excepcion cuando la red falla',
+      () async {
+        final client = MockClient(
+          (_) async => throw const SocketExceptionStub(),
+        );
 
-      final result = await ConnectivityCheck(_config(), client: client).run();
+        final result = await ConnectivityCheck(_config(), client: client).run();
 
-      expect(result, isA<ConnectivityFailure>());
-    });
+        expect(result, isA<ConnectivityFailure>());
+      },
+    );
 
     test('devuelve fallo cuando el proyecto no responde a tiempo', () async {
       final client = MockClient((_) async {

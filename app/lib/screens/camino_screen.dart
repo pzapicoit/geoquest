@@ -195,6 +195,10 @@ class _CaminoScreenState extends State<CaminoScreen> {
       MaterialPageRoute(
         builder: (_) => NivelJuegoScreen(
           nivelId: parada.nivelId,
+          // El HUD de la pantalla de juego necesita un nombre que enseñar y
+          // el camino ya lo tiene cargado (D9 de `design.md` de INT-92): la
+          // temática hace de reserva para los niveles sin nombre propio.
+          nivelNombre: parada.nivelNombre ?? parada.tematicaNombre,
           gateway: widget.nivelJuegoGateway,
         ),
       ),

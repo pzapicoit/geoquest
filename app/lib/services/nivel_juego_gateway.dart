@@ -48,10 +48,29 @@ class IntentoNivel {
   final List<DesafioJuego> desafios;
 }
 
-/// Superficie mínima de Supabase para arrancar un intento de nivel, para
-/// poder probar la pantalla de juego con un falso sin salir a la red.
+/// Resultado de responder un desafío, tal como lo devuelve la RPC
+/// `responder_desafio` (INT-78): la distancia y los puntos los calcula
+/// Postgres, la app solo los muestra. No incluye la ubicación real del
+/// desafío — RLS la esconde del jugador, así que el revelado de INT-93
+/// necesitará un cambio de backend aparte.
+class RespuestaDesafio {
+  const RespuestaDesafio({required this.distanciaKm, required this.puntos});
+
+  final double distanciaKm;
+  final int puntos;
+}
+
+/// Superficie mínima de Supabase para jugar un nivel, para poder probar la
+/// pantalla de juego con un falso sin salir a la red.
 abstract class NivelJuegoGateway {
   Future<IntentoNivel> iniciarIntento(String nivelId);
+
+  Future<RespuestaDesafio> responderDesafio({
+    required String intentoId,
+    required String desafioId,
+    required double latitud,
+    required double longitud,
+  });
 }
 
 class SupabaseNivelJuegoGateway implements NivelJuegoGateway {
@@ -68,6 +87,26 @@ class SupabaseNivelJuegoGateway implements NivelJuegoGateway {
 
     return mapearIntentoNivel(respuesta as Map<String, dynamic>);
   }
+
+  @override
+  Future<RespuestaDesafio> responderDesafio({
+    required String intentoId,
+    required String desafioId,
+    required double latitud,
+    required double longitud,
+  }) async {
+    final respuesta = await _client.rpc(
+      'responder_desafio',
+      params: {
+        'p_intento_id': intentoId,
+        'p_desafio_id': desafioId,
+        'p_lat_adivinada': latitud,
+        'p_lng_adivinada': longitud,
+      },
+    );
+
+    return mapearRespuestaDesafio(respuesta as Map<String, dynamic>);
+  }
 }
 
 /// Mapea el jsonb `{"intento_id", "desafios"}` que devuelve
@@ -83,6 +122,23 @@ IntentoNivel mapearIntentoNivel(Map<String, dynamic> data) {
       for (final fila in desafiosRaw)
         _mapearDesafio(fila as Map<String, dynamic>),
     ],
+  );
+}
+
+/// Mapea la fila de `respuestas_desafio` que devuelve `responder_desafio`.
+/// Función pura, extraída por el mismo motivo que [mapearIntentoNivel]:
+/// poder probar el mapeo sin red.
+RespuestaDesafio mapearRespuestaDesafio(Map<String, dynamic> fila) {
+  return RespuestaDesafio(
+    // `distancia_km` es `numeric` en Postgres: llega como número, pero
+    // PostgREST lo serializa como texto cuando el valor no cabe en un double
+    // sin perder precisión, así que se acepta cualquiera de las dos formas.
+    distanciaKm: switch (fila['distancia_km']) {
+      final num valor => valor.toDouble(),
+      final String valor => double.parse(valor),
+      _ => throw ArgumentError('distancia_km ausente en la respuesta'),
+    },
+    puntos: (fila['puntos'] as num).toInt(),
   );
 }
 
