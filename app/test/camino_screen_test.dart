@@ -1,12 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:geoquest/screens/camino_screen.dart';
-import 'package:geoquest/screens/nivel_juego_placeholder_screen.dart';
+import 'package:geoquest/screens/nivel_juego_screen.dart';
 import 'package:geoquest/services/camino_gateway.dart';
+import 'package:geoquest/services/nivel_juego_gateway.dart';
 import 'package:geoquest/services/username_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'fakes/fake_camino_gateway.dart';
+import 'fakes/fake_nivel_juego_gateway.dart';
+
+final _nivelJuegoGatewayDePrueba = FakeNivelJuegoGateway(
+  const IntentoNivel(
+    intentoId: 'intento-1',
+    desafios: [
+      DesafioJuego(
+        id: 'd1',
+        tipo: TipoDesafio.preguntaTexto,
+        activo: true,
+        textoPregunta: '¿Dónde está esto?',
+      ),
+    ],
+  ),
+);
 
 const _monumentos = ParadaCamino(
   caminoId: 'c1',
@@ -67,6 +83,7 @@ Widget _pantalla(CaminoGateway gateway) => MaterialApp(
   home: CaminoScreen(
     caminoGateway: gateway,
     usernameStorage: UsernameStorage(),
+    nivelJuegoGateway: _nivelJuegoGatewayDePrueba,
   ),
 );
 
@@ -133,7 +150,7 @@ void main() {
       await tester.tap(find.byKey(const Key('parada-nivel-bloqueado')));
       await tester.pumpAndSettle();
 
-      expect(find.byType(NivelJuegoPlaceholderScreen), findsNothing);
+      expect(find.byType(NivelJuegoScreen), findsNothing);
       expect(find.byType(SnackBar), findsNothing);
       // La única aparición del texto es la etiqueta de la propia tarjeta,
       // no una respuesta al toque.
@@ -149,8 +166,8 @@ void main() {
       await tester.tap(find.byKey(const Key('parada-nivel-actual')));
       await tester.pumpAndSettle();
 
-      expect(find.byType(NivelJuegoPlaceholderScreen), findsOneWidget);
-      expect(find.text('Nivel 2 · Monumentos'), findsOneWidget);
+      expect(find.byType(NivelJuegoScreen), findsOneWidget);
+      expect(_nivelJuegoGatewayDePrueba.ultimoNivelId, 'nivel-actual');
     },
   );
 
@@ -162,7 +179,7 @@ void main() {
       await tester.tap(find.byKey(const Key('parada-nivel-superado')));
       await tester.pumpAndSettle();
 
-      expect(find.byType(NivelJuegoPlaceholderScreen), findsOneWidget);
+      expect(find.byType(NivelJuegoScreen), findsOneWidget);
     },
   );
 
@@ -254,7 +271,7 @@ void main() {
       await tester.tap(find.byKey(const Key('camino-boton-jugar')));
       await tester.pumpAndSettle();
 
-      expect(find.byType(NivelJuegoPlaceholderScreen), findsOneWidget);
+      expect(find.byType(NivelJuegoScreen), findsOneWidget);
     },
   );
 

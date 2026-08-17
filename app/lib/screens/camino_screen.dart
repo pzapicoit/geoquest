@@ -3,8 +3,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../services/camino_gateway.dart';
+import '../services/nivel_juego_gateway.dart';
 import '../services/username_storage.dart';
-import 'nivel_juego_placeholder_screen.dart';
+import 'nivel_juego_screen.dart';
 
 const _bgTop = Color(0xFF102A38);
 const _bgMid = Color(0xFF0B1B27);
@@ -72,12 +73,19 @@ String _formatMiles(int n) {
 /// `openspec/changes/int-90-camino-niveles-home` para las decisiones que se
 /// apartan del mock (frontera, arte por temática, puntos totales).
 class CaminoScreen extends StatefulWidget {
-  const CaminoScreen({super.key, this.caminoGateway, this.usernameStorage});
+  const CaminoScreen({
+    super.key,
+    this.caminoGateway,
+    this.usernameStorage,
+    this.nivelJuegoGateway,
+  });
 
   /// Inyectables para poder probar la pantalla sin salir a la red ni al
-  /// disco.
+  /// disco. `nivelJuegoGateway` se reenvía a `NivelJuegoScreen` al navegar
+  /// a ella (INT-91).
   final CaminoGateway? caminoGateway;
   final UsernameStorage? usernameStorage;
+  final NivelJuegoGateway? nivelJuegoGateway;
 
   @override
   State<CaminoScreen> createState() => _CaminoScreenState();
@@ -185,10 +193,9 @@ class _CaminoScreenState extends State<CaminoScreen> {
   void _onTapParada(ParadaCamino parada) {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => NivelJuegoPlaceholderScreen(
+        builder: (_) => NivelJuegoScreen(
           nivelId: parada.nivelId,
-          tematicaNombre: parada.tematicaNombre,
-          numeroNivel: parada.orden,
+          gateway: widget.nivelJuegoGateway,
         ),
       ),
     );
