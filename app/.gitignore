@@ -46,3 +46,7 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# Firma local de iOS: identidad de desarrollo propia de cada maquina.
+# El proyecto la lee por xcconfig para no llevarla dentro de Runner.xcodeproj.
+ios/Flutter/Local.xcconfig

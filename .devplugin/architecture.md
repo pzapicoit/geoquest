@@ -56,6 +56,28 @@ La aritmética de cámara (proyección, límites de zoom, recorte de
 desplazamiento, pin) vive en `MapaMundiController`, fuera del widget, y se
 prueba con tests unitarios puros en vez de simulando gestos.
 
+**El generador del asset arregla dos rasgos del dataset (INT-103).** En
+world-atlas la Antártida viene como un polígono cuyo anillo exterior es la
+arista del polo (área cero) y cuyo supuesto agujero es la costa; tratados como
+anillos sueltos, el relleno se cortaba antes del borde inferior y la arista se
+trazaba como una raya. Y seis segmentos del dataset cruzan el antimeridiano,
+que en la proyección salta de un borde del cuadrado al otro. `build_world_asset.dart`
+fusiona los polígonos con un anillo de área cero y parte los que cruzan el
+meridiano 180. Las invariantes resultantes —sin anillos degenerados, sin saltos
+de más de 180°, sin puntos repetidos, relleno hasta el canto— están fijadas por
+tests sobre el binario commiteado, no por valores esperados, para que sigan
+valiendo si se cambia de dataset.
+
+**Rendimiento del pintor, medido en dispositivo (INT-103).** El mundo se
+repinta entero en cada fotograma de gesto: un `Path` de 99 541 puntos, más la
+pasada de contorno. Perfilado en iPhone real en modo profile con el timeline de
+DevTools, sobre el gesto de zoom y la animación del revelado, **no aparece jank
+apreciable** (no se registraron cifras concretas). Así que la caché de una
+`Picture` y el recorte a lo visible se descartan por ahora: no hay problema que
+resolver. Si el asset creciera —pasar a Natural Earth 10m es la vía obvia para
+más detalle de costa— esta medida deja de valer y hay que repetirla antes de
+subir la resolución.
+
 ## Flujo de base de datos
 
 **Remote-first.** Las migraciones se escriben en local y se aplican al proyecto
