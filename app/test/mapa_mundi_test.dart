@@ -151,6 +151,7 @@ void main() {
       );
       controlador.revelarUbicacion(
         const Coordenada(latitud: 41.8902, longitud: 12.4922),
+        nombre: 'Roma',
       );
       controlador.progresoDeLaLinea = 1;
       await tester.pump();
@@ -158,7 +159,83 @@ void main() {
 
       expect(find.byKey(const Key('mapa-pin-real')), findsOneWidget);
       expect(find.text('TU PIN'), findsOneWidget);
-      expect(find.text('REAL'), findsOneWidget);
+      expect(find.text('ROMA'), findsOneWidget);
+    });
+
+    testWidgets('el pin real muestra el nombre del lugar recibido, no "Real"', (
+      tester,
+    ) async {
+      final controlador = await _montar(tester, interactivo: false);
+
+      controlador.colocarPin(
+        const Coordenada(latitud: 40.4168, longitud: -3.7038),
+      );
+      controlador.revelarUbicacion(
+        const Coordenada(latitud: 41.8902, longitud: 12.4922),
+        nombre: 'Parque Nacional Torres del Paine',
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(find.text('REAL'), findsNothing);
+      expect(find.text('PARQUE NACIONAL TORRES DEL PAINE'), findsOneWidget);
+    });
+
+    testWidgets('un nombre de lugar largo no rompe el layout del pin', (
+      tester,
+    ) async {
+      final controlador = await _montar(tester, interactivo: false);
+
+      controlador.colocarPin(
+        const Coordenada(latitud: 40.4168, longitud: -3.7038),
+      );
+      controlador.revelarUbicacion(
+        const Coordenada(latitud: 41.8902, longitud: 12.4922),
+        nombre:
+            'Un nombre de lugar excepcionalmente largo para probar el '
+            'truncado del rótulo sobre el mapa',
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      // Ningún overflow: si el rótulo desbordara su caja, `flutter_test`
+      // levanta un `FlutterError` durante el pump.
+      expect(tester.takeException(), isNull);
+
+      final texto = tester.widget<Text>(
+        find.descendant(
+          of: find.byKey(const Key('mapa-pin-real')),
+          matching: find.byType(Text),
+        ),
+      );
+      expect(texto.maxLines, 1);
+      expect(texto.overflow, TextOverflow.ellipsis);
+    });
+
+    testWidgets('con los dos pines muy próximos, sus rótulos no se solapan', (
+      tester,
+    ) async {
+      final controlador = await _montar(tester, interactivo: false);
+
+      // Coordenadas separadas por un puñado de metros: en el zoom inicial
+      // caen prácticamente en el mismo punto de pantalla.
+      controlador.colocarPin(
+        const Coordenada(latitud: 40.4168, longitud: -3.7038),
+      );
+      controlador.revelarUbicacion(
+        const Coordenada(latitud: 40.41681, longitud: -3.70381),
+        nombre: 'Madrid',
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      final centroTuPin = tester.getCenter(find.text('TU PIN'));
+      final centroReal = tester.getCenter(find.text('MADRID'));
+
+      // El rótulo del jugador va por debajo de su pin y el real por
+      // encima del suyo: quedan en lados opuestos del eje vertical, sin
+      // solaparse, sin importar cuánto se acerquen los pines.
+      expect(centroTuPin.dy, greaterThan(centroReal.dy));
     });
 
     testWidgets('sin ubicación real el pin del jugador no lleva rótulo', (

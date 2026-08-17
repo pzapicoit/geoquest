@@ -471,6 +471,7 @@ void main() {
 
       controlador.revelarUbicacion(
         const Coordenada(latitud: 89, longitud: 200),
+        nombre: 'Groenlandia',
       );
 
       expect(controlador.pinReal!.longitud, closeTo(-160, 1e-9));
@@ -478,6 +479,17 @@ void main() {
         controlador.pinReal!.latitud,
         closeTo(Mercator.latitudMaxima, 1e-9),
       );
+    });
+
+    test('revelar la ubicación expone el nombre del lugar', () {
+      final controlador = _controlador();
+
+      controlador.revelarUbicacion(
+        const Coordenada(latitud: 41.8902, longitud: 12.4922),
+        nombre: 'Roma',
+      );
+
+      expect(controlador.nombrePinReal, 'Roma');
     });
 
     test('el progreso de la línea se queda entre 0 y 1', () {
@@ -493,16 +505,18 @@ void main() {
       expect(controlador.progresoDeLaLinea, 0);
     });
 
-    test('limpiar el revelado quita el pin real y la línea', () {
+    test('limpiar el revelado quita el pin real, su nombre y la línea', () {
       final controlador = _controlador();
       controlador.revelarUbicacion(
         const Coordenada(latitud: 41.8902, longitud: 12.4922),
+        nombre: 'Roma',
       );
       controlador.progresoDeLaLinea = 1;
 
       controlador.limpiarRevelado();
 
       expect(controlador.pinReal, isNull);
+      expect(controlador.nombrePinReal, isNull);
       expect(controlador.progresoDeLaLinea, 0);
     });
 

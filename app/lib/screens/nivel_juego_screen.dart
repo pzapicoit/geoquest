@@ -229,7 +229,10 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
     if (revelado == null) return;
 
     if (_tramo(_pinRealDesde, _pinRealHasta) > 0 && _mapa.pinReal == null) {
-      _mapa.revelarUbicacion(revelado.ubicacionReal);
+      _mapa.revelarUbicacion(
+        revelado.ubicacionReal,
+        nombre: revelado.respuesta.nombreLugar,
+      );
     }
 
     // Si la pantalla ha cambiado de tamaño a media animación —el teclado, las
