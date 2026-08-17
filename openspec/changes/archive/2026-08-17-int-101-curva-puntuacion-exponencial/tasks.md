@@ -56,4 +56,4 @@
 ## 5. Verificación
 
 - [x] 5.1 Ejecutar tests de backend (migraciones/SQL) y de panel (vitest)
-- [ ] 5.2 `/opsx-verify` + revisión adversarial antes de archivar
+- [x] 5.2 `/opsx-verify` + revisión adversarial antes de archivar
