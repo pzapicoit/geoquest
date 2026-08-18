@@ -499,8 +499,93 @@ void main() {
         ),
       );
 
+      final borde = tester.widget<Container>(
+        find.byKey(const Key('parada-borde-nivel-bloqueado')),
+      );
+      final decoracion = borde.decoration as BoxDecoration;
+
       expect(numeroTexto.style?.color, Colors.white.withValues(alpha: 0.4));
       expect(tituloTexto.style?.color, Colors.white.withValues(alpha: 0.62));
+      expect(decoracion.border?.top.color, Colors.white12);
+    },
+  );
+
+  testWidgets(
+    'el camino aplica un ShaderMask para desvanecer el contenido bajo la '
+    'cabecera y el botón de jugar (INT-105)',
+    (tester) async {
+      await _pump(tester, FakeCaminoGateway(_caminoDePrueba));
+
+      final mask = tester.widget<ShaderMask>(find.byType(ShaderMask));
+
+      expect(mask.blendMode, BlendMode.dstIn);
+    },
+  );
+
+  testWidgets(
+    'al hacer scroll, una parada que se acerca a la cabecera se desvanece '
+    'más que una que sigue en la zona central (INT-105)',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      ParadaCamino nivel(int orden, {bool esActual = false}) {
+        return ParadaCamino(
+          caminoId: 'c$orden',
+          orden: orden,
+          nivelId: 'nivel-$orden',
+          tematicaId: 'monumentos',
+          tematicaNombre: 'Monumentos',
+          superado: false,
+          estrellasObtenidas: 0,
+          estrellasRequeridas: 0,
+          estrellasAcumuladasUsuario: 0,
+          desbloqueado: true,
+          esActual: esActual,
+        );
+      }
+
+      final caminoLargo = CaminoJugador(
+        entradas: [for (var i = 1; i <= 10; i++) nivel(i, esActual: i == 1)],
+        puntosTotales: 0,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: CaminoScreen(
+            caminoGateway: FakeCaminoGateway(caminoLargo),
+            usernameStorage: UsernameStorage(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // El auto-scroll centra el nivel 1 (el `esActual`, abajo del todo,
+      // offset al máximo). Arrastramos hacia abajo (offset decreciente)
+      // para acercarnos al principio del camino: el nivel 9 queda cerca de
+      // la cabecera mientras el nivel 7 sigue en la zona central segura.
+      await tester.drag(find.byType(Scrollable), const Offset(0, 1200));
+      await tester.pump();
+
+      final opacidadCentro = tester
+          .widget<Opacity>(
+            find.descendant(
+              of: find.byKey(const ValueKey('nivel-7')),
+              matching: find.byType(Opacity),
+            ),
+          )
+          .opacity;
+      final opacidadBorde = tester
+          .widget<Opacity>(
+            find.descendant(
+              of: find.byKey(const ValueKey('nivel-9')),
+              matching: find.byType(Opacity),
+            ),
+          )
+          .opacity;
+
+      expect(opacidadBorde, lessThan(opacidadCentro));
     },
   );
 

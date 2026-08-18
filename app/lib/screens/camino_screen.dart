@@ -690,6 +690,7 @@ class _ParadaTile extends StatelessWidget {
               key: Key('parada-${parada.nivelId}'),
               onTap: onTap,
               child: Container(
+                key: Key('parada-borde-${parada.nivelId}'),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(24),
                   border: Border.all(
