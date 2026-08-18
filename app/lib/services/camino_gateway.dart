@@ -1,14 +1,8 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-/// Una entrada del camino tal como se renderiza: una parada de nivel o una
-/// frontera sintética entre dos temáticas (INT-90).
-sealed class CaminoEntrada {
-  const CaminoEntrada();
-}
-
 /// Una posición de `camino_jugador`, con la portada de su temática ya
 /// resuelta a URL pública.
-class ParadaCamino extends CaminoEntrada {
+class ParadaCamino {
   const ParadaCamino({
     required this.caminoId,
     required this.orden,
@@ -40,31 +34,12 @@ class ParadaCamino extends CaminoEntrada {
   final String? imagenPortadaUrl;
 }
 
-/// Parada especial entre el último nivel de una temática y el primero de la
-/// siguiente (D3 de `design.md`): no tiene fila propia en `camino`, se
-/// construye recorriendo `camino_jugador` en orden.
-class ParadaFrontera extends CaminoEntrada {
-  const ParadaFrontera({
-    required this.tematicaAnteriorNombre,
-    required this.tematicaSiguienteNombre,
-    required this.desbloqueada,
-    required this.estrellasFaltantes,
-  });
-
-  final String tematicaAnteriorNombre;
-  final String tematicaSiguienteNombre;
-  final bool desbloqueada;
-
-  /// 0 cuando `desbloqueada` es `true`.
-  final int estrellasFaltantes;
-}
-
-/// El camino completo del jugador, listo para pintar: paradas y fronteras en
-/// orden ascendente de `orden`, más los puntos totales acumulados.
+/// El camino completo del jugador, listo para pintar: paradas en orden
+/// ascendente de `orden`, más los puntos totales acumulados.
 class CaminoJugador {
   const CaminoJugador({required this.entradas, required this.puntosTotales});
 
-  final List<CaminoEntrada> entradas;
+  final List<ParadaCamino> entradas;
   final int puntosTotales;
 }
 
@@ -117,7 +92,7 @@ class SupabaseCaminoGateway implements CaminoGateway {
     ];
 
     return CaminoJugador(
-      entradas: intercalarFronteras(paradas),
+      entradas: paradas,
       puntosTotales: sumarPuntos(puntosRows),
     );
   }
@@ -142,33 +117,6 @@ class SupabaseCaminoGateway implements CaminoGateway {
       imagenPortadaUrl: portadaPorTematica[row['tematica_id'] as String],
     );
   }
-}
-
-/// Recorre las paradas en orden e inserta una [ParadaFrontera] cada vez que
-/// `tematicaId` cambia entre dos posiciones consecutivas (D3 de
-/// `design.md`). Función pura, extraída para poder probar el intercalado
-/// sin red (INT-90).
-List<CaminoEntrada> intercalarFronteras(List<ParadaCamino> paradas) {
-  final entradas = <CaminoEntrada>[];
-  for (var i = 0; i < paradas.length; i++) {
-    final actual = paradas[i];
-    if (i > 0 && paradas[i - 1].tematicaId != actual.tematicaId) {
-      entradas.add(_fronteraHacia(paradas[i - 1], actual));
-    }
-    entradas.add(actual);
-  }
-  return entradas;
-}
-
-ParadaFrontera _fronteraHacia(ParadaCamino anterior, ParadaCamino siguiente) {
-  final faltan =
-      siguiente.estrellasRequeridas - siguiente.estrellasAcumuladasUsuario;
-  return ParadaFrontera(
-    tematicaAnteriorNombre: anterior.tematicaNombre,
-    tematicaSiguienteNombre: siguiente.tematicaNombre,
-    desbloqueada: siguiente.desbloqueado,
-    estrellasFaltantes: siguiente.desbloqueado ? 0 : (faltan < 1 ? 1 : faltan),
-  );
 }
 
 /// Suma el campo `puntos` de las filas de `respuestas_desafio`. Función pura

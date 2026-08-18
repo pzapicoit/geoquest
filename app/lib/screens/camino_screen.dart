@@ -14,13 +14,12 @@ const _bgBottom = Color(0xFF08131C);
 const _teal = Color(0xFF2BC0A8);
 const _blue = Color(0xFF1B6FA8);
 const _gold = Color(0xFFFFC53D);
-const _cardBg = Color(0xFF16242F);
 
 // Altura de tarjeta igual a `ROW_H` del mock de referencia
 // (`[App] - Camino vertical.dc.html`), para respetar sus proporciones.
 const _paradaAltura = 208.0;
-const _fronteraAltura = 110.0;
 const _espacioEntre = 16.0;
+const _paradaSlot = _paradaAltura + _espacioEntre;
 
 /// Alto reservado para la barra superior y para el botón fijo de jugar
 /// (delta-1): el padding del `ListView` siempre reserva al menos esto,
@@ -28,6 +27,18 @@ const _espacioEntre = 16.0;
 /// incluye un pequeño margen entre la última tarjeta y el botón.
 const _topBarAltura = 140.0;
 const _ctaAltura = 138.0;
+
+/// Ancho de la columna del indicador de cada parada (círculo + estrellas
+/// requeridas), usado también para centrar el riel de progreso (INT-105).
+const _columnaIndicador = 52.0;
+const _railAncho = 6.0;
+const _railX = 18 + _columnaIndicador / 2 - _railAncho / 2;
+
+/// Distancia (en px) sobre la que se desvanece/encoge una parada al
+/// acercarse a la cabecera o al botón de jugar durante el scroll (D5 de
+/// `design.md` de INT-105) — replica la curva del mock, atada a la altura
+/// real de una fila en vez de un píxel fijo del mock.
+const _animRamp = _paradaSlot;
 
 /// Colores de acento que rotan por `tematicaId`, para variar sutilmente la
 /// ambientación entre temáticas sin depender de un asset nuevo (D6 de
@@ -169,43 +180,27 @@ class _CaminoScreenState extends State<CaminoScreen> with RouteAware {
   }
 
   /// Centra el scroll en la parada `esActual` al montar (o al final del
-  /// camino si ya está todo superado). Alturas fijas conocidas de antemano
-  /// (D4 de `design.md`), así que el offset se calcula sin esperar layout.
-  /// `paddingBottom` SHALL ser el mismo valor usado como padding inferior
-  /// real del `ListView` (D3 del delta-1) — si se desincroniza, el
-  /// centrado deja de ser exacto.
-  void _autoScroll(List<CaminoEntrada> entradas, double paddingBottom) {
+  /// camino si ya está todo superado). `tops` trae, para cada parada, su
+  /// posición absoluta ya calculada en `build` (D5 de `design.md` de
+  /// INT-105) — SHALL usar exactamente esos valores, o el centrado se
+  /// desincroniza de lo que se pinta.
+  void _autoScroll(List<ParadaCamino> entradas, List<double> tops) {
     if (_autoScrolled) return;
     _autoScrolled = true;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !_controller.hasClients) return;
 
-      final alturas = [
-        for (final e in entradas)
-          (e is ParadaFrontera ? _fronteraAltura : _paradaAltura) +
-              _espacioEntre,
-      ];
-      final indiceActual = entradas.indexWhere(
-        (e) => e is ParadaCamino && e.esActual,
-      );
       final maxOffset = _controller.position.maxScrollExtent;
+      final indiceActual = entradas.indexWhere((e) => e.esActual);
+      final viewport = MediaQuery.sizeOf(context).height;
 
-      double offset;
-      if (indiceActual == -1) {
-        offset = maxOffset;
-      } else {
-        var acumulado = paddingBottom;
-        for (var i = 0; i < indiceActual; i++) {
-          acumulado += alturas[i];
-        }
-        final alturaObjetivo = alturas[indiceActual];
-        final viewport = MediaQuery.sizeOf(context).height;
-        offset = (acumulado - viewport / 2 + alturaObjetivo / 2).clamp(
-          0.0,
-          maxOffset,
-        );
-      }
+      final offset = indiceActual == -1
+          ? maxOffset
+          : (tops[indiceActual] + _paradaAltura / 2 - viewport / 2).clamp(
+              0.0,
+              maxOffset,
+            );
 
       _offsetObjetivo = offset;
       _controller.jumpTo(offset);
@@ -230,6 +225,51 @@ class _CaminoScreenState extends State<CaminoScreen> with RouteAware {
           nivelOrden: parada.orden,
           tematicaNombre: parada.tematicaNombre,
           gateway: widget.nivelJuegoGateway,
+        ),
+      ),
+    );
+  }
+
+  /// Posiciona una parada en `top` y le aplica la animación de aparición
+  /// ligada al scroll (D5 de `design.md` de INT-105): opacidad, escala y
+  /// traslación derivadas de su distancia a la cabecera/botón de jugar,
+  /// con la misma curva smoothstep del mock de referencia.
+  Widget _buildParadaAnimada(
+    ParadaCamino parada,
+    double top,
+    double offset,
+    double viewport,
+  ) {
+    final vt = top - offset;
+    final vb = vt + _paradaAltura;
+    final bottomEdge = viewport - _ctaAltura;
+
+    final fueraDeZonaSegura = [
+      0.0,
+      _topBarAltura - vt,
+      vb - bottomEdge,
+    ].reduce((a, b) => a > b ? a : b);
+    final p = (1 - fueraDeZonaSegura / _animRamp).clamp(0.0, 1.0);
+    final ease = p * p * (3 - 2 * p);
+    final direccion = (vb - bottomEdge) >= (_topBarAltura - vt) ? 1.0 : -1.0;
+
+    return Positioned(
+      key: ValueKey(parada.nivelId),
+      top: top,
+      left: 18,
+      right: 18,
+      height: _paradaAltura,
+      child: Opacity(
+        opacity: ease,
+        child: Transform(
+          alignment: const Alignment(-0.56, 0),
+          transform: Matrix4.identity()
+            ..translateByDouble(0.0, (1 - ease) * 34 * direccion, 0.0, 1.0)
+            ..scaleByDouble(0.93 + 0.07 * ease, 0.93 + 0.07 * ease, 1.0, 1.0),
+          child: _ParadaTile(
+            parada: parada,
+            onTap: parada.desbloqueado ? () => _onTapParada(parada) : null,
+          ),
         ),
       ),
     );
@@ -264,6 +304,7 @@ class _CaminoScreenState extends State<CaminoScreen> with RouteAware {
             }
 
             final camino = snapshot.data!;
+            final entradas = camino.entradas;
 
             // D2 del delta-1: si el camino no llena el espacio visible entre
             // la barra superior y el botón de jugar, todo el sobrante se
@@ -271,12 +312,7 @@ class _CaminoScreenState extends State<CaminoScreen> with RouteAware {
             // camino sigue apoyado justo encima del botón (con el margen
             // fijo de `_ctaAltura`), y lo que falta por "construirse" queda
             // como hueco hacia la barra superior, no partido en dos huecos.
-            final alturas = [
-              for (final e in camino.entradas)
-                (e is ParadaFrontera ? _fronteraAltura : _paradaAltura) +
-                    _espacioEntre,
-            ];
-            final contenidoAltura = alturas.fold(0.0, (a, b) => a + b);
+            final contenidoAltura = entradas.length * _paradaSlot;
             final viewport = MediaQuery.sizeOf(context).height;
             final disponible = viewport - _topBarAltura - _ctaAltura;
             final extra = disponible > contenidoAltura
@@ -284,43 +320,116 @@ class _CaminoScreenState extends State<CaminoScreen> with RouteAware {
                 : 0.0;
             final paddingTop = _topBarAltura + extra;
             const paddingBottom = _ctaAltura;
+            final alturaTotal = paddingTop + contenidoAltura + paddingBottom;
 
-            ParadaCamino? paradaActual;
-            for (final e in camino.entradas) {
-              if (e is ParadaCamino && e.esActual) {
-                paradaActual = e;
-                break;
-              }
+            // Posición absoluta de cada parada dentro del contenido
+            // scrolleable (D3/D5 de `design.md` de INT-105): se recorren en
+            // orden DESCENDENTE de `orden` acumulando `y` desde arriba, así
+            // que el nivel 1 (primero de `entradas`, orden ascendente) es el
+            // último en asignarse y queda con el `top` más grande — el más
+            // abajo del camino —, replicando `layout()` del mock de
+            // referencia sin necesitar `ListView(reverse: true)`.
+            final tops = List<double>.filled(entradas.length, 0);
+            var y = paddingTop;
+            for (var i = entradas.length - 1; i >= 0; i--) {
+              tops[i] = y;
+              y += _paradaSlot;
             }
 
-            _autoScroll(camino.entradas, paddingBottom);
+            ParadaCamino? paradaActual;
+            final indiceActual = entradas.indexWhere((e) => e.esActual);
+            if (indiceActual != -1) paradaActual = entradas[indiceActual];
+
+            final railRellenoTop = indiceActual == -1
+                ? 0.0
+                : tops[indiceActual] + _paradaAltura / 2;
+
+            _autoScroll(entradas, tops);
 
             return Stack(
               children: [
                 Positioned.fill(
-                  child: ListView(
-                    controller: _controller,
-                    reverse: true,
-                    padding: EdgeInsets.fromLTRB(
-                      18,
-                      paddingTop,
-                      18,
-                      paddingBottom,
-                    ),
-                    children: [
-                      for (final entrada in camino.entradas)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: _espacioEntre),
-                          child: entrada is ParadaFrontera
-                              ? _FronteraTile(frontera: entrada)
-                              : _ParadaTile(
-                                  parada: entrada as ParadaCamino,
-                                  onTap: entrada.desbloqueado
-                                      ? () => _onTapParada(entrada)
-                                      : null,
+                  child: ShaderMask(
+                    blendMode: BlendMode.dstIn,
+                    shaderCallback: (rect) {
+                      final topFrac = (_topBarAltura / rect.height).clamp(
+                        0.0,
+                        1.0,
+                      );
+                      final bottomFrac =
+                          1 - (_ctaAltura / rect.height).clamp(0.0, 1.0);
+                      return LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: const [
+                          Colors.transparent,
+                          Colors.black,
+                          Colors.black,
+                          Colors.transparent,
+                        ],
+                        stops: [0, topFrac, bottomFrac, 1],
+                      ).createShader(rect);
+                    },
+                    child: SingleChildScrollView(
+                      controller: _controller,
+                      child: SizedBox(
+                        height: alturaTotal,
+                        child: AnimatedBuilder(
+                          animation: _controller,
+                          builder: (context, _) {
+                            final offset = _controller.hasClients
+                                ? _controller.offset
+                                : 0.0;
+                            return Stack(
+                              children: [
+                                Positioned(
+                                  key: const Key('camino-riel-pista'),
+                                  left: _railX,
+                                  top: 0,
+                                  bottom: 0,
+                                  width: _railAncho,
+                                  child: DecoratedBox(
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withValues(
+                                        alpha: 0.08,
+                                      ),
+                                      borderRadius: BorderRadius.circular(99),
+                                    ),
+                                  ),
                                 ),
+                                Positioned(
+                                  key: const Key('camino-riel-relleno'),
+                                  left: _railX,
+                                  top: railRellenoTop,
+                                  height: alturaTotal - railRellenoTop,
+                                  width: _railAncho,
+                                  child: DecoratedBox(
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(99),
+                                      gradient: LinearGradient(
+                                        begin: Alignment.topCenter,
+                                        end: Alignment.bottomCenter,
+                                        colors: [
+                                          _teal.withValues(alpha: 0.25),
+                                          _teal,
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                for (var i = 0; i < entradas.length; i++)
+                                  _buildParadaAnimada(
+                                    entradas[i],
+                                    tops[i],
+                                    offset,
+                                    viewport,
+                                  ),
+                              ],
+                            );
+                          },
                         ),
-                    ],
+                      ),
+                    ),
                   ),
                 ),
                 Positioned(
@@ -366,7 +475,7 @@ class _BarraSuperior extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final paradas = camino.entradas.whereType<ParadaCamino>().toList();
+    final paradas = camino.entradas;
     final total = paradas.length;
     final indiceActual = paradas.indexWhere((p) => p.esActual);
     final posicion = indiceActual == -1 ? total : indiceActual + 1;
@@ -566,7 +675,9 @@ class _ParadaTile extends StatelessWidget {
                 Text(
                   '${parada.estrellasRequeridas} ★',
                   style: GoogleFonts.baloo2(
-                    color: Colors.white70,
+                    color: Colors.white.withValues(
+                      alpha: bloqueado ? 0.4 : 0.85,
+                    ),
                     fontSize: 11,
                     fontWeight: FontWeight.w800,
                   ),
@@ -578,105 +689,122 @@ class _ParadaTile extends StatelessWidget {
             child: GestureDetector(
               key: Key('parada-${parada.nivelId}'),
               onTap: onTap,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(24),
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    ColorFiltered(
-                      colorFilter: ColorFilter.matrix(
-                        bloqueado ? _grayscale : _identity,
+              child: Container(
+                key: Key('parada-borde-${parada.nivelId}'),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: bloqueado
+                        ? Colors.white12
+                        : (parada.esActual
+                              ? _gold
+                              : acento.withValues(alpha: 0.5)),
+                    width: 2,
+                  ),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(22),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      ColorFiltered(
+                        colorFilter: ColorFilter.matrix(
+                          bloqueado ? _grayscale : _identity,
+                        ),
+                        child: parada.imagenPortadaUrl == null
+                            ? ColoredBox(color: acento.withValues(alpha: 0.35))
+                            : Image.network(
+                                parada.imagenPortadaUrl!,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, _, _) => ColoredBox(
+                                  color: acento.withValues(alpha: 0.35),
+                                ),
+                              ),
                       ),
-                      child: parada.imagenPortadaUrl == null
-                          ? ColoredBox(color: acento.withValues(alpha: 0.35))
-                          : Image.network(
-                              parada.imagenPortadaUrl!,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, _, _) => ColoredBox(
-                                color: acento.withValues(alpha: 0.35),
+                      DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.bottomCenter,
+                            end: Alignment.topCenter,
+                            colors: [
+                              _bgBottom.withValues(alpha: 0.92),
+                              _bgBottom.withValues(alpha: 0.08),
+                            ],
+                          ),
+                        ),
+                      ),
+                      if (bloqueado)
+                        const Positioned(
+                          top: 10,
+                          right: 10,
+                          child: _CandadoBadge(),
+                        )
+                      else if (parada.esActual)
+                        const Positioned(
+                          top: 10,
+                          right: 10,
+                          child: _JuegaAquiBadge(),
+                        ),
+                      Positioned(
+                        left: 14,
+                        right: 14,
+                        bottom: 12,
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            _NumeroBadge(
+                              numero: parada.orden,
+                              resaltado: parada.esActual,
+                              bloqueado: bloqueado,
+                              acento: acento,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    parada.tematicaNombre,
+                                    style: GoogleFonts.baloo2(
+                                      color: Colors.white.withValues(
+                                        alpha: bloqueado ? 0.62 : 1,
+                                      ),
+                                      fontSize: 17,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const SizedBox(height: 3),
+                                  Row(
+                                    children: [
+                                      _EstrellasFila(
+                                        cantidad: parada.estrellasObtenidas,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          _meta,
+                                          style: GoogleFonts.outfit(
+                                            color: Colors.white.withValues(
+                                              alpha: 0.65,
+                                            ),
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
                               ),
                             ),
-                    ),
-                    DecoratedBox(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.bottomCenter,
-                          end: Alignment.topCenter,
-                          colors: [
-                            _bgBottom.withValues(alpha: 0.92),
-                            _bgBottom.withValues(alpha: 0.08),
                           ],
                         ),
                       ),
-                    ),
-                    if (bloqueado)
-                      const Positioned(
-                        top: 10,
-                        right: 10,
-                        child: _CandadoBadge(),
-                      )
-                    else if (parada.esActual)
-                      const Positioned(
-                        top: 10,
-                        right: 10,
-                        child: _JuegaAquiBadge(),
-                      ),
-                    Positioned(
-                      left: 14,
-                      right: 14,
-                      bottom: 12,
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          _NumeroBadge(
-                            numero: parada.orden,
-                            resaltado: parada.esActual,
-                            acento: acento,
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  parada.tematicaNombre,
-                                  style: GoogleFonts.baloo2(
-                                    color: Colors.white,
-                                    fontSize: 17,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                const SizedBox(height: 3),
-                                Row(
-                                  children: [
-                                    _EstrellasFila(
-                                      cantidad: parada.estrellasObtenidas,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Text(
-                                        _meta,
-                                        style: GoogleFonts.outfit(
-                                          color: Colors.white.withValues(
-                                            alpha: 0.65,
-                                          ),
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -714,11 +842,13 @@ class _NumeroBadge extends StatelessWidget {
   const _NumeroBadge({
     required this.numero,
     required this.resaltado,
+    required this.bloqueado,
     required this.acento,
   });
 
   final int numero;
   final bool resaltado;
+  final bool bloqueado;
   final Color acento;
 
   @override
@@ -728,14 +858,21 @@ class _NumeroBadge extends StatelessWidget {
       height: 40,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: resaltado ? _gold : acento,
+        color: bloqueado
+            ? Colors.white.withValues(alpha: 0.1)
+            : (resaltado ? _gold : acento),
         borderRadius: BorderRadius.circular(13),
-        border: Border.all(color: Colors.white, width: 2),
+        border: Border.all(
+          color: bloqueado ? Colors.white24 : Colors.white,
+          width: 2,
+        ),
       ),
       child: Text(
         '$numero',
         style: GoogleFonts.baloo2(
-          color: resaltado ? const Color(0xFF3A2A00) : Colors.white,
+          color: bloqueado
+              ? Colors.white.withValues(alpha: 0.4)
+              : (resaltado ? const Color(0xFF3A2A00) : Colors.white),
           fontWeight: FontWeight.w800,
           fontSize: 17,
         ),
@@ -781,86 +918,6 @@ class _JuegaAquiBadge extends StatelessWidget {
           fontSize: 9,
           fontWeight: FontWeight.w800,
           letterSpacing: 0.5,
-        ),
-      ),
-    );
-  }
-}
-
-class _FronteraTile extends StatelessWidget {
-  const _FronteraTile({required this.frontera});
-
-  final ParadaFrontera frontera;
-
-  @override
-  Widget build(BuildContext context) {
-    final bloqueada = !frontera.desbloqueada;
-
-    return SizedBox(
-      height: _fronteraAltura,
-      child: Padding(
-        padding: const EdgeInsets.only(left: 52),
-        child: Container(
-          key: const Key('frontera-tile'),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          decoration: BoxDecoration(
-            color: _cardBg,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-              color: bloqueada ? Colors.white12 : _teal.withValues(alpha: 0.4),
-            ),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 34,
-                height: 34,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: bloqueada
-                      ? Colors.white10
-                      : _teal.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  bloqueada ? Icons.lock_rounded : Icons.check_rounded,
-                  color: bloqueada ? Colors.white54 : _teal,
-                  size: 18,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      bloqueada ? 'Frontera bloqueada' : 'Frontera cruzada',
-                      style: GoogleFonts.outfit(
-                        color: bloqueada ? Colors.white54 : _teal,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 1,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      bloqueada
-                          ? 'Necesitas ${frontera.estrellasFaltantes} ★ más '
-                                'para cruzar a ${frontera.tematicaSiguienteNombre}'
-                          : '${frontera.tematicaAnteriorNombre} → '
-                                '${frontera.tematicaSiguienteNombre}',
-                      style: GoogleFonts.outfit(
-                        color: Colors.white.withValues(alpha: 0.6),
-                        fontSize: 11.5,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
         ),
       ),
     );
