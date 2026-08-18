@@ -197,7 +197,59 @@ void main() {
       expect(find.byType(SplashScreen), findsOneWidget);
       expect(find.byType(UsernameScreen), findsNothing);
 
+      // Con las animaciones desactivadas (ver setUp) nada mantiene
+      // pumpAndSettle() bombeando frames por sí solo, así que se avanza
+      // explícitamente el tiempo mínimo restante antes de asentar.
+      await tester.pump(const Duration(milliseconds: 400));
       await tester.pumpAndSettle();
+      expect(find.byType(UsernameScreen), findsOneWidget);
+    },
+  );
+
+  testWidgets('muestra la tarjeta de consejo mientras carga', (tester) async {
+    final service = AnonymousSessionService(
+      FakeAuthGateway(),
+      DeviceIdService(),
+    );
+
+    await tester.pumpWidget(
+      _pantalla(
+        service: service,
+        minDuration: const Duration(milliseconds: 500),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.textContaining('desbloquear su pregunta'), findsOneWidget);
+
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets(
+    'con animaciones en bucle activas (halo, brillo), pumpAndSettle no se '
+    'cuelga',
+    (tester) async {
+      final service = AnonymousSessionService(
+        FakeAuthGateway(),
+        DeviceIdService(),
+      );
+
+      await tester.pumpWidget(
+        _pantalla(
+          service: service,
+          minDuration: const Duration(milliseconds: 500),
+        ),
+      );
+
+      // Si algún HaloPulse o el brillo de la barra ignorase
+      // disableAnimations y quedara en bucle infinito, alguno de estos
+      // pumpAndSettle lanzaría un timeout en vez de terminar.
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+
       expect(find.byType(UsernameScreen), findsOneWidget);
     },
   );
