@@ -963,7 +963,7 @@ class _BotonMiNivel extends StatelessWidget {
 
 /// CTA fijo para jugar la parada actual (delta-1 de INT-90): "Jugar nivel
 /// N · Tema", igual que `{{ onPlay }}` en el mock de referencia. Estilo
-/// consistente con `_StartButton` de `username_screen.dart`.
+/// consistente con `PrimaryPillButton` de `entry_widgets.dart`.
 class _BotonJugar extends StatelessWidget {
   const _BotonJugar({super.key, required this.parada, required this.onTap});
 

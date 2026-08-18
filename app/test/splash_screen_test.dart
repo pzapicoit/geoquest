@@ -1,30 +1,36 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:geoquest/config/app_config.dart';
+import 'package:geoquest/screens/login_screen.dart';
 import 'package:geoquest/screens/splash_screen.dart';
-import 'package:geoquest/screens/camino_screen.dart';
 import 'package:geoquest/screens/username_screen.dart';
 import 'package:geoquest/services/anonymous_session_service.dart';
+import 'package:geoquest/services/camino_gateway.dart';
 import 'package:geoquest/services/device_id_service.dart';
 import 'package:geoquest/services/username_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'fakes/fake_auth_gateway.dart';
+import 'fakes/fake_camino_gateway.dart';
 
 const _config = AppConfig.forTesting(
   supabaseUrl: 'https://proyecto.supabase.co',
   supabasePublishableKey: 'sb_publishable_test',
 );
 
+const _caminoVacio = CaminoJugador(entradas: [], puntosTotales: 0);
+
 Widget _pantalla({
   required AnonymousSessionService service,
   Duration minDuration = Duration.zero,
+  CaminoGateway? caminoGateway,
 }) => MaterialApp(
   home: SplashScreen(
     config: _config,
     sessionService: service,
     usernameStorage: UsernameStorage(),
+    caminoGateway: caminoGateway ?? FakeCaminoGateway(_caminoVacio),
     minDuration: minDuration,
   ),
 );
@@ -115,20 +121,23 @@ void main() {
     },
   );
 
-  testWidgets('con nombre de usuario guardado, navega directo al camino', (
-    tester,
-  ) async {
-    SharedPreferences.setMockInitialValues({'username': 'Ana'});
-    final service = AnonymousSessionService(
-      FakeAuthGateway(),
-      DeviceIdService(),
-    );
+  testWidgets(
+    'con nombre de usuario guardado, navega a la bienvenida de regreso',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({'username': 'Ana'});
+      final service = AnonymousSessionService(
+        FakeAuthGateway(),
+        DeviceIdService(),
+      );
 
-    await tester.pumpWidget(_pantalla(service: service));
-    await tester.pumpAndSettle();
+      await tester.pumpWidget(_pantalla(service: service));
+      await tester.pumpAndSettle();
 
-    expect(find.byType(CaminoScreen), findsOneWidget);
-  });
+      expect(find.byType(LoginScreen), findsOneWidget);
+      expect(find.byType(UsernameScreen), findsNothing);
+      expect(find.textContaining('¡Hola, Ana!'), findsOneWidget);
+    },
+  );
 
   testWidgets(
     'muestra el fallo con opción de reintentar cuando falla la sesión',

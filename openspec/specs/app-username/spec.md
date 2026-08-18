@@ -67,11 +67,15 @@ progreso.
 - **THEN** es visible un texto que indica que no hay contraseñas y que se
   podrá vincular una cuenta más adelante para no perder el progreso
 
-### Requirement: Hueco preparado para iniciar sesión con cuenta existente
-La pantalla SHALL mostrar un enlace secundario "¿Ya tienes una cuenta?
-Iniciar sesión", visualmente presente pero sin acción asociada todavía.
+### Requirement: Acceso rápido como invitado
+La pantalla de captura de apodo SHALL ofrecer una acción "Entrar sin cuenta
+como invitado" que asigne un apodo aleatorio de la lista de sugerencias y
+complete el mismo flujo de guardado (local y remoto) y navegación que el
+botón "Empezar a jugar", sin exigir que el jugador escriba nada.
 
-#### Scenario: El jugador ve el enlace
-- **WHEN** se muestra la pantalla "Nombre de usuario"
-- **THEN** es visible el enlace "¿Ya tienes una cuenta? Iniciar sesión"
-- **AND** pulsarlo no produce ningún efecto ni navegación
+#### Scenario: El jugador entra como invitado sin escribir apodo
+- **WHEN** el jugador pulsa "Entrar sin cuenta como invitado" sin haber
+  escrito ningún apodo
+- **THEN** se le asigna un apodo no vacío tomado de la lista de sugerencias
+- **AND** ese apodo se guarda localmente y en el perfil del jugador
+- **AND** la app navega al Mapa de temáticas
