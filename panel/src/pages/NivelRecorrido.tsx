@@ -56,6 +56,19 @@ function parseEnteroPositivoOpcional(valor: string): number | null | undefined {
   return numero
 }
 
+/**
+ * `undefined` marca un valor inválido: a diferencia de
+ * parseEnteroPositivoOpcional, aquí una cadena vacía también es inválida
+ * (el campo es obligatorio, no admite "sin límite").
+ */
+function parseEnteroPositivo(valor: string): number | undefined {
+  const trim = valor.trim()
+  if (trim === '') return undefined
+  const numero = Number(trim)
+  if (!Number.isInteger(numero) || numero < 1) return undefined
+  return numero
+}
+
 function IconoTipo({ tipo }: { tipo: TipoDesafio }) {
   if (tipo === 'imagen') {
     return (
@@ -375,6 +388,7 @@ export function NivelRecorrido() {
   const [umbral2Porcentaje, setUmbral2Porcentaje] = useState('')
   const [umbral3Porcentaje, setUmbral3Porcentaje] = useState('')
   const [preguntasPorPartida, setPreguntasPorPartida] = useState('')
+  const [segundosPorDesafio, setSegundosPorDesafio] = useState('')
   const [errorConfig, setErrorConfig] = useState('')
   const [guardandoConfig, setGuardandoConfig] = useState(false)
   const [guardadoOk, setGuardadoOk] = useState(false)
@@ -417,6 +431,7 @@ export function NivelRecorrido() {
         setPreguntasPorPartida(
           resultado.preguntasPorPartida === null ? '' : String(resultado.preguntasPorPartida),
         )
+        setSegundosPorDesafio(String(resultado.segundosPorDesafio))
       })
       .catch((error: unknown) => {
         if (!isMounted) return
@@ -475,6 +490,12 @@ export function NivelRecorrido() {
       return
     }
 
+    const segundosPorDesafioValor = parseEnteroPositivo(segundosPorDesafio)
+    if (segundosPorDesafioValor === undefined) {
+      setErrorConfig('Los segundos por desafío deben ser un número entero mayor que 0.')
+      return
+    }
+
     const nombreTrim = nombre.trim()
     const config = {
       nombre: nombreTrim ? nombreTrim : null,
@@ -482,6 +503,7 @@ export function NivelRecorrido() {
       umbralEstrella2: numeros.umbral2,
       umbralEstrella3: numeros.umbral3,
       preguntasPorPartida: preguntasPorPartidaValor,
+      segundosPorDesafio: segundosPorDesafioValor,
     }
 
     const errorValidacion = validarConfiguracionNivel(config, preguntas.length)
@@ -674,7 +696,7 @@ export function NivelRecorrido() {
           />
         </label>
 
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
           <label className="flex flex-col gap-1.5">
             <span className="text-xs font-medium text-brand-night/60">Puntaje mínimo</span>
             <input
@@ -724,6 +746,16 @@ export function NivelRecorrido() {
               placeholder="Todas"
               value={preguntasPorPartida}
               onChange={(e) => setPreguntasPorPartida(e.target.value)}
+              className={`${CAMPO_BASE} tabular-nums`}
+            />
+          </label>
+          <label className="flex flex-col gap-1.5">
+            <span className="text-xs font-medium text-brand-night/60">Segundos por desafío</span>
+            <input
+              type="number"
+              min={1}
+              value={segundosPorDesafio}
+              onChange={(e) => setSegundosPorDesafio(e.target.value)}
               className={`${CAMPO_BASE} tabular-nums`}
             />
           </label>

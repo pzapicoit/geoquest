@@ -4,6 +4,8 @@ import 'package:geoquest/services/nivel_juego_gateway.dart';
 
 /// Lo que se mandó en una llamada a `responderDesafio`, para poder
 /// comprobarlo desde los tests (INT-92).
+///
+/// `latitud`/`longitud` llegan `null` en una respuesta sin pin (INT-99).
 class RespuestaEnviada {
   const RespuestaEnviada({
     required this.intentoId,
@@ -14,19 +16,27 @@ class RespuestaEnviada {
 
   final String intentoId;
   final String desafioId;
-  final double latitud;
-  final double longitud;
+  final double? latitud;
+  final double? longitud;
 }
 
 /// Respuesta de ejemplo del servidor, para no repetir el revelado entero en
 /// cada test que solo mira la distancia o los puntos (INT-93).
+///
+/// Por defecto trae `puntosBonus = 0` y `puntosDistancia = puntos`: la
+/// mayoría de los tests existentes no ejercitan el bonus por rapidez
+/// (INT-99), así que asumen su forma más simple. `distanciaKm` es `null`
+/// solo cuando el propio test lo pide, para representar una respuesta sin
+/// pin.
 RespuestaDesafio respuestaDePrueba({
-  double distanciaKm = 118.4,
+  double? distanciaKm = 118.4,
   int puntos = 4700,
   double latitudReal = 41.8902,
   double longitudReal = 12.4922,
   String nombreLugar = 'Coliseo de Roma',
   int puntosMaximos = 5000,
+  int? puntosDistancia,
+  int puntosBonus = 0,
 }) {
   return RespuestaDesafio(
     distanciaKm: distanciaKm,
@@ -35,6 +45,8 @@ RespuestaDesafio respuestaDePrueba({
     longitudReal: longitudReal,
     nombreLugar: nombreLugar,
     puntosMaximos: puntosMaximos,
+    puntosDistancia: puntosDistancia ?? (puntos - puntosBonus),
+    puntosBonus: puntosBonus,
   );
 }
 
@@ -97,6 +109,18 @@ class FakeNivelJuegoGateway implements NivelJuegoGateway {
   int cerrarIntentoCalls = 0;
   String? ultimoIntentoIdCerrado;
 
+  /// Cada llamada a `marcarDesafioMostrado`, en orden, para comprobar desde
+  /// los tests cuándo arranca el cronómetro de cada desafío (INT-99).
+  final List<String> desafiosMarcadosMostrados = [];
+
+  @override
+  Future<void> marcarDesafioMostrado({
+    required String intentoId,
+    required String desafioId,
+  }) async {
+    desafiosMarcadosMostrados.add(desafioId);
+  }
+
   @override
   Future<ResultadoIntento> cerrarIntento(String intentoId) async {
     cerrarIntentoCalls++;
@@ -133,8 +157,8 @@ class FakeNivelJuegoGateway implements NivelJuegoGateway {
   Future<RespuestaDesafio> responderDesafio({
     required String intentoId,
     required String desafioId,
-    required double latitud,
-    required double longitud,
+    required double? latitud,
+    required double? longitud,
   }) async {
     respuestasEnviadas.add(
       RespuestaEnviada(

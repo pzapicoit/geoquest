@@ -106,6 +106,10 @@ export async function crearNivel(tematicaId: string, nombre: string): Promise<{ 
     umbral_estrella_1: 0,
     umbral_estrella_2: 0,
     umbral_estrella_3: 0,
+    // Explícito en vez de fiarse del default de columna (60): documenta aquí,
+    // junto al resto de valores de partida de un nivel nuevo, cuál es el
+    // punto de partida real sin tener que ir a mirar la migración.
+    segundos_por_desafio: 60,
   })
   if (error) throw new Error(error.message)
 

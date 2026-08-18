@@ -383,19 +383,23 @@ usa todas las preguntas asignadas al nivel en `nivel_desafios`.
 
 El esquema SHALL registrar, para cada `intento_nivel`, exactamente qué
 desafíos le tocaron y en qué orden, mediante una tabla `intento_desafios`
-(`intento_id`, `desafio_id`, `orden`) con clave primaria compuesta
-(`intento_id`, `desafio_id`) y una restricción de unicidad sobre
+(`intento_id`, `desafio_id`, `orden`, `mostrado_en`) con clave primaria
+compuesta (`intento_id`, `desafio_id`) y una restricción de unicidad sobre
 (`intento_id`, `orden`). Un usuario autenticado SHALL poder leer y crear
 únicamente las filas de `intento_desafios` cuyo `intento_id` pertenezca a un
 `intento_nivel` propio (vía `intentos_nivel.usuario_id`), y no SHALL poder
-actualizarlas ni leer o crear filas de un intento ajeno.
+actualizarlas directamente ni leer o crear filas de un intento ajeno. La
+única excepción a la prohibición de actualizar es la RPC
+`marcar_desafio_mostrado` (`challenge-timer`), que corre con sus propias
+comprobaciones de pertenencia y solo puede fijar `mostrado_en` una vez por
+fila.
 
 #### Scenario: Se persiste la selección de un intento nuevo
 
 - **WHEN** se crea un `intento_nivel` y se insertan filas de
   `intento_desafios` para ese `intento_id`
 - **THEN** cada fila queda asociada a exactamente un `desafio_id` y una
-  posición (`orden`) dentro de ese intento
+  posición (`orden`) dentro de ese intento, con `mostrado_en` en `NULL`
 
 #### Scenario: Se intenta duplicar un desafío dentro del mismo intento
 
@@ -425,6 +429,12 @@ actualizarlas ni leer o crear filas de un intento ajeno.
 
 - **WHEN** un usuario autenticado intenta `insert` en `intento_desafios`
   para un `intento_id` cuyo `intentos_nivel.usuario_id` no es el suyo
+- **THEN** la operación se rechaza
+
+#### Scenario: Un jugador intenta actualizar `intento_desafios` directamente
+
+- **WHEN** un usuario autenticado intenta `update` sobre una fila propia de
+  `intento_desafios` sin pasar por `marcar_desafio_mostrado`
 - **THEN** la operación se rechaza
 
 #### Scenario: Se borra un desafío referenciado por una selección persistida

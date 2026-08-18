@@ -41,11 +41,23 @@ class DesafioJuego {
 
 /// Resultado de arrancar una partida: el intento creado y los desafíos que
 /// le tocaron (INT-95: `iniciar_intento_nivel`).
+///
+/// Desde INT-99 trae también `segundosPorDesafio`, el límite de tiempo del
+/// nivel que la pantalla usa para inicializar la cuenta atrás de cada
+/// desafío. Con un valor por defecto de 60 —el mismo que trae la columna
+/// `niveles.segundos_por_desafio` en Postgres— para no romper los
+/// constructores `const` ya existentes en otros tests que no ejercitan el
+/// temporizador.
 class IntentoNivel {
-  const IntentoNivel({required this.intentoId, required this.desafios});
+  const IntentoNivel({
+    required this.intentoId,
+    required this.desafios,
+    this.segundosPorDesafio = 60,
+  });
 
   final String intentoId;
   final List<DesafioJuego> desafios;
+  final int segundosPorDesafio;
 }
 
 /// Resultado de responder un desafío, tal como lo devuelve la RPC
@@ -57,6 +69,15 @@ class IntentoNivel {
 /// dato solo viaja en la respuesta a la propia jugada (D2 de `design.md`):
 /// RLS lo sigue escondiendo en `desafios`, `desafios_para_jugar` y
 /// `iniciar_intento_nivel`.
+///
+/// Desde INT-99, `responder_desafio` acepta una respuesta sin pin (tiempo
+/// agotado sin coordenadas): en ese caso el servidor no tiene distancia que
+/// calcular, así que [distanciaKm] llega `null` (D7/D13 de `design.md`). La
+/// ubicación real ([latitudReal]/[longitudReal]/[nombreLugar]) se sigue
+/// revelando igual, con o sin pin. También trae el desglose del puntaje
+/// (D14): [puntosDistancia] es el componente de precisión y [puntosBonus]
+/// el bonus por rapidez (`puntos = puntosDistancia + puntosBonus`); ambos
+/// llegan en `0` cuando la respuesta es sin pin.
 class RespuestaDesafio {
   const RespuestaDesafio({
     required this.distanciaKm,
@@ -65,17 +86,32 @@ class RespuestaDesafio {
     required this.longitudReal,
     required this.nombreLugar,
     required this.puntosMaximos,
+    required this.puntosDistancia,
+    required this.puntosBonus,
   });
 
-  final double distanciaKm;
+  /// `null` cuando el tiempo se agotó sin pin colocado: no hay coordenada
+  /// adivinada de la que calcular una distancia.
+  final double? distanciaKm;
   final int puntos;
   final double latitudReal;
   final double longitudReal;
   final String nombreLugar;
 
-  /// Puntos que se habrían conseguido con un acierto exacto, calculados por
-  /// el servidor (D3 de `design.md`): la curva de puntaje vive en Postgres.
+  /// Puntos que se habrían conseguido con un acierto exacto e instantáneo,
+  /// calculados por el servidor (D3 de `design.md` de INT-93, ampliado con
+  /// el bonus por rapidez en D14 de INT-99): la curva de puntaje vive en
+  /// Postgres.
   final int puntosMaximos;
+
+  /// Componente de precisión del puntaje (la curva de distancia, sin el
+  /// bonus). `0` en una respuesta sin pin.
+  final int puntosDistancia;
+
+  /// Bonus por rapidez (`puntos - puntosDistancia`). `0` en una respuesta
+  /// sin pin, o cuando el tiempo se agotó, o cuando la precisión ya estaba
+  /// en el suelo de la curva.
+  final int puntosBonus;
 }
 
 /// Resultado de cerrar un intento, tal como lo devuelve la RPC
@@ -108,11 +144,25 @@ class ResultadoIntento {
 abstract class NivelJuegoGateway {
   Future<IntentoNivel> iniciarIntento(String nivelId);
 
+  /// `latitud`/`longitud` llegan `null` cuando el tiempo se agota sin pin
+  /// colocado (INT-99): la RPC registra una respuesta de 0 puntos sin
+  /// coordenadas. Las dos deben ser `null` a la vez, nunca solo una —la RPC
+  /// rechaza esa mezcla— así que quien llame nunca debe construir esta
+  /// llamada con una sola de ellas en `null`.
   Future<RespuestaDesafio> responderDesafio({
     required String intentoId,
     required String desafioId,
-    required double latitud,
-    required double longitud,
+    required double? latitud,
+    required double? longitud,
+  });
+
+  /// Marca en el servidor el instante en que `desafioId` se vuelve el
+  /// desafío actual del intento, para medir el tiempo transcurrido sin
+  /// fiarse del reloj del cliente (D1/D2 de `design.md`). Idempotente:
+  /// llamarla dos veces para el mismo desafío no reinicia el cronómetro.
+  Future<void> marcarDesafioMostrado({
+    required String intentoId,
+    required String desafioId,
   });
 
   Future<ResultadoIntento> cerrarIntento(String intentoId);
@@ -137,8 +187,8 @@ class SupabaseNivelJuegoGateway implements NivelJuegoGateway {
   Future<RespuestaDesafio> responderDesafio({
     required String intentoId,
     required String desafioId,
-    required double latitud,
-    required double longitud,
+    required double? latitud,
+    required double? longitud,
   }) async {
     final respuesta = await _client.rpc(
       'responder_desafio',
@@ -154,6 +204,17 @@ class SupabaseNivelJuegoGateway implements NivelJuegoGateway {
   }
 
   @override
+  Future<void> marcarDesafioMostrado({
+    required String intentoId,
+    required String desafioId,
+  }) async {
+    await _client.rpc(
+      'marcar_desafio_mostrado',
+      params: {'p_intento_id': intentoId, 'p_desafio_id': desafioId},
+    );
+  }
+
+  @override
   Future<ResultadoIntento> cerrarIntento(String intentoId) async {
     final respuesta = await _client.rpc(
       'cerrar_intento_nivel',
@@ -164,10 +225,14 @@ class SupabaseNivelJuegoGateway implements NivelJuegoGateway {
   }
 }
 
-/// Mapea el jsonb `{"intento_id", "desafios"}` que devuelve
-/// `iniciar_intento_nivel` a [IntentoNivel]. Función pura, extraída para
-/// poder probar el mapeo sin red (INT-91, mismo patrón que
+/// Mapea el jsonb `{"intento_id", "desafios", "segundos_por_desafio"}` que
+/// devuelve `iniciar_intento_nivel` a [IntentoNivel]. Función pura, extraída
+/// para poder probar el mapeo sin red (INT-91, mismo patrón que
 /// `intercalarFronteras` en `camino_gateway.dart`).
+///
+/// `segundos_por_desafio` viaja desde INT-99 (D11 de `design.md`): sin él la
+/// pantalla no sabría cuánto dura la cuenta atrás, así que se exige igual
+/// que el resto de campos de esta respuesta.
 IntentoNivel mapearIntentoNivel(Map<String, dynamic> data) {
   final desafiosRaw = data['desafios'] as List;
 
@@ -177,6 +242,10 @@ IntentoNivel mapearIntentoNivel(Map<String, dynamic> data) {
       for (final fila in desafiosRaw)
         _mapearDesafio(fila as Map<String, dynamic>),
     ],
+    segundosPorDesafio: _entero(
+      data['segundos_por_desafio'],
+      'segundos_por_desafio',
+    ),
   );
 }
 
@@ -184,14 +253,23 @@ IntentoNivel mapearIntentoNivel(Map<String, dynamic> data) {
 /// `respuestas_desafio` más el revelado del desafío (INT-93). Función pura,
 /// extraída por el mismo motivo que [mapearIntentoNivel]: poder probar el
 /// mapeo sin red.
+///
+/// `distancia_km` es el único campo que se relaja a opcional (INT-99): en
+/// una respuesta sin pin (tiempo agotado sin coordenadas) el servidor no
+/// tiene ninguna distancia que calcular y manda `null` a propósito, no por
+/// omisión. El resto de campos —incluidos `lat_real`/`lng_real`, que siguen
+/// revelando la ubicación real haya o no pin— se mantienen exigidos: si
+/// faltan, es una respuesta incompleta, no un caso sin pin.
 RespuestaDesafio mapearRespuestaDesafio(Map<String, dynamic> fila) {
   return RespuestaDesafio(
-    distanciaKm: _decimal(fila['distancia_km'], 'distancia_km'),
+    distanciaKm: _decimalOpcional(fila['distancia_km']),
     puntos: _entero(fila['puntos'], 'puntos'),
     latitudReal: _decimal(fila['lat_real'], 'lat_real'),
     longitudReal: _decimal(fila['lng_real'], 'lng_real'),
     nombreLugar: _texto(fila['nombre_lugar'], 'nombre_lugar'),
     puntosMaximos: _entero(fila['puntos_maximos'], 'puntos_maximos'),
+    puntosDistancia: _entero(fila['puntos_distancia'], 'puntos_distancia'),
+    puntosBonus: _entero(fila['puntos_bonus'], 'puntos_bonus'),
   );
 }
 
@@ -220,6 +298,16 @@ double _decimal(Object? valor, String campo) => switch (valor) {
   final num numero => numero.toDouble(),
   final String texto => double.parse(texto),
   _ => throw ArgumentError('$campo ausente en la respuesta'),
+};
+
+/// Igual que [_decimal], pero sin lanzar cuando el campo llega `null` a
+/// propósito —el caso de `distancia_km` en una respuesta sin pin (INT-99)—
+/// en vez de estar simplemente ausente.
+double? _decimalOpcional(Object? valor) => switch (valor) {
+  null => null,
+  final num numero => numero.toDouble(),
+  final String texto => double.parse(texto),
+  _ => throw ArgumentError('distancia_km con un tipo inesperado: $valor'),
 };
 
 int _entero(Object? valor, String campo) => switch (valor) {

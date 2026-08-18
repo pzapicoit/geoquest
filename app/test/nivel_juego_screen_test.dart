@@ -109,12 +109,39 @@ Future<void> _avanzarDesdeElRevelado(WidgetTester tester) async {
   await _asentar(tester);
 }
 
-FakeNivelJuegoGateway _gatewayCon(List<DesafioJuego> desafios) =>
-    FakeNivelJuegoGateway(IntentoNivel(intentoId: 'i1', desafios: desafios));
+FakeNivelJuegoGateway _gatewayCon(
+  List<DesafioJuego> desafios, {
+  int segundosPorDesafio = 60,
+}) => FakeNivelJuegoGateway(
+  IntentoNivel(
+    intentoId: 'i1',
+    desafios: desafios,
+    segundosPorDesafio: segundosPorDesafio,
+  ),
+);
 
 const _respondido = Color(0xFF2BC0A8);
 const _actual = Color(0xFFFFC53D);
 final _pendiente = Colors.white.withValues(alpha: 0.16);
+
+const _tealDeLaCuentaAtras = Color(0xFF2BC0A8);
+const _goldDeLaCuentaAtras = Color(0xFFFFC53D);
+const _rojoDeLaCuentaAtras = Color(0xFFFF5A5F);
+
+/// Etiqueta actual de la cuenta atrás ("m:ss"), leída del HUD.
+String _etiquetaDeLaCuentaAtras(WidgetTester tester) {
+  return tester
+      .widget<Text>(find.byKey(const Key('nivel-juego-cuenta-atras-etiqueta')))
+      .data!;
+}
+
+/// Color con el que se pinta la etiqueta de la cuenta atrás en este momento.
+Color _colorDeLaCuentaAtrasEnPantalla(WidgetTester tester) {
+  return tester
+      .widget<Text>(find.byKey(const Key('nivel-juego-cuenta-atras-etiqueta')))
+      .style!
+      .color!;
+}
 
 /// Color de cada segmento de la barra de progreso, en orden.
 List<Color?> _coloresDeSegmentos(WidgetTester tester) {
@@ -821,6 +848,233 @@ void main() {
       expect(formatearDistancia(10), '10');
       expect(formatearDistancia(247.4), '247');
       expect(formatearDistancia(1234.6), '1.235');
+    });
+
+    test('la cuenta atrás se muestra como m:ss', () {
+      expect(formatearCuentaAtras(60), '1:00');
+      expect(formatearCuentaAtras(9), '0:09');
+      expect(formatearCuentaAtras(0), '0:00');
+      expect(formatearCuentaAtras(125), '2:05');
+    });
+  });
+
+  group('cuenta atrás', () {
+    testWidgets(
+      'arranca con los segundos completos del nivel, en teal, y marca el '
+      'primer desafío como mostrado',
+      (tester) async {
+        final gateway = _gatewayCon(const [
+          _desafioTexto,
+        ], segundosPorDesafio: 60);
+
+        await _abrirNivel(tester, gateway);
+
+        expect(_etiquetaDeLaCuentaAtras(tester), '1:00');
+        expect(_colorDeLaCuentaAtrasEnPantalla(tester), _tealDeLaCuentaAtras);
+        expect(gateway.desafiosMarcadosMostrados, ['d3']);
+      },
+    );
+
+    testWidgets('sigue corriendo con el toast de pista abierto', (
+      tester,
+    ) async {
+      final gateway = _gatewayCon(const [
+        _desafioTexto,
+      ], segundosPorDesafio: 10);
+
+      await _abrirNivel(tester, gateway);
+      // La pista no se cierra: la cuenta atrás sigue visible por encima.
+      expect(find.text('¿Dónde está esto?'), findsOneWidget);
+      await tester.pump(const Duration(seconds: 3));
+
+      expect(_etiquetaDeLaCuentaAtras(tester), '0:07');
+    });
+
+    testWidgets('pasa a ámbar cuando queda la mitad del tiempo o menos', (
+      tester,
+    ) async {
+      final gateway = _gatewayCon(const [
+        _desafioTexto,
+      ], segundosPorDesafio: 10);
+
+      await _abrirNivel(tester, gateway);
+      await tester.pump(const Duration(seconds: 5));
+
+      expect(_etiquetaDeLaCuentaAtras(tester), '0:05');
+      expect(_colorDeLaCuentaAtrasEnPantalla(tester), _goldDeLaCuentaAtras);
+    });
+
+    testWidgets('pasa a rojo por debajo de una quinta parte del tiempo', (
+      tester,
+    ) async {
+      final gateway = _gatewayCon(const [
+        _desafioTexto,
+      ], segundosPorDesafio: 10);
+
+      await _abrirNivel(tester, gateway);
+      await tester.pump(const Duration(seconds: 9));
+
+      expect(_etiquetaDeLaCuentaAtras(tester), '0:01');
+      expect(_colorDeLaCuentaAtrasEnPantalla(tester), _rojoDeLaCuentaAtras);
+    });
+
+    testWidgets('no se enseña mientras se ve el revelado', (tester) async {
+      await _abrirNivel(tester, _gatewayCon(const [_desafioTexto]));
+      await _cerrarPista(tester);
+      await _colocarPin(tester);
+      await _confirmarYRevelar(tester);
+
+      expect(find.byKey(const Key('nivel-juego-cuenta-atras')), findsNothing);
+    });
+
+    testWidgets(
+      'avanzar de desafío reinicia la cuenta atrás y vuelve a marcar el '
+      'nuevo desafío como mostrado',
+      (tester) async {
+        final gateway = _gatewayCon(
+          const [_desafioTexto, _desafioImagen],
+          segundosPorDesafio: 30,
+        )..respuesta = respuestaDePrueba(distanciaKm: 12, puntos: 1200);
+
+        await _abrirNivel(tester, gateway);
+        await _cerrarPista(tester);
+        await tester.pump(const Duration(seconds: 10));
+        await _colocarPin(tester);
+        await _confirmarYRevelar(tester);
+        await _avanzarDesdeElRevelado(tester);
+
+        expect(_etiquetaDeLaCuentaAtras(tester), '0:30');
+        expect(gateway.desafiosMarcadosMostrados, ['d3', 'd1']);
+      },
+    );
+
+    testWidgets(
+      'reintentar tras un fallo al arrancar también arranca la cuenta atrás',
+      (tester) async {
+        final gateway = _gatewayCon(const [
+          _desafioTexto,
+        ], segundosPorDesafio: 45)..throwOnNextCall = Exception('sin red');
+
+        await _abrirNivel(tester, gateway);
+        await tester.tap(find.text('Reintentar'));
+        await _asentar(tester);
+
+        expect(_etiquetaDeLaCuentaAtras(tester), '0:45');
+        expect(gateway.desafiosMarcadosMostrados, ['d3']);
+      },
+    );
+  });
+
+  group('agotar el tiempo', () {
+    testWidgets(
+      'con un pin colocado, confirma automáticamente y revela el resultado',
+      (tester) async {
+        final gateway = _gatewayCon(
+          const [_desafioTexto],
+          segundosPorDesafio: 3,
+        )..respuesta = respuestaDePrueba(distanciaKm: 12, puntos: 1200);
+
+        await _abrirNivel(tester, gateway);
+        await _cerrarPista(tester);
+        await _colocarPin(tester);
+
+        await tester.pump(const Duration(seconds: 5));
+        await tester.pump(const Duration(milliseconds: 5600));
+
+        expect(gateway.respuestasEnviadas, hasLength(1));
+        final enviada = gateway.respuestasEnviadas.single;
+        expect(enviada.latitud, isNotNull);
+        expect(enviada.longitud, isNotNull);
+        expect(find.byKey(const Key('nivel-juego-revelado')), findsOneWidget);
+        expect(find.text('+1.200'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'sin ningún pin colocado, responde sin coordenadas y revela con 0 '
+      'puntos, sin distancia ni desglose',
+      (tester) async {
+        final gateway =
+            _gatewayCon(const [_desafioTexto], segundosPorDesafio: 3)
+              ..respuesta = respuestaDePrueba(
+                distanciaKm: null,
+                puntos: 0,
+                puntosDistancia: 0,
+                puntosBonus: 0,
+              );
+
+        await _abrirNivel(tester, gateway);
+        await _cerrarPista(tester);
+
+        await tester.pump(const Duration(seconds: 5));
+        await tester.pump(const Duration(milliseconds: 5600));
+
+        expect(gateway.respuestasEnviadas, hasLength(1));
+        final enviada = gateway.respuestasEnviadas.single;
+        expect(enviada.latitud, isNull);
+        expect(enviada.longitud, isNull);
+        expect(find.byKey(const Key('nivel-juego-revelado')), findsOneWidget);
+        expect(find.text('+0'), findsOneWidget);
+        expect(find.byKey(const Key('nivel-juego-distancia')), findsNothing);
+        expect(
+          find.byKey(const Key('nivel-juego-puntos-precision')),
+          findsNothing,
+        );
+        expect(find.byKey(const Key('nivel-juego-puntos-bonus')), findsNothing);
+      },
+    );
+
+    testWidgets('agotar el tiempo en el último desafío sigue rotulando "Ver '
+        'resultados"', (tester) async {
+      final gateway = _gatewayCon(const [_desafioTexto], segundosPorDesafio: 3);
+
+      await _abrirNivel(tester, gateway);
+      await _cerrarPista(tester);
+
+      await tester.pump(const Duration(seconds: 5));
+      await tester.pump(const Duration(milliseconds: 5600));
+
+      expect(find.text('Ver resultados'), findsOneWidget);
+    });
+  });
+
+  group('desglose del puntaje en el revelado', () {
+    testWidgets('muestra precisión y bonus cuando el bonus es mayor que 0', (
+      tester,
+    ) async {
+      final gateway = _gatewayCon(const [_desafioTexto])
+        ..respuesta = respuestaDePrueba(
+          distanciaKm: 12,
+          puntos: 4381,
+          puntosDistancia: 4301,
+          puntosBonus: 80,
+        );
+
+      await _abrirNivel(tester, gateway);
+      await _cerrarPista(tester);
+      await _colocarPin(tester);
+      await _confirmarYRevelar(tester);
+
+      expect(find.text('4.301 puntos de precisión'), findsOneWidget);
+      expect(find.text('+80 por rapidez'), findsOneWidget);
+    });
+
+    testWidgets('no muestra línea de bonus cuando es 0', (tester) async {
+      final gateway = _gatewayCon(const [_desafioTexto])
+        ..respuesta = respuestaDePrueba(
+          distanciaKm: 12,
+          puntos: 4301,
+          puntosDistancia: 4301,
+          puntosBonus: 0,
+        );
+
+      await _abrirNivel(tester, gateway);
+      await _cerrarPista(tester);
+      await _colocarPin(tester);
+      await _confirmarYRevelar(tester);
+
+      expect(find.text('4.301 puntos de precisión'), findsOneWidget);
+      expect(find.byKey(const Key('nivel-juego-puntos-bonus')), findsNothing);
     });
   });
 }

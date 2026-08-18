@@ -6,6 +6,8 @@ import {
   fetchNivelRecorrido,
   fetchPreguntasNoAsignadas,
   guardarConfiguracionNivel,
+  MAX_PUNTOS_DESAFIO,
+  MAX_PUNTOS_DISTANCIA,
   porcentajeDesdeAbsoluto,
   preguntasEfectivasPorPartida,
   puntajeMaximoNivel,
@@ -37,6 +39,7 @@ const NIVEL_ROW = {
   puntaje_minimo_superar: 10,
   umbral_estrella_2: 30,
   umbral_estrella_3: 40,
+  segundos_por_desafio: 45,
 }
 
 describe('fetchNivelRecorrido', () => {
@@ -100,6 +103,7 @@ describe('fetchNivelRecorrido', () => {
 
     expect(nivel.tematicaNombre).toBe('Paisajes')
     expect(nivel.puntajeMinimoSuperar).toBe(10)
+    expect(nivel.segundosPorDesafio).toBe(45)
     expect(nivel.preguntas.map((p) => p.desafioId)).toEqual(['d-2', 'd-1'])
     expect(nivel.preguntas[0]).toMatchObject({ orden: 2, nombreLugar: 'Coliseo', tipo: 'video' })
   })
@@ -161,6 +165,7 @@ describe('validarConfiguracionNivel', () => {
           umbralEstrella2: 30,
           umbralEstrella3: 40,
           preguntasPorPartida: null,
+          segundosPorDesafio: 60,
         },
         5,
       ),
@@ -176,6 +181,7 @@ describe('validarConfiguracionNivel', () => {
           umbralEstrella2: 40,
           umbralEstrella3: 30,
           preguntasPorPartida: null,
+          segundosPorDesafio: 60,
         },
         5,
       ),
@@ -191,6 +197,7 @@ describe('validarConfiguracionNivel', () => {
           umbralEstrella2: 30,
           umbralEstrella3: 40,
           preguntasPorPartida: null,
+          segundosPorDesafio: 60,
         },
         0,
       ),
@@ -206,6 +213,7 @@ describe('validarConfiguracionNivel', () => {
           umbralEstrella2: 30,
           umbralEstrella3: 40,
           preguntasPorPartida: 5,
+          segundosPorDesafio: 60,
         },
         8,
       ),
@@ -221,6 +229,7 @@ describe('validarConfiguracionNivel', () => {
           umbralEstrella2: 30,
           umbralEstrella3: 40,
           preguntasPorPartida: 8,
+          segundosPorDesafio: 60,
         },
         5,
       ),
@@ -242,6 +251,7 @@ describe('guardarConfiguracionNivel', () => {
         umbralEstrella2: 30,
         umbralEstrella3: 40,
         preguntasPorPartida: 5,
+        segundosPorDesafio: 90,
       },
       8,
     )
@@ -254,6 +264,7 @@ describe('guardarConfiguracionNivel', () => {
         umbral_estrella_2: 30,
         umbral_estrella_3: 40,
         preguntas_por_partida: 5,
+        segundos_por_desafio: 90,
       }),
     )
     expect(eq).toHaveBeenCalledWith('id', 'n-1')
@@ -272,6 +283,7 @@ describe('guardarConfiguracionNivel', () => {
         umbralEstrella2: 3000,
         umbralEstrella3: 4500,
         preguntasPorPartida: null,
+        segundosPorDesafio: 60,
       },
       5,
     )
@@ -289,6 +301,7 @@ describe('guardarConfiguracionNivel', () => {
           umbralEstrella2: 40,
           umbralEstrella3: 30,
           preguntasPorPartida: null,
+          segundosPorDesafio: 60,
         },
         0,
       ),
@@ -306,6 +319,7 @@ describe('guardarConfiguracionNivel', () => {
           umbralEstrella2: 30,
           umbralEstrella3: 40,
           preguntasPorPartida: 8,
+          segundosPorDesafio: 60,
         },
         5,
       ),
@@ -326,6 +340,7 @@ describe('guardarConfiguracionNivel', () => {
           umbralEstrella2: 30,
           umbralEstrella3: 40,
           preguntasPorPartida: null,
+          segundosPorDesafio: 60,
         },
         0,
       ),
@@ -336,12 +351,22 @@ describe('guardarConfiguracionNivel', () => {
 describe('preguntasEfectivasPorPartida / puntajeMaximoNivel', () => {
   it('usa preguntasPorPartida cuando está definido', () => {
     expect(preguntasEfectivasPorPartida(5, 8)).toBe(5)
-    expect(puntajeMaximoNivel(5, 8)).toBe(25000)
+    // 5 desafíos × MAX_PUNTOS_DESAFIO (5500, con bonus por rapidez)
+    expect(puntajeMaximoNivel(5, 8)).toBe(27500)
   })
 
   it('usa el tamaño del pool cuando preguntasPorPartida es null', () => {
     expect(preguntasEfectivasPorPartida(null, 8)).toBe(8)
-    expect(puntajeMaximoNivel(null, 8)).toBe(40000)
+    // 8 desafíos × MAX_PUNTOS_DESAFIO (5500, con bonus por rapidez)
+    expect(puntajeMaximoNivel(null, 8)).toBe(44000)
+  })
+})
+
+describe('MAX_PUNTOS_DESAFIO / MAX_PUNTOS_DISTANCIA', () => {
+  it('MAX_PUNTOS_DESAFIO (5500) incluye el bonus por rapidez sobre MAX_PUNTOS_DISTANCIA (5000)', () => {
+    expect(MAX_PUNTOS_DESAFIO).toBe(5500)
+    expect(MAX_PUNTOS_DISTANCIA).toBe(5000)
+    expect(MAX_PUNTOS_DESAFIO).toBe(MAX_PUNTOS_DISTANCIA + 500)
   })
 })
 
@@ -361,7 +386,12 @@ describe('absolutoDesdePorcentaje / porcentajeDesdeAbsoluto', () => {
 })
 
 describe('distanciaMediaKm', () => {
-  it('d=0 → MAX (1 desafío)', () => {
+  it('d=0 → MAX_PUNTOS_DISTANCIA (1 desafío), no MAX_PUNTOS_DESAFIO (D12: peor caso, sin bonus)', () => {
+    // Si distanciaMediaKm invirtiera la curva sobre MAX_PUNTOS_DESAFIO (5500,
+    // con bonus) en vez de MAX_PUNTOS_DISTANCIA (5000, solo distancia), este
+    // puntaje ya no estaría en el máximo de la curva y devolvería una
+    // distancia > 0 en vez de 0.
+    expect(distanciaMediaKm(MAX_PUNTOS_DISTANCIA, 1)).toBeCloseTo(0, 5)
     expect(distanciaMediaKm(5000, 1)).toBeCloseTo(0, 5)
   })
 

@@ -74,8 +74,11 @@ class _Revelado {
 
   final RespuestaDesafio respuesta;
 
-  /// Dónde había clavado el pin el jugador al confirmar.
-  final Coordenada pin;
+  /// Dónde había clavado el pin el jugador al confirmar. `null` cuando el
+  /// tiempo se agotó sin que hubiera ningún pin colocado (INT-99): el
+  /// revelado se simplifica a solo ubicación real y puntos (D13 de
+  /// `design.md`).
+  final Coordenada? pin;
 
   /// El desafío respondido, para la miniatura de su pista.
   final DesafioJuego desafio;
@@ -126,6 +129,14 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
   Timer? _temporizadorDelMensaje;
   _Revelado? _revelado;
 
+  /// Cuenta atrás del desafío actual, en segundos (INT-99). Arranca al
+  /// recibir el intento (primer desafío) y en [_avanzarDesdeElRevelado]
+  /// (los siguientes), mismos instantes en que se llama a
+  /// `marcarDesafioMostrado` (D11 de `design.md`). Se ignora —el HUD no
+  /// enseña la barra— mientras hay un revelado en pantalla.
+  int _segundosRestantes = 0;
+  Timer? _temporizadorDeCuentaAtras;
+
   /// Encuadre desde el que arranca la animación de cámara: el que tenía el
   /// jugador al confirmar. Se guarda para poder repetir la animación.
   CamaraMapa? _camaraDelJugador;
@@ -138,15 +149,34 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
   @override
   void initState() {
     super.initState();
-    _futuro = _gateway.iniciarIntento(widget.nivelId);
+    _iniciarIntento();
   }
 
   @override
   void dispose() {
     _temporizadorDelMensaje?.cancel();
+    _temporizadorDeCuentaAtras?.cancel();
     _coreografia.dispose();
     _mapa.dispose();
     super.dispose();
+  }
+
+  /// Arranca —o relanza, si el intento anterior falló— la carga del
+  /// intento. Encadena el arranque de la cuenta atrás del primer desafío en
+  /// cuanto la RPC responde (D11 de `design.md`): no puede hacerse antes,
+  /// porque hasta entonces no se conoce `segundosPorDesafio` ni el primer
+  /// desafío del intento. El error se traga aquí a propósito: quien ya
+  /// escucha `_futuro` (el `FutureBuilder` de [build]) es quien enseña el
+  /// estado de error, así que no hace falta un segundo manejador.
+  void _iniciarIntento() {
+    final futuro = _gateway.iniciarIntento(widget.nivelId);
+    _futuro = futuro;
+    futuro.then(_alCargarElIntento, onError: (Object _) {});
+  }
+
+  void _alCargarElIntento(IntentoNivel intento) {
+    if (!mounted || intento.desafios.isEmpty) return;
+    _arrancarCuentaAtras(intento, intento.desafios[_indice].id);
   }
 
   void _cerrarPista() => setState(() => _pistaVisible = false);
@@ -159,6 +189,55 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
     _temporizadorDelMensaje = Timer(const Duration(milliseconds: 2600), () {
       if (mounted) setState(() => _mensaje = null);
     });
+  }
+
+  /// Arranca —o reinicia— la cuenta atrás de `desafioId` y marca en el
+  /// servidor que se ha vuelto el desafío actual (D1/D2/D11 de
+  /// `design.md`). Idempotente en el propio timer: llamarla de nuevo
+  /// cancela cualquier cuenta atrás anterior antes de empezar la nueva.
+  void _arrancarCuentaAtras(IntentoNivel intento, String desafioId) {
+    _temporizadorDeCuentaAtras?.cancel();
+    setState(() => _segundosRestantes = intento.segundosPorDesafio);
+    _temporizadorDeCuentaAtras = Timer.periodic(
+      const Duration(seconds: 1),
+      (_) => _tick(intento),
+    );
+
+    // Si esta llamada falla (red, o una app que no la conoce), el servidor
+    // trata el desafío como agotado y no da bonus (D6 de `design.md`), pero
+    // la partida sigue: no hay razón para bloquear al jugador por un fallo
+    // en una llamada que solo afecta al puntaje, nunca a si puede jugar.
+    _gateway
+        .marcarDesafioMostrado(
+          intentoId: intento.intentoId,
+          desafioId: desafioId,
+        )
+        .catchError((Object _) {});
+  }
+
+  void _tick(IntentoNivel intento) {
+    if (!mounted) return;
+
+    if (_segundosRestantes <= 1) {
+      _temporizadorDeCuentaAtras?.cancel();
+      setState(() => _segundosRestantes = 0);
+      _alAgotarseElTiempo(intento);
+      return;
+    }
+    setState(() => _segundosRestantes--);
+  }
+
+  /// Al llegar la cuenta atrás a 0: con un pin colocado, la misma acción que
+  /// "Confirmar"; sin él, una respuesta sin coordenadas (D8/D13 de
+  /// `design.md`, requirement "Comportamiento al agotar el tiempo").
+  void _alAgotarseElTiempo(IntentoNivel intento) {
+    if (_revelado != null) return;
+
+    if (_mapa.pin != null) {
+      _confirmar(intento);
+    } else {
+      _confirmarSinPin(intento);
+    }
   }
 
   Future<void> _confirmar(IntentoNivel intento) async {
@@ -175,6 +254,7 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
       );
       if (!mounted) return;
 
+      _temporizadorDeCuentaAtras?.cancel();
       setState(() {
         _enviando = false;
         _revelado = _Revelado(
@@ -189,6 +269,42 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
       if (!mounted) return;
       // El pin se conserva: el jugador ya había decidido dónde, y volver a
       // colocarlo tras un fallo de red sería castigarle por la red.
+      setState(() => _enviando = false);
+      _avisar('No se pudo enviar tu respuesta. Inténtalo de nuevo.');
+    }
+  }
+
+  /// Registra una respuesta sin coordenadas: el tiempo se agotó y el jugador
+  /// no había colocado ningún pin (D7/D13 de `design.md`). El servidor
+  /// persiste 0 puntos sin distancia; el revelado que sigue se simplifica en
+  /// consecuencia (sin pin del jugador, sin línea, sin contador de
+  /// distancia).
+  Future<void> _confirmarSinPin(IntentoNivel intento) async {
+    if (_enviando) return;
+
+    setState(() => _enviando = true);
+    try {
+      final respuesta = await _gateway.responderDesafio(
+        intentoId: intento.intentoId,
+        desafioId: intento.desafios[_indice].id,
+        latitud: null,
+        longitud: null,
+      );
+      if (!mounted) return;
+
+      _temporizadorDeCuentaAtras?.cancel();
+      setState(() {
+        _enviando = false;
+        _revelado = _Revelado(
+          respuesta: respuesta,
+          pin: null,
+          desafio: intento.desafios[_indice],
+          esElUltimo: _indice >= intento.desafios.length - 1,
+        );
+      });
+      _lanzarElRevelado();
+    } catch (_) {
+      if (!mounted) return;
       setState(() => _enviando = false);
       _avisar('No se pudo enviar tu respuesta. Inténtalo de nuevo.');
     }
@@ -221,7 +337,9 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
   void _calcularElEncuadreDelRevelado(_Revelado revelado) {
     _tamanoDelRevelado = _mapa.tamano;
     _camaraDelRevelado = _mapa.camaraPara([
-      revelado.pin,
+      // Sin pin, el encuadre solo tiene que enseñar la ubicación real: no
+      // hay un segundo punto que encajar junto a ella (D13).
+      if (revelado.pin != null) revelado.pin!,
       revelado.ubicacionReal,
     ], margenes: _margenesDelRevelado);
   }
@@ -306,15 +424,17 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
       ..limpiarPin()
       ..limpiarRevelado()
       ..reiniciarEncuadre();
+    final siguiente = _indice + 1;
     setState(() {
       _puntaje += revelado.respuesta.puntos;
-      _indice++;
+      _indice = siguiente;
       _pistaVisible = true;
       _revelado = null;
       _camaraDelJugador = null;
       _camaraDelRevelado = null;
       _tamanoDelRevelado = null;
     });
+    _arrancarCuentaAtras(intento, intento.desafios[siguiente].id);
   }
 
   /// Cierra el intento al terminar el último desafío y, si sale bien, entra
@@ -375,9 +495,10 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
             return const Center(child: CircularProgressIndicator(color: _teal));
           }
 
-          void reintentar() => setState(() {
-            _futuro = _gateway.iniciarIntento(widget.nivelId);
-          });
+          // `setState(_iniciarIntento)` en vez de reasignar `_futuro` a mano:
+          // así un reintento también encadena el arranque de la cuenta atrás
+          // del primer desafío si esta vez la carga sale bien.
+          void reintentar() => setState(_iniciarIntento);
 
           if (snapshot.hasError) {
             return SafeArea(child: _ErrorIntento(onRetry: reintentar));
@@ -448,8 +569,10 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
                     animation: _coreografia,
                     builder: (context, _) => _HojaDeRevelado(
                       revelado: revelado,
-                      distanciaKm:
-                          revelado.respuesta.distanciaKm * _avanceDeLaDistancia,
+                      distanciaKm: revelado.respuesta.distanciaKm == null
+                          ? null
+                          : revelado.respuesta.distanciaKm! *
+                                _avanceDeLaDistancia,
                       puntos: _puntosDelContador,
                       avanceDelDestello: _avanceDeLosPuntos,
                       cerrando: _cerrando,
@@ -472,6 +595,9 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
                     resueltos: _indice + (revelando ? 1 : 0),
                     nombreDelNivel: widget.nivelNombre,
                     onSalir: _pedirSalir,
+                    // La barra no corre durante el revelado (D11).
+                    segundosRestantes: revelando ? null : _segundosRestantes,
+                    segundosPorDesafio: intento.segundosPorDesafio,
                   ),
                 ),
               ),
@@ -555,6 +681,8 @@ class _HudJuego extends StatelessWidget {
     required this.resueltos,
     required this.nombreDelNivel,
     required this.onSalir,
+    required this.segundosRestantes,
+    required this.segundosPorDesafio,
   });
 
   final int posicion;
@@ -568,36 +696,52 @@ class _HudJuego extends StatelessWidget {
   final String? nombreDelNivel;
   final VoidCallback onSalir;
 
+  /// `null` mientras se enseña el revelado: la cuenta atrás (INT-99) no
+  /// corre en esa fase, así que la barra no se pinta (D11 de `design.md`).
+  final int? segundosRestantes;
+  final int segundosPorDesafio;
+
   @override
   Widget build(BuildContext context) {
     return SafeArea(
       bottom: false,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(20, 2, 20, 0),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
+        child: Column(
           children: [
-            _BotonDeCristal(
-              clave: const Key('nivel-juego-salir'),
-              etiqueta: 'Salir del nivel',
-              onPressed: onSalir,
-              child: const Icon(
-                Icons.close_rounded,
-                color: Colors.white,
-                size: 19,
-              ),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                _BotonDeCristal(
+                  clave: const Key('nivel-juego-salir'),
+                  etiqueta: 'Salir del nivel',
+                  onPressed: onSalir,
+                  child: const Icon(
+                    Icons.close_rounded,
+                    color: Colors.white,
+                    size: 19,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _TarjetaDeProgreso(
+                    posicion: posicion,
+                    total: total,
+                    resueltos: resueltos,
+                    nombreDelNivel: nombreDelNivel,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                _PildoraDePuntaje(puntaje: puntaje),
+              ],
             ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _TarjetaDeProgreso(
-                posicion: posicion,
-                total: total,
-                resueltos: resueltos,
-                nombreDelNivel: nombreDelNivel,
+            if (segundosRestantes != null) ...[
+              const SizedBox(height: 8),
+              _CuentaAtras(
+                segundosRestantes: segundosRestantes!,
+                segundosPorDesafio: segundosPorDesafio,
               ),
-            ),
-            const SizedBox(width: 10),
-            _PildoraDePuntaje(puntaje: puntaje),
+            ],
           ],
         ),
       ),
@@ -744,6 +888,81 @@ String formatearPuntaje(int puntaje) {
     partes.insert(0, digitos.substring(fin - 3 < 0 ? 0 : fin - 3, fin));
   }
   return '${puntaje < 0 ? '-' : ''}${partes.join('.')}';
+}
+
+/// "1:00", "0:09": minutos y segundos con dos dígitos, como un cronómetro.
+String formatearCuentaAtras(int segundos) {
+  final acotado = segundos < 0 ? 0 : segundos;
+  final minutos = acotado ~/ 60;
+  final resto = acotado % 60;
+  return '$minutos:${resto.toString().padLeft(2, '0')}';
+}
+
+/// Color de la barra de cuenta atrás según la fracción de tiempo que queda
+/// (D10 de `design.md`): teal por encima de la mitad, ámbar entre la mitad y
+/// una quinta parte, rojo por debajo de una quinta parte.
+Color _colorDeLaCuentaAtras(int segundosRestantes, int segundosPorDesafio) {
+  if (segundosPorDesafio <= 0) return _teal;
+  final fraccion = segundosRestantes / segundosPorDesafio;
+  if (fraccion > 0.5) return _teal;
+  if (fraccion >= 0.2) return _gold;
+  return _rojo;
+}
+
+/// Barra de cuenta atrás del desafío actual (INT-99): vive en el HUD, por
+/// encima del toast de pista, para que el jugador sepa siempre cuánto tiempo
+/// le queda sin tener que cerrar nada.
+class _CuentaAtras extends StatelessWidget {
+  const _CuentaAtras({
+    required this.segundosRestantes,
+    required this.segundosPorDesafio,
+  });
+
+  final int segundosRestantes;
+  final int segundosPorDesafio;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _colorDeLaCuentaAtras(segundosRestantes, segundosPorDesafio);
+    final fraccion = segundosPorDesafio <= 0
+        ? 0.0
+        : (segundosRestantes / segundosPorDesafio).clamp(0.0, 1.0);
+
+    return Container(
+      key: const Key('nivel-juego-cuenta-atras'),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: _ink.withValues(alpha: 0.6),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(99),
+              child: LinearProgressIndicator(
+                value: fraccion,
+                minHeight: 6,
+                backgroundColor: Colors.white.withValues(alpha: 0.16),
+                valueColor: AlwaysStoppedAnimation<Color>(color),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Text(
+            formatearCuentaAtras(segundosRestantes),
+            key: const Key('nivel-juego-cuenta-atras-etiqueta'),
+            style: GoogleFonts.baloo2(
+              color: color,
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 /// Controles de la fase de adivinar: reabrir la pista, la indicación de qué
@@ -1059,8 +1278,10 @@ class _HojaDeRevelado extends StatelessWidget {
 
   final _Revelado revelado;
 
-  /// Valor que enseña el contador de distancia en este fotograma.
-  final double distanciaKm;
+  /// Valor que enseña el contador de distancia en este fotograma. `null` en
+  /// una respuesta sin pin (INT-99): no hay distancia que contar, así que la
+  /// hoja se simplifica sin esa tarjeta (D13 de `design.md`).
+  final double? distanciaKm;
 
   /// Valor que enseña el contador de puntos en este fotograma.
   final int puntos;
@@ -1116,26 +1337,42 @@ class _HojaDeRevelado extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 16),
-                // Las dos tarjetas miden lo mismo aunque una de ellas parta el
-                // texto de su cabecera en dos líneas.
-                IntrinsicHeight(
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Expanded(
-                        child: _TarjetaDeDistancia(kilometros: distanciaKm),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _TarjetaDePuntos(
-                          puntos: puntos,
-                          maximo: revelado.respuesta.puntosMaximos,
-                          avanceDelDestello: avanceDelDestello,
+                // Sin pin no hay distancia que contar (D13 de `design.md`):
+                // solo la tarjeta de puntos, a toda anchura.
+                if (distanciaKm case final distancia?)
+                  // Las dos tarjetas miden lo mismo aunque una de ellas parta
+                  // el texto de su cabecera en dos líneas.
+                  IntrinsicHeight(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Expanded(
+                          child: _TarjetaDeDistancia(kilometros: distancia),
                         ),
-                      ),
-                    ],
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _TarjetaDePuntos(
+                            puntos: puntos,
+                            maximo: revelado.respuesta.puntosMaximos,
+                            avanceDelDestello: avanceDelDestello,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  _TarjetaDePuntos(
+                    puntos: puntos,
+                    maximo: revelado.respuesta.puntosMaximos,
+                    avanceDelDestello: avanceDelDestello,
                   ),
-                ),
+                // El desglose de precisión/bonus solo tiene sentido con un
+                // pin colocado: sin pin, precisión y bonus son ambos 0 (D14).
+                if (distanciaKm != null)
+                  _DesgloseDePuntaje(
+                    puntosDistancia: revelado.respuesta.puntosDistancia,
+                    puntosBonus: revelado.respuesta.puntosBonus,
+                  ),
                 const SizedBox(height: 16),
                 SizedBox(
                   width: double.infinity,
@@ -1471,6 +1708,58 @@ class _TarjetaDePuntos extends StatelessWidget {
           if (avanceDelDestello > 0 && avanceDelDestello < 1)
             Positioned.fill(
               child: IgnorePointer(child: _Destello(avance: avanceDelDestello)),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Desglose del puntaje en precisión y bonus por rapidez (D14 de
+/// `design.md`), para que el jugador entienda de dónde sale el total en vez
+/// de ver solo una cifra. Solo se enseña con un pin colocado: sin pin ambos
+/// componentes son 0 y no hay nada que desglosar.
+class _DesgloseDePuntaje extends StatelessWidget {
+  const _DesgloseDePuntaje({
+    required this.puntosDistancia,
+    required this.puntosBonus,
+  });
+
+  final int puntosDistancia;
+  final int puntosBonus;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            '${formatearPuntaje(puntosDistancia)} puntos de precisión',
+            key: const Key('nivel-juego-puntos-precision'),
+            style: GoogleFonts.outfit(
+              color: Colors.white.withValues(alpha: 0.55),
+              fontSize: 12.5,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          // Sin línea de bonus cuando es 0: tiempo agotado, o precisión ya
+          // en el suelo de la curva (requirement "El revelado muestra el
+          // desglose del bonus por rapidez").
+          if (puntosBonus > 0)
+            Padding(
+              padding: const EdgeInsets.only(top: 3),
+              child: Text(
+                '+${formatearPuntaje(puntosBonus)} por rapidez',
+                key: const Key('nivel-juego-puntos-bonus'),
+                style: GoogleFonts.outfit(
+                  color: _teal,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
             ),
         ],
       ),

@@ -151,6 +151,7 @@ describe('crearNivel', () => {
         umbral_estrella_1: 0,
         umbral_estrella_2: 0,
         umbral_estrella_3: 0,
+        segundos_por_desafio: 60,
       }),
     )
   })

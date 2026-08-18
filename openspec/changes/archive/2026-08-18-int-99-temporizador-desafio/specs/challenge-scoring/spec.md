@@ -1,25 +1,4 @@
-# challenge-scoring Specification
-
-## Purpose
-TBD - created by archiving change int-78-calcular-distancia-puntaje. Update Purpose after archive.
-
-## Requirements
-
-### Requirement: Cálculo de distancia entre coordenadas
-El sistema SHALL proveer una función que calcule la distancia en
-kilómetros entre dos pares de coordenadas (latitud/longitud) usando la
-fórmula de Haversine.
-
-#### Scenario: Misma ubicación exacta
-- **WHEN** se calcula la distancia entre dos coordenadas idénticas
-- **THEN** el resultado es 0 (o un valor despreciable por redondeo de
-  punto flotante)
-
-#### Scenario: Extremos opuestos del globo
-- **WHEN** se calcula la distancia entre dos coordenadas antipodales
-  (extremos opuestos de la Tierra)
-- **THEN** el resultado es aproximadamente la circunferencia media
-  terrestre entre antípodas (~20000 km)
+## MODIFIED Requirements
 
 ### Requirement: Cálculo del componente de distancia del puntaje
 El sistema SHALL traducir una distancia en kilómetros al componente de
@@ -138,6 +117,8 @@ en el `insert` para esas columnas.
 - **THEN** la fila queda guardada con `segundos_transcurridos` calculado
   por el servidor a partir de `intento_desafios.mostrado_en`, no con el
   valor recibido en el `insert`
+
+## ADDED Requirements
 
 ### Requirement: Bonus por rapidez sobre el puntaje
 El sistema SHALL sumar al componente de distancia un bonus por rapidez
