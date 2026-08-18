@@ -27,18 +27,19 @@ vi.mock('../lib/nivelRecorrido', async () => {
 })
 
 // preguntasPorPartida: null y 2 preguntas asignadas → N efectivo = 2,
-// máximo del nivel = 2 × 5000 = 10000. umbralEstrella2/3 elegidos como
-// porcentajes redondos de ese máximo (30% y 60%) para que las aserciones de
-// UI sean números limpios.
+// máximo del nivel = 2 × 5500 = 11000 (MAX_PUNTOS_DESAFIO incluye el bonus
+// por rapidez). umbralEstrella2/3 elegidos como porcentajes redondos de ese
+// máximo (30% y 60%) para que las aserciones de UI sean números limpios.
 const NIVEL: NivelRecorridoData = {
   id: 'n-1',
   nombre: null,
   orden: 3,
   tematicaNombre: 'Paisajes',
   puntajeMinimoSuperar: 1000,
-  umbralEstrella2: 3000,
-  umbralEstrella3: 6000,
+  umbralEstrella2: 3300,
+  umbralEstrella3: 6600,
   preguntasPorPartida: null,
+  segundosPorDesafio: 90,
   preguntas: [
     { desafioId: 'd-1', orden: 1, tipo: 'imagen', nombreLugar: 'Torre Eiffel', imagenUrl: null },
     { desafioId: 'd-2', orden: 2, tipo: 'video', nombreLugar: 'Coliseo', imagenUrl: null },
@@ -81,6 +82,7 @@ describe('NivelRecorrido — carga y configuración', () => {
     expect(screen.getByDisplayValue('1000')).toBeInTheDocument()
     expect(screen.getByDisplayValue('30')).toBeInTheDocument()
     expect(screen.getByDisplayValue('60')).toBeInTheDocument()
+    expect(screen.getByDisplayValue('90')).toBeInTheDocument()
   })
 
   it('muestra el absoluto y la distancia media derivados de cada umbral', async () => {
@@ -89,10 +91,10 @@ describe('NivelRecorrido — carga y configuración', () => {
 
     await screen.findByText('2 preguntas en este recorrido')
 
-    // umbral 2 estrellas: 30% de 10000 = 3000 pts, con su distancia media
-    expect(await screen.findByText(/3000 pts.*km/)).toBeInTheDocument()
-    // umbral 3 estrellas: 60% de 10000 = 6000 pts, con su distancia media
-    expect(await screen.findByText(/6000 pts.*km/)).toBeInTheDocument()
+    // umbral 2 estrellas: 30% de 11000 = 3300 pts, con su distancia media
+    expect(await screen.findByText(/3300 pts.*km/)).toBeInTheDocument()
+    // umbral 3 estrellas: 60% de 11000 = 6600 pts, con su distancia media
+    expect(await screen.findByText(/6600 pts.*km/)).toBeInTheDocument()
     // puntaje mínimo: también muestra distancia media (varios "km" en pantalla)
     expect(screen.getAllByText(/km/).length).toBeGreaterThanOrEqual(3)
   })
@@ -129,14 +131,73 @@ describe('NivelRecorrido — carga y configuración', () => {
         expect.objectContaining({
           nombre: 'Costas',
           puntajeMinimoSuperar: 1000,
-          umbralEstrella2: 3000,
-          umbralEstrella3: 6000,
+          umbralEstrella2: 3300,
+          umbralEstrella3: 6600,
           preguntasPorPartida: null,
+          segundosPorDesafio: 90,
         }),
         2,
       ),
     )
     expect(await screen.findByText('Configuración guardada.')).toBeInTheDocument()
+  })
+
+  it('guarda un nuevo valor de segundos por desafío', async () => {
+    fetchNivelRecorrido.mockResolvedValue(NIVEL)
+    guardarConfiguracionNivel.mockResolvedValue(undefined)
+    const user = userEvent.setup()
+    renderNivel()
+
+    await screen.findByText('2 preguntas en este recorrido')
+    const inputSegundos = screen.getByDisplayValue('90')
+    await user.clear(inputSegundos)
+    await user.type(inputSegundos, '45')
+    await user.click(screen.getByRole('button', { name: /guardar cambios/i }))
+
+    await waitFor(() =>
+      expect(guardarConfiguracionNivel).toHaveBeenCalledWith(
+        'n-1',
+        expect.objectContaining({ segundosPorDesafio: 45 }),
+        2,
+      ),
+    )
+    expect(await screen.findByText('Configuración guardada.')).toBeInTheDocument()
+  })
+
+  it('bloquea el guardado si los segundos por desafío están vacíos', async () => {
+    fetchNivelRecorrido.mockResolvedValue(NIVEL)
+    const user = userEvent.setup()
+    renderNivel()
+
+    await screen.findByText('2 preguntas en este recorrido')
+    const inputSegundos = screen.getByDisplayValue('90')
+    await user.clear(inputSegundos)
+    await user.click(screen.getByRole('button', { name: /guardar cambios/i }))
+
+    expect(
+      await screen.findByText(/los segundos por desafío deben ser un número entero mayor que 0/i),
+    ).toBeInTheDocument()
+    expect(guardarConfiguracionNivel).not.toHaveBeenCalled()
+  })
+
+  it('no envía el formulario si los segundos por desafío violan el min=1 nativo del input', async () => {
+    // A diferencia del caso vacío (validado en JS por parseEnteroPositivo),
+    // un valor de 0 lo bloquea la validación HTML5 nativa del propio
+    // <input min={1}> antes de que el formulario dispare su evento submit:
+    // guardarConfiguracionNivel nunca se invoca, igual que con 0 preguntas
+    // por partida (mismo min={1} en ese campo, sin test dedicado).
+    fetchNivelRecorrido.mockResolvedValue(NIVEL)
+    const user = userEvent.setup()
+    renderNivel()
+
+    await screen.findByText('2 preguntas en este recorrido')
+    const inputSegundos = screen.getByDisplayValue('90') as HTMLInputElement
+    await user.clear(inputSegundos)
+    await user.type(inputSegundos, '0')
+    await user.click(screen.getByRole('button', { name: /guardar cambios/i }))
+
+    expect(inputSegundos.validity.valid).toBe(false)
+    expect(guardarConfiguracionNivel).not.toHaveBeenCalled()
   })
 
   it('recalcula el absoluto al editar el puntaje mínimo y el umbral de 3 estrellas', async () => {
@@ -160,7 +221,7 @@ describe('NivelRecorrido — carga y configuración', () => {
     await waitFor(() =>
       expect(guardarConfiguracionNivel).toHaveBeenCalledWith(
         'n-1',
-        expect.objectContaining({ puntajeMinimoSuperar: 1200, umbralEstrella3: 7000 }),
+        expect.objectContaining({ puntajeMinimoSuperar: 1200, umbralEstrella3: 7700 }),
         2,
       ),
     )

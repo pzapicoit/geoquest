@@ -62,6 +62,7 @@ void main() {
     test('mapea el intento_id y cada desafío de la respuesta de la RPC', () {
       final intento = mapearIntentoNivel({
         'intento_id': 'i1',
+        'segundos_por_desafio': 60,
         'desafios': [
           {
             'id': 'd1',
@@ -98,12 +99,27 @@ void main() {
       expect(intento.desafios[1].videoUrl, 'https://example.com/clip.mp4');
       expect(intento.desafios[2].tipo, TipoDesafio.preguntaTexto);
       expect(intento.desafios[2].textoPregunta, '¿Dónde está esto?');
+      expect(intento.segundosPorDesafio, 60);
     });
 
     test('un intento sin desafíos mapea una lista vacía', () {
-      final intento = mapearIntentoNivel({'intento_id': 'i2', 'desafios': []});
+      final intento = mapearIntentoNivel({
+        'intento_id': 'i2',
+        'segundos_por_desafio': 90,
+        'desafios': [],
+      });
 
       expect(intento.desafios, isEmpty);
+      expect(intento.segundosPorDesafio, 90);
+    });
+
+    test('sin segundos_por_desafio falla en vez de asumir un valor', () {
+      // INT-99: la pantalla necesita este límite para inicializar la cuenta
+      // atrás, así que una respuesta sin él es incompleta, no "sin límite".
+      expect(
+        () => mapearIntentoNivel({'intento_id': 'i3', 'desafios': []}),
+        throwsArgumentError,
+      );
     });
   });
 
@@ -117,19 +133,23 @@ void main() {
         'lng_adivinada': -3.7,
         'distancia_km': 247.5,
         'puntos': 4381,
+        'puntos_distancia': 4301,
+        'puntos_bonus': 80,
         'respondido_en': '2026-08-17T12:00:00Z',
         'lat_real': 41.8902,
         'lng_real': 12.4922,
         'nombre_lugar': 'Coliseo de Roma',
-        'puntos_maximos': 5000,
+        'puntos_maximos': 5500,
       });
 
       expect(respuesta.distanciaKm, closeTo(247.5, 1e-9));
       expect(respuesta.puntos, 4381);
+      expect(respuesta.puntosDistancia, 4301);
+      expect(respuesta.puntosBonus, 80);
       expect(respuesta.latitudReal, closeTo(41.8902, 1e-9));
       expect(respuesta.longitudReal, closeTo(12.4922, 1e-9));
       expect(respuesta.nombreLugar, 'Coliseo de Roma');
-      expect(respuesta.puntosMaximos, 5000);
+      expect(respuesta.puntosMaximos, 5500);
     });
 
     test('acepta una distancia serializada como texto', () {
@@ -138,18 +158,49 @@ void main() {
       final respuesta = mapearRespuestaDesafio({
         'distancia_km': '1234.5678',
         'puntos': 0,
+        'puntos_distancia': 0,
+        'puntos_bonus': 0,
         'lat_real': 0,
         'lng_real': 0,
         'nombre_lugar': 'Isla nula',
-        'puntos_maximos': 5000,
+        'puntos_maximos': 5500,
       });
 
       expect(respuesta.distanciaKm, closeTo(1234.5678, 1e-9));
       expect(respuesta.puntos, 0);
     });
 
-    test('una respuesta sin distancia falla en vez de inventarse un 0', () {
-      expect(() => mapearRespuestaDesafio({'puntos': 10}), throwsArgumentError);
+    test('acepta lat_real/lng_real serializadas como texto', () {
+      // Mismo motivo que `distancia_km`: son `numeric` en Postgres.
+      final respuesta = mapearRespuestaDesafio({
+        'distancia_km': 10,
+        'puntos': 100,
+        'puntos_distancia': 100,
+        'puntos_bonus': 0,
+        'lat_real': '41.8902',
+        'lng_real': '12.4922',
+        'nombre_lugar': 'Coliseo de Roma',
+        'puntos_maximos': 5500,
+      });
+
+      expect(respuesta.latitudReal, closeTo(41.8902, 1e-9));
+      expect(respuesta.longitudReal, closeTo(12.4922, 1e-9));
+    });
+
+    test('distancia_km con un tipo inesperado falla en vez de ignorarlo', () {
+      expect(
+        () => mapearRespuestaDesafio({
+          'distancia_km': true,
+          'puntos': 0,
+          'puntos_distancia': 0,
+          'puntos_bonus': 0,
+          'lat_real': 0,
+          'lng_real': 0,
+          'nombre_lugar': 'Isla nula',
+          'puntos_maximos': 5500,
+        }),
+        throwsArgumentError,
+      );
     });
 
     test('una respuesta sin revelado falla en vez de dejarlo a medias', () {
@@ -160,12 +211,65 @@ void main() {
         () => mapearRespuestaDesafio({
           'distancia_km': 10,
           'puntos': 100,
+          'puntos_distancia': 100,
+          'puntos_bonus': 0,
           'lat_real': 41.8902,
           'lng_real': 12.4922,
-          'puntos_maximos': 5000,
+          'puntos_maximos': 5500,
         }),
         throwsArgumentError,
       );
+    });
+
+    test('sin puntos_distancia/puntos_bonus falla en vez de asumir 0', () {
+      expect(
+        () => mapearRespuestaDesafio({
+          'distancia_km': 10,
+          'puntos': 100,
+          'lat_real': 41.8902,
+          'lng_real': 12.4922,
+          'nombre_lugar': 'Coliseo de Roma',
+          'puntos_maximos': 5500,
+        }),
+        throwsArgumentError,
+      );
+    });
+
+    test('una respuesta sin pin llega con distancia null y desglose en 0', () {
+      // INT-99: el tiempo se agotó sin que el jugador colocara ningún pin.
+      // El servidor no tiene coordenada adivinada de la que calcular una
+      // distancia, así que la manda `null` a propósito, no por omisión.
+      final respuesta = mapearRespuestaDesafio({
+        'distancia_km': null,
+        'puntos': 0,
+        'puntos_distancia': 0,
+        'puntos_bonus': 0,
+        'lat_real': 41.8902,
+        'lng_real': 12.4922,
+        'nombre_lugar': 'Coliseo de Roma',
+        'puntos_maximos': 5500,
+      });
+
+      expect(respuesta.distanciaKm, isNull);
+      expect(respuesta.puntos, 0);
+      expect(respuesta.puntosDistancia, 0);
+      expect(respuesta.puntosBonus, 0);
+      // La ubicación real se revela igual, con o sin pin.
+      expect(respuesta.nombreLugar, 'Coliseo de Roma');
+    });
+
+    test('distancia_km ausente del todo también mapea a null', () {
+      final respuesta = mapearRespuestaDesafio({
+        'puntos': 0,
+        'puntos_distancia': 0,
+        'puntos_bonus': 0,
+        'lat_real': 0,
+        'lng_real': 0,
+        'nombre_lugar': 'Isla nula',
+        'puntos_maximos': 5500,
+      });
+
+      expect(respuesta.distanciaKm, isNull);
     });
   });
 

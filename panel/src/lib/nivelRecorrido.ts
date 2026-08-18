@@ -1,11 +1,22 @@
 import { supabase } from './supabaseClient'
 import type { TipoDesafio } from './preguntas'
 
-// Deben coincidir con las constantes de calcular_puntaje en
-// backend/supabase/migrations/20260817220000_curva_puntuacion_exponencial.sql
+// Deben coincidir con las constantes de calcular_puntaje_por_distancia y con
+// el bonus máximo por rapidez en
+// backend/supabase/migrations/20260818110000_temporizador_desafio_bonus_rapidez.sql
 // (fuente de verdad de la curva real). Duplicadas aquí porque el cálculo de
 // absoluto/distancia media es puramente presentacional y no justifica una RPC.
-export const MAX_PUNTOS_DESAFIO = 5000
+//
+// MAX_PUNTOS_DESAFIO es el máximo por desafío CON el bonus por rapidez
+// (distancia + bonus): se usa para convertir porcentaje ⇄ absoluto de
+// puntaje_minimo_superar/umbral_estrella_2/3, para que el mismo % siga
+// significando lo mismo tras el rebalanceo (D12 de design.md).
+// MAX_PUNTOS_DISTANCIA/PISO_PUNTOS_DESAFIO/K_DISTANCIA_KM son, en cambio,
+// las constantes de la curva de SOLO distancia (sin bonus): distanciaMediaKm
+// las usa para mostrar al admin el peor caso (sin bonus de tiempo), no el
+// máximo real con bonus.
+export const MAX_PUNTOS_DESAFIO = 5500
+export const MAX_PUNTOS_DISTANCIA = 5000
 export const PISO_PUNTOS_DESAFIO = 50
 export const K_DISTANCIA_KM = 1500
 
@@ -36,14 +47,18 @@ export function porcentajeDesdeAbsoluto(absoluto: number, maximoNivel: number): 
 
 /**
  * Distancia media en km que implica un puntaje total, invirtiendo la curva
- * de calcular_puntaje sobre el puntaje medio por desafío. `null` cuando el
- * puntaje está en el suelo o por debajo: cualquier distancia lo cumple.
+ * de calcular_puntaje_por_distancia sobre el puntaje medio por desafío.
+ * Usa las constantes de solo-distancia (sin bonus por rapidez): orienta al
+ * admin sobre la precisión mínima necesaria en el peor caso, sin fiarse de
+ * un bonus de tiempo que el jugador podría no llegar a cobrar (D12 de
+ * design.md). `null` cuando el puntaje está en el suelo o por debajo:
+ * cualquier distancia lo cumple.
  */
 export function distanciaMediaKm(puntajeTotal: number, preguntasEfectivas: number): number | null {
   if (preguntasEfectivas <= 0) return null
   const puntosPorDesafio = puntajeTotal / preguntasEfectivas
   const fraccion =
-    (puntosPorDesafio - PISO_PUNTOS_DESAFIO) / (MAX_PUNTOS_DESAFIO - PISO_PUNTOS_DESAFIO)
+    (puntosPorDesafio - PISO_PUNTOS_DESAFIO) / (MAX_PUNTOS_DISTANCIA - PISO_PUNTOS_DESAFIO)
   if (fraccion <= 0) return null
   if (fraccion >= 1) return 0
   return -K_DISTANCIA_KM * Math.log(fraccion)
@@ -66,6 +81,7 @@ export interface NivelRecorrido {
   umbralEstrella2: number
   umbralEstrella3: number
   preguntasPorPartida: number | null
+  segundosPorDesafio: number
   preguntas: PreguntaRecorrido[]
 }
 
@@ -78,6 +94,7 @@ interface NivelRow {
   umbral_estrella_2: number
   umbral_estrella_3: number
   preguntas_por_partida: number | null
+  segundos_por_desafio: number
 }
 
 interface DesafioBancoRow {
@@ -96,7 +113,7 @@ export async function fetchNivelRecorrido(id: string): Promise<NivelRecorrido> {
   const { data: nivel, error: nivelError } = await supabase
     .from('niveles')
     .select(
-      'id, nombre, orden, tematica_id, puntaje_minimo_superar, umbral_estrella_2, umbral_estrella_3, preguntas_por_partida',
+      'id, nombre, orden, tematica_id, puntaje_minimo_superar, umbral_estrella_2, umbral_estrella_3, preguntas_por_partida, segundos_por_desafio',
     )
     .eq('id', id)
     .single()
@@ -154,6 +171,7 @@ export async function fetchNivelRecorrido(id: string): Promise<NivelRecorrido> {
     umbralEstrella2: row.umbral_estrella_2,
     umbralEstrella3: row.umbral_estrella_3,
     preguntasPorPartida: row.preguntas_por_partida,
+    segundosPorDesafio: row.segundos_por_desafio,
     preguntas,
   }
 }
@@ -164,6 +182,7 @@ export interface ConfiguracionNivel {
   umbralEstrella2: number
   umbralEstrella3: number
   preguntasPorPartida: number | null
+  segundosPorDesafio: number
 }
 
 export function validarConfiguracionNivel(
@@ -202,6 +221,7 @@ export async function guardarConfiguracionNivel(
       umbral_estrella_2: config.umbralEstrella2,
       umbral_estrella_3: config.umbralEstrella3,
       preguntas_por_partida: config.preguntasPorPartida,
+      segundos_por_desafio: config.segundosPorDesafio,
     })
     .eq('id', id)
   if (error) throw new Error(error.message)

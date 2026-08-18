@@ -86,76 +86,89 @@
       niveles existentes (D9). Verificado contra el remoto: el único nivel
       con umbrales reales (1000/1000/1500/2000) quedó en
       1100/1100/1650/2200, exactamente ×1.1.
-- [ ] 4.2 Verificar en un entorno de staging/con copia de datos que el
-      rebalanceo no rompe los `check` de orden ascendente entre
-      `puntaje_minimo_superar <= umbral_estrella_1 <= umbral_estrella_2 <=
-      umbral_estrella_3`
+- [x] 4.2 No hace falta staging: `round()` es monótona, así que escalar los
+      cuatro campos por el mismo factor 1.1 no puede invertir su orden
+      (ver nota de 4.1). Verificado igualmente contra los datos reales del
+      remoto tras el push.
 
 ## 5. Panel
 
-- [ ] 5.1 Subir `MAX_PUNTOS_DESAFIO` de 5000 a 5500 en
+- [x] 5.1 Subir `MAX_PUNTOS_DESAFIO` de 5000 a 5500 en
       `panel/src/lib/nivelRecorrido.ts`
-- [ ] 5.2 Añadir constantes separadas para la curva de solo-distancia
+- [x] 5.2 Añadir constantes separadas para la curva de solo-distancia
       (`MAX_PUNTOS_DISTANCIA=5000`, `PISO_PUNTOS_DESAFIO=50`,
       `K_DISTANCIA_KM=1500`) y hacer que `distanciaMediaKm` las use en vez
       de `MAX_PUNTOS_DESAFIO` (D12)
-- [ ] 5.3 Añadir el campo `segundos_por_desafio` al formulario de
+- [x] 5.3 Añadir el campo `segundos_por_desafio` al formulario de
       "Configuración del nivel" en `panel/src/pages/NivelRecorrido.tsx`,
       con validación de entero > 0
-- [ ] 5.4 Actualizar `panel/src/lib/niveles.ts` (lectura/escritura del
-      nivel) para incluir `segundos_por_desafio`
-- [ ] 5.5 Actualizar/añadir tests en `nivelRecorrido.test.ts` y
-      `niveles.test.ts` para el nuevo campo y para `distanciaMediaKm` con
-      las constantes separadas
+- [x] 5.4 Actualizar `panel/src/lib/niveles.ts` (`crearNivel` fija
+      `segundos_por_desafio: 60` explícito al crear un nivel; la
+      lectura/escritura de la configuración vive en `nivelRecorrido.ts`,
+      cubierta por 5.1-5.3)
+- [x] 5.5 Tests actualizados en `nivelRecorrido.test.ts`, `niveles.test.ts`
+      y `NivelRecorrido.test.tsx` para el nuevo campo y para
+      `distanciaMediaKm` con las constantes separadas. `npx tsc -b
+      --noEmit`, `npx eslint .`, `npx prettier --check .` y `npx vitest run
+      --coverage` (238 tests) en verde; cobertura sin regresión
+      (89.58% statements / 78.65% branches / 94.69% funciones / 94.58%
+      líneas).
 
 ## 6. App (Flutter) — gateway
 
-- [ ] 6.1 Cambiar `NivelJuegoGateway.responderDesafio` para aceptar
+- [x] 6.1 Cambiar `NivelJuegoGateway.responderDesafio` para aceptar
       `latitud`/`longitud` nulos (`double?`)
-- [ ] 6.2 Añadir `Future<void> marcarDesafioMostrado({required
+- [x] 6.2 Añadir `Future<void> marcarDesafioMostrado({required
       intentoId, required desafioId})` a `NivelJuegoGateway` y su
       implementación Supabase (`rpc('marcar_desafio_mostrado', ...)`)
-- [ ] 6.3 Exponer `segundosPorDesafio` en `DesafioJuego`/`IntentoNivel` (o
-      en el nivel) para que la pantalla sepa cuánto dura la cuenta atrás
-- [ ] 6.4 Exponer `puntosDistancia`/`puntosBonus` en el modelo de
-      respuesta que devuelve `responderDesafio`, junto al `puntos` total
-      ya existente
-- [ ] 6.5 Actualizar los fakes de test del gateway
-      (`app/test/fakes`) con la nueva superficie
+- [x] 6.3 Exponer `segundosPorDesafio` en `IntentoNivel` (default 60 para
+      no romper constructores `const` en otros tests que no ejercitan el
+      temporizador)
+- [x] 6.4 Exponer `puntosDistancia`/`puntosBonus` en `RespuestaDesafio`;
+      `distanciaKm` pasa a `double?` (única relajación necesaria: la
+      ubicación real se revela con o sin pin)
+- [x] 6.5 Fakes de test del gateway (`app/test/fakes`) actualizados con la
+      nueva superficie
 
 ## 7. App (Flutter) — pantalla de juego
 
-- [ ] 7.1 Añadir estado de cuenta atrás (`Timer.periodic` o similar) a
-      `_NivelJuegoScreenState`, arrancando/reiniciando en `initState` y en
-      `_avanzarDesdeElRevelado`, y llamando a `marcarDesafioMostrado` en
-      esos mismos puntos
-- [ ] 7.2 Cancelar el temporizador en `dispose()` y al entrar en el
-      revelado (`_revelado != null`)
-- [ ] 7.3 Añadir el widget de la barra de cuenta atrás al `_HudJuego` (o
-      `_TarjetaDeProgreso`) con los tres estados de color (`_teal`,
-      `_gold`, `_rojo`) según los cortes de D10
-- [ ] 7.4 Al llegar a 0 con pin colocado: invocar `_confirmar`
+- [x] 7.1 Estado de cuenta atrás (`Timer.periodic`) en
+      `_NivelJuegoScreenState`, arrancando/reiniciando en `_iniciarIntento`
+      (encadenado tras `iniciarIntento`, ya que hasta entonces no se conoce
+      `segundosPorDesafio`) y en `_avanzarDesdeElRevelado`, llamando a
+      `marcarDesafioMostrado` en esos mismos puntos (fire-and-forget: un
+      fallo de red no bloquea la partida, D6)
+- [x] 7.2 Temporizador cancelado en `dispose()` y al entrar en el revelado
+- [x] 7.3 Widget `_CuentaAtras` en `_HudJuego` con los tres estados de
+      color (`_teal`/`_gold`/`_rojo`) según los cortes de D10 (50%/20%)
+- [x] 7.4 Al llegar a 0 con pin colocado: invoca `_confirmar`
       automáticamente
-- [ ] 7.5 Al llegar a 0 sin pin colocado: llamar a `responderDesafio` sin
-      coordenadas y entrar en el revelado con un `_Revelado` que indique
-      "sin pin" (para que la UI del revelado lo distinga)
-- [ ] 7.6 Adaptar `_HojaDeRevelado`/`_TarjetaDeDistancia` para el caso sin
-      pin: sin pin del jugador, sin línea, sin contador de distancia,
+- [x] 7.5 Al llegar a 0 sin pin colocado: `_confirmarSinPin` llama a
+      `responderDesafio` sin coordenadas y entra en el revelado con
+      `_Revelado.pin = null`
+- [x] 7.6 `_HojaDeRevelado`/`_TarjetaDeDistancia` adaptadas para el caso
+      sin pin: sin pin del jugador, sin línea, sin contador de distancia,
       solo ubicación real y contador de puntos (a 0)
-- [ ] 7.7 Añadir el desglose de puntaje a `_HojaDeRevelado`: puntos de
-      precisión y, si `puntosBonus > 0`, una línea "+N por rapidez"; sin
-      línea de bonus cuando es 0 (D14 de `design.md`)
-- [ ] 7.8 Tests de widget para: aparición y colores de la cuenta atrás,
+- [x] 7.7 Desglose de puntaje (`_DesgloseDePuntaje`) en `_HojaDeRevelado`:
+      puntos de precisión y, si `puntosBonus > 0`, una línea "+N por
+      rapidez"; sin línea de bonus cuando es 0 (D14 de `design.md`)
+- [x] 7.8 Tests de widget para: aparición y colores de la cuenta atrás,
       auto-confirmación con pin al llegar a 0, revelado sin pin al llegar
       a 0 sin pin, reinicio de la cuenta atrás al avanzar de desafío,
-      desglose de bonus visible cuando `puntosBonus > 0` y ausente cuando
-      es 0
+      desglose de bonus visible/ausente. `flutter analyze`, `dart format
+      --set-exit-if-changed .` y `flutter test --coverage` (232 tests) en
+      verde; cobertura 93.1% global, 96.8% en `nivel_juego_screen.dart`.
 
 ## 8. Verificación final
 
-- [ ] 8.1 Ejecutar la suite de tests de backend, panel y app
+- [x] 8.1 Backend: `test_calcular_puntaje.sql` y
+      `test_calcular_puntaje_bonus.sql` contra el remoto, OK. Panel:
+      vitest (238 tests) + tsc + eslint + prettier, OK. App: flutter test
+      (232 tests) + analyze + format, OK.
 - [ ] 8.2 Probar manualmente un intento completo con al menos un timeout
-      con pin y un timeout sin pin
-- [ ] 8.3 Revisar que los niveles ya sembrados en el entorno de desarrollo
-      siguen teniendo `puntaje_minimo_superar <= umbral_estrella_2 <=
-      umbral_estrella_3` tras el rebalanceo
+      con pin y un timeout sin pin — pendiente de testing local del
+      usuario
+- [x] 8.3 Los checks de la tabla lo garantizan en el momento de la
+      migración (habría abortado si no); confirmado además contra los
+      datos reales: único nivel con umbrales — 1100 ≤ 1650 ≤ 2200 tras el
+      rebalanceo.
