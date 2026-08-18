@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:geoquest/route_observer.dart';
 import 'package:geoquest/screens/camino_screen.dart';
 import 'package:geoquest/screens/nivel_juego_screen.dart';
 import 'package:geoquest/services/camino_gateway.dart';
@@ -80,6 +81,7 @@ final _caminoDePrueba = CaminoJugador(
 );
 
 Widget _pantalla(CaminoGateway gateway) => MaterialApp(
+  navigatorObservers: [routeObserver],
   home: CaminoScreen(
     caminoGateway: gateway,
     usernameStorage: UsernameStorage(),
@@ -180,6 +182,134 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(NivelJuegoScreen), findsOneWidget);
+    },
+  );
+
+  testWidgets('volver de la pantalla de juego recarga el camino (INT-94)', (
+    tester,
+  ) async {
+    final caminoGateway = FakeCaminoGateway(_caminoDePrueba);
+    await _pump(tester, caminoGateway);
+
+    expect(caminoGateway.fetchCaminoCalls, 1);
+
+    await tester.tap(find.byKey(const Key('parada-nivel-actual')));
+    await tester.pumpAndSettle();
+    expect(find.byType(NivelJuegoScreen), findsOneWidget);
+
+    Navigator.of(tester.element(find.byType(NivelJuegoScreen))).pop();
+    await tester.pumpAndSettle();
+
+    expect(find.byType(NivelJuegoScreen), findsNothing);
+    expect(caminoGateway.fetchCaminoCalls, 2);
+  });
+
+  testWidgets(
+    'reintentar tras no superar el nivel, y superarlo la segunda vez, '
+    'también recarga el camino al volver (regresión de /opsx-verify: un '
+    '.then() sobre el push original no sobrevive a un pushReplacement '
+    'intermedio)',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      final caminoGateway = FakeCaminoGateway(_caminoDePrueba);
+      final nivelGateway =
+          FakeNivelJuegoGateway(
+              const IntentoNivel(
+                intentoId: 'intento-1',
+                desafios: [
+                  DesafioJuego(
+                    id: 'd1',
+                    tipo: TipoDesafio.preguntaTexto,
+                    activo: true,
+                    textoPregunta: '¿Dónde está esto?',
+                  ),
+                ],
+              ),
+            )
+            ..resultado = resultadoDePrueba(
+              superado: false,
+              estrellas: 0,
+              puntajeTotal: 900,
+            );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          navigatorObservers: [routeObserver],
+          home: CaminoScreen(
+            caminoGateway: caminoGateway,
+            usernameStorage: UsernameStorage(),
+            nivelJuegoGateway: nivelGateway,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(caminoGateway.fetchCaminoCalls, 1);
+
+      await tester.tap(find.byKey(const Key('parada-nivel-actual')));
+      await tester.pumpAndSettle();
+      expect(find.byType(NivelJuegoScreen), findsOneWidget);
+
+      // Juega el único desafío del intento hasta llegar al resumen: cierra
+      // la pista, coloca un pin, confirma y deja correr el revelado entero
+      // (sin `pumpAndSettle`, como en `nivel_juego_screen_test.dart`: la
+      // indicación "toca el mapa" late en bucle mientras no hay pin).
+      Future<void> jugarHastaElResumen() async {
+        await tester.tap(find.byKey(const Key('nivel-juego-boton-listo')));
+        await tester.pump();
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 600));
+
+        await tester.tapAt(const Offset(195, 422));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 400));
+
+        await tester.tap(find.byKey(const Key('nivel-juego-confirmar')));
+        await tester.pump();
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 600));
+        await tester.pump(const Duration(milliseconds: 5600));
+
+        await tester.tap(find.byKey(const Key('nivel-juego-siguiente')));
+        await tester.pump();
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 600));
+      }
+
+      await jugarHastaElResumen();
+      expect(find.byKey(const Key('resumen-nivel-reintentar')), findsOneWidget);
+      // Todavía no ha vuelto al camino: sigue oculto bajo el resumen del
+      // intento fallido, así que no hay recarga que comprobar aquí.
+
+      await tester.tap(find.byKey(const Key('resumen-nivel-reintentar')));
+      await tester.pump();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(find.byType(NivelJuegoScreen), findsOneWidget);
+
+      // Esta vez el intento sí supera el nivel.
+      nivelGateway.resultado = resultadoDePrueba(
+        superado: true,
+        estrellas: 3,
+        puntajeTotal: 2200,
+      );
+      await jugarHastaElResumen();
+      expect(find.byKey(const Key('resumen-nivel-continuar')), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('resumen-nivel-continuar')));
+      await tester.pump();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 600));
+
+      expect(find.byType(CaminoScreen), findsOneWidget);
+      expect(find.byType(NivelJuegoScreen), findsNothing);
+      // Antes del fix, este contador se quedaba en 1: el `.then()` del
+      // `push` original se resolvía en el primer `pushReplacement` (al
+      // fallar), y "Continuar" tras el segundo intento (superado) no
+      // disparaba ninguna recarga.
+      expect(caminoGateway.fetchCaminoCalls, 2);
     },
   );
 

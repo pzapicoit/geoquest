@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'config/app_config.dart';
+import 'route_observer.dart';
 import 'screens/splash_screen.dart';
 
 Future<void> main() async {
@@ -42,6 +43,7 @@ class GeoQuestApp extends StatelessWidget {
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF1B6B4C)),
       ),
+      navigatorObservers: [routeObserver],
       home: SplashScreen(config: config),
     );
   }

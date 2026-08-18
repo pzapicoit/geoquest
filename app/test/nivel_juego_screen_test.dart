@@ -645,25 +645,82 @@ void main() {
       );
     });
 
-    testWidgets('en el último desafío el botón lleva al camino', (
-      tester,
-    ) async {
+    testWidgets(
+      'en el último desafío "Ver resultados" cierra el intento y navega al '
+      'resumen',
+      (tester) async {
+        final gateway = _gatewayCon(const [_desafioTexto]);
+
+        await _abrirNivel(tester, gateway);
+        await _cerrarPista(tester);
+        await _colocarPin(tester);
+        await _confirmarYRevelar(tester);
+
+        expect(find.text('Ver resultados'), findsOneWidget);
+        expect(find.text('Siguiente'), findsNothing);
+
+        await tester.tap(find.byKey(const Key('nivel-juego-siguiente')));
+        await _asentar(tester);
+
+        expect(gateway.cerrarIntentoCalls, 1);
+        expect(gateway.ultimoIntentoIdCerrado, 'i1');
+        // Navega al resumen (INT-94), no vuelve a la pantalla anterior.
+        expect(find.text('Ir al nivel'), findsNothing);
+        expect(
+          find.byKey(const Key('resumen-nivel-continuar')),
+          findsOneWidget,
+        );
+      },
+    );
+
+    testWidgets('mientras se cierra el intento, "Ver resultados" queda '
+        'deshabilitado', (tester) async {
       final gateway = _gatewayCon(const [_desafioTexto]);
+      gateway.pausaAlCerrar = Completer<void>();
 
       await _abrirNivel(tester, gateway);
       await _cerrarPista(tester);
       await _colocarPin(tester);
       await _confirmarYRevelar(tester);
 
-      expect(find.text('Ver resultados'), findsOneWidget);
-      expect(find.text('Siguiente'), findsNothing);
+      await tester.tap(find.byKey(const Key('nivel-juego-siguiente')));
+      await tester.pump();
+
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(
+        tester
+            .widget<TextButton>(find.byKey(const Key('nivel-juego-siguiente')))
+            .onPressed,
+        isNull,
+      );
+
+      gateway.pausaAlCerrar!.complete();
+      await _asentar(tester);
+    });
+
+    testWidgets('si cerrar el intento falla, avisa y conserva el revelado', (
+      tester,
+    ) async {
+      final gateway = _gatewayCon(const [_desafioTexto])
+        ..throwOnNextCerrar = Exception('sin red');
+
+      await _abrirNivel(tester, gateway);
+      await _cerrarPista(tester);
+      await _colocarPin(tester);
+      await _confirmarYRevelar(tester);
 
       await tester.tap(find.byKey(const Key('nivel-juego-siguiente')));
       await _asentar(tester);
-      await tester.pump(const Duration(milliseconds: 500));
 
-      expect(gateway.respuestasEnviadas, hasLength(1));
-      expect(find.text('Ir al nivel'), findsOneWidget);
+      expect(gateway.cerrarIntentoCalls, 1);
+      expect(find.byKey(const Key('nivel-juego-aviso')), findsOneWidget);
+      expect(find.text('Ver resultados'), findsOneWidget);
+      expect(
+        tester
+            .widget<TextButton>(find.byKey(const Key('nivel-juego-siguiente')))
+            .onPressed,
+        isNotNull,
+      );
     });
 
     testWidgets('repetir la animación no vuelve a llamar al servidor', (

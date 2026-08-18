@@ -38,6 +38,24 @@ RespuestaDesafio respuestaDePrueba({
   );
 }
 
+/// Resultado de ejemplo de cerrar un intento, para no repetir el jsonb
+/// entero en cada test que solo mira una parte del resumen (INT-94).
+ResultadoIntento resultadoDePrueba({
+  int puntajeTotal = 2140,
+  bool superado = true,
+  int estrellas = 3,
+  int puntajeMinimoSuperar = 1500,
+  int? mejorPuntajeAnterior = 1820,
+}) {
+  return ResultadoIntento(
+    puntajeTotal: puntajeTotal,
+    superado: superado,
+    estrellas: estrellas,
+    puntajeMinimoSuperar: puntajeMinimoSuperar,
+    mejorPuntajeAnterior: mejorPuntajeAnterior,
+  );
+}
+
 /// Falso de [NivelJuegoGateway] para probar la pantalla de juego sin salir
 /// a la red (INT-91).
 class FakeNivelJuegoGateway implements NivelJuegoGateway {
@@ -64,6 +82,36 @@ class FakeNivelJuegoGateway implements NivelJuegoGateway {
   Object? throwOnNextResponder;
 
   final List<RespuestaEnviada> respuestasEnviadas = [];
+
+  /// Lo que devuelve `cerrarIntento`; los tests del resumen del nivel la
+  /// cambian antes de cerrar (INT-94).
+  ResultadoIntento resultado = resultadoDePrueba();
+
+  /// Excepción a lanzar en la próxima llamada a `cerrarIntento`.
+  Object? throwOnNextCerrar;
+
+  /// Deja `cerrarIntento` colgado hasta que el test lo complete, mismo
+  /// motivo que [pausaAlIniciar].
+  Completer<void>? pausaAlCerrar;
+
+  int cerrarIntentoCalls = 0;
+  String? ultimoIntentoIdCerrado;
+
+  @override
+  Future<ResultadoIntento> cerrarIntento(String intentoId) async {
+    cerrarIntentoCalls++;
+    ultimoIntentoIdCerrado = intentoId;
+
+    await pausaAlCerrar?.future;
+
+    final error = throwOnNextCerrar;
+    if (error != null) {
+      throwOnNextCerrar = null;
+      throw error;
+    }
+
+    return resultado;
+  }
 
   @override
   Future<IntentoNivel> iniciarIntento(String nivelId) async {

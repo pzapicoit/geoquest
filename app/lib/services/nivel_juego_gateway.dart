@@ -78,6 +78,31 @@ class RespuestaDesafio {
   final int puntosMaximos;
 }
 
+/// Resultado de cerrar un intento, tal como lo devuelve la RPC
+/// `cerrar_intento_nivel` (INT-79, ampliada en INT-94): además del
+/// resultado del propio intento, trae lo que el resumen del nivel necesita
+/// y que no viaja a ningún otro sitio — el mínimo del nivel y el mejor
+/// puntaje que tenía el jugador en ese nivel *antes* de este cierre (D1/D2
+/// de `design.md` de INT-94).
+class ResultadoIntento {
+  const ResultadoIntento({
+    required this.puntajeTotal,
+    required this.superado,
+    required this.estrellas,
+    required this.puntajeMinimoSuperar,
+    this.mejorPuntajeAnterior,
+  });
+
+  final int puntajeTotal;
+  final bool superado;
+  final int estrellas;
+  final int puntajeMinimoSuperar;
+
+  /// `null` cuando el jugador no tenía ningún resultado anterior para este
+  /// nivel — no hay un resultado que "mejorar" (D2 de `design.md`).
+  final int? mejorPuntajeAnterior;
+}
+
 /// Superficie mínima de Supabase para jugar un nivel, para poder probar la
 /// pantalla de juego con un falso sin salir a la red.
 abstract class NivelJuegoGateway {
@@ -89,6 +114,8 @@ abstract class NivelJuegoGateway {
     required double latitud,
     required double longitud,
   });
+
+  Future<ResultadoIntento> cerrarIntento(String intentoId);
 }
 
 class SupabaseNivelJuegoGateway implements NivelJuegoGateway {
@@ -125,6 +152,16 @@ class SupabaseNivelJuegoGateway implements NivelJuegoGateway {
 
     return mapearRespuestaDesafio(respuesta as Map<String, dynamic>);
   }
+
+  @override
+  Future<ResultadoIntento> cerrarIntento(String intentoId) async {
+    final respuesta = await _client.rpc(
+      'cerrar_intento_nivel',
+      params: {'p_intento_id': intentoId},
+    );
+
+    return mapearResultadoIntento(respuesta as Map<String, dynamic>);
+  }
 }
 
 /// Mapea el jsonb `{"intento_id", "desafios"}` que devuelve
@@ -158,6 +195,24 @@ RespuestaDesafio mapearRespuestaDesafio(Map<String, dynamic> fila) {
   );
 }
 
+/// Mapea el `jsonb` que devuelve `cerrar_intento_nivel` (INT-94). Función
+/// pura, extraída por el mismo motivo que [mapearIntentoNivel]: poder
+/// probar el mapeo sin red.
+ResultadoIntento mapearResultadoIntento(Map<String, dynamic> fila) {
+  return ResultadoIntento(
+    puntajeTotal: _entero(fila['puntaje_total'], 'puntaje_total'),
+    superado: _booleano(fila['superado'], 'superado'),
+    estrellas: _entero(fila['estrellas_obtenidas'], 'estrellas_obtenidas'),
+    puntajeMinimoSuperar: _entero(
+      fila['puntaje_minimo_superar'],
+      'puntaje_minimo_superar',
+    ),
+    mejorPuntajeAnterior: fila['mejor_puntaje_anterior'] == null
+        ? null
+        : _entero(fila['mejor_puntaje_anterior'], 'mejor_puntaje_anterior'),
+  );
+}
+
 /// `distancia_km` es `numeric` en Postgres: llega como número, pero PostgREST
 /// lo serializa como texto cuando el valor no cabe en un double sin perder
 /// precisión, así que se acepta cualquiera de las dos formas.
@@ -175,6 +230,11 @@ int _entero(Object? valor, String campo) => switch (valor) {
 
 String _texto(Object? valor, String campo) => switch (valor) {
   final String texto => texto,
+  _ => throw ArgumentError('$campo ausente en la respuesta'),
+};
+
+bool _booleano(Object? valor, String campo) => switch (valor) {
+  final bool booleano => booleano,
   _ => throw ArgumentError('$campo ausente en la respuesta'),
 };
 

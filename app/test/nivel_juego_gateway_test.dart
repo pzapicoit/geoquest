@@ -168,4 +168,50 @@ void main() {
       );
     });
   });
+
+  group('mapearResultadoIntento', () {
+    test('con un mejor puntaje anterior registrado', () {
+      final resultado = mapearResultadoIntento({
+        'puntaje_total': 2140,
+        'superado': true,
+        'estrellas_obtenidas': 3,
+        'puntaje_minimo_superar': 1500,
+        'mejor_puntaje_anterior': 1820,
+      });
+
+      expect(resultado.puntajeTotal, 2140);
+      expect(resultado.superado, isTrue);
+      expect(resultado.estrellas, 3);
+      expect(resultado.puntajeMinimoSuperar, 1500);
+      expect(resultado.mejorPuntajeAnterior, 1820);
+    });
+
+    test('sin resultado anterior el mejor puntaje llega null, no 0', () {
+      // D2 de `design.md` de INT-94: sin fila previa en
+      // `progreso_usuario_nivel`, la RPC manda `null`. Tratarlo como 0
+      // anunciaría "récord" en el primer despeje del nivel.
+      final resultado = mapearResultadoIntento({
+        'puntaje_total': 900,
+        'superado': false,
+        'estrellas_obtenidas': 0,
+        'puntaje_minimo_superar': 1500,
+        'mejor_puntaje_anterior': null,
+      });
+
+      expect(resultado.mejorPuntajeAnterior, isNull);
+    });
+
+    test('un intento no superado no trae estrellas', () {
+      final resultado = mapearResultadoIntento({
+        'puntaje_total': 1350,
+        'superado': false,
+        'estrellas_obtenidas': 0,
+        'puntaje_minimo_superar': 1500,
+        'mejor_puntaje_anterior': 1200,
+      });
+
+      expect(resultado.superado, isFalse);
+      expect(resultado.estrellas, 0);
+    });
+  });
 }
