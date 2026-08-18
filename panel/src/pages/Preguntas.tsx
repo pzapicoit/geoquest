@@ -1,13 +1,21 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { eliminarPregunta, fetchPreguntas, type Pregunta, type TipoDesafio } from '../lib/preguntas'
+import {
+  actualizarActivoPregunta,
+  actualizarDificultadPregunta,
+  eliminarPregunta,
+  fetchPreguntas,
+  type Pregunta,
+  type TipoDesafio,
+} from '../lib/preguntas'
+import { DIFICULTADES, type Dificultad } from '../lib/dificultad'
 
 const PAGE_SIZE = 10
 const TODAS_TEMATICAS = 'Todas las temáticas'
-const TODOS_NIVELES = 'Todos los niveles'
 
 type FiltroTipo = 'todos' | TipoDesafio
 type FiltroEstado = 'todos' | 'activo' | 'inactivo'
+type FiltroDificultad = 'todas' | Dificultad
 
 const TIPO_LABEL: Record<TipoDesafio, string> = {
   imagen: 'Imagen',
@@ -19,6 +27,14 @@ const TIPO_BADGE: Record<TipoDesafio, string> = {
   imagen: 'bg-brand-blue/10 text-brand-blue',
   video: 'bg-brand-special/10 text-brand-special',
   pregunta_texto: 'bg-brand-gold/25 text-[#996100]',
+}
+
+const DIFICULTAD_BADGE: Record<Dificultad, string> = {
+  facil: 'bg-brand-teal/10 text-brand-teal',
+  normal: 'bg-brand-blue/10 text-brand-blue',
+  intermedio: 'bg-brand-gold/25 text-[#996100]',
+  dificil: 'bg-brand-special/10 text-brand-special',
+  muy_dificil: 'bg-[#E0454A]/10 text-[#B3282D]',
 }
 
 const BOTON_FONDO = {
@@ -137,12 +153,20 @@ function FilaPregunta({
   pregunta,
   error,
   eliminando,
+  guardandoDificultad,
+  guardandoActivo,
   onEliminar,
+  onCambiarDificultad,
+  onCambiarActivo,
 }: {
   pregunta: Pregunta
   error?: string
   eliminando: boolean
+  guardandoDificultad: boolean
+  guardandoActivo: boolean
   onEliminar: () => void
+  onCambiarDificultad: (dificultad: Dificultad) => void
+  onCambiarActivo: (activo: boolean) => void
 }) {
   return (
     <tr className="border-b border-brand-base last:border-0 hover:bg-brand-base/40">
@@ -160,6 +184,9 @@ function FilaPregunta({
         </div>
       </td>
       <td className="px-5 py-3">
+        <span className="text-sm text-brand-night/70">{pregunta.tematicaNombre}</span>
+      </td>
+      <td className="px-5 py-3">
         <span
           className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${TIPO_BADGE[pregunta.tipo]}`}
         >
@@ -167,32 +194,39 @@ function FilaPregunta({
         </span>
       </td>
       <td className="px-5 py-3">
-        <span
-          className={`inline-flex items-center gap-1.5 text-xs font-semibold ${pregunta.activo ? 'text-brand-success' : 'text-brand-night/45'}`}
+        <select
+          aria-label={`Dificultad de "${pregunta.nombreLugar}"`}
+          value={pregunta.dificultad}
+          disabled={guardandoDificultad}
+          onChange={(e) => onCambiarDificultad(e.target.value as Dificultad)}
+          className={`rounded-full border-0 px-2.5 py-1 text-xs font-semibold outline-none disabled:cursor-not-allowed disabled:opacity-60 ${DIFICULTAD_BADGE[pregunta.dificultad]}`}
         >
-          <span
-            className={`h-1.5 w-1.5 rounded-full ${pregunta.activo ? 'bg-brand-success' : 'bg-brand-border'}`}
-          />
-          {pregunta.activo ? 'Activo' : 'Inactivo'}
-        </span>
+          {DIFICULTADES.map((d) => (
+            <option key={d.valor} value={d.valor}>
+              {d.label}
+            </option>
+          ))}
+        </select>
       </td>
       <td className="px-5 py-3">
-        {pregunta.usos.length === 0 ? (
-          <span className="text-xs font-medium text-brand-night/45">Sin asignar</span>
-        ) : (
-          <details>
-            <summary className="inline-flex cursor-pointer list-none items-center gap-1 text-xs font-semibold text-brand-blue">
-              Usado en {pregunta.usos.length} {pregunta.usos.length === 1 ? 'nivel' : 'niveles'}
-            </summary>
-            <ul className="mt-1.5 flex flex-col gap-0.5 text-xs text-brand-night/60">
-              {pregunta.usos.map((uso) => (
-                <li key={uso.nivelId}>
-                  {uso.tematicaNombre} · Nivel {uso.nivelOrden}
-                </li>
-              ))}
-            </ul>
-          </details>
-        )}
+        <label className="flex cursor-pointer items-center gap-2">
+          <input
+            type="checkbox"
+            aria-label={`Cambiar estado de "${pregunta.nombreLugar}"`}
+            checked={pregunta.activo}
+            disabled={guardandoActivo}
+            onChange={(e) => onCambiarActivo(e.target.checked)}
+            className="peer sr-only"
+          />
+          <span className="relative h-5 w-9 flex-none rounded-full bg-brand-border transition-colors peer-checked:bg-brand-success peer-disabled:opacity-60">
+            <span className="absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform peer-checked:translate-x-4" />
+          </span>
+          <span
+            className={`text-xs font-semibold ${pregunta.activo ? 'text-brand-success' : 'text-brand-night/45'}`}
+          >
+            {pregunta.activo ? 'Activo' : 'Inactivo'}
+          </span>
+        </label>
       </td>
       <td className="px-5 py-3">
         <div className="flex justify-end gap-2">
@@ -306,7 +340,7 @@ function EstadoVacioBanco() {
         Todavía no hay preguntas
       </h4>
       <p className="max-w-md text-sm text-brand-night/55">
-        Crea la primera pregunta del banco para empezar a construir niveles.
+        Crea la primera pregunta del banco para empezar a construir el camino.
       </p>
       <Link
         to="/preguntas/nueva"
@@ -324,13 +358,13 @@ export function Preguntas() {
   const [error, setError] = useState('')
   const [rowErrors, setRowErrors] = useState<Record<string, string>>({})
   const [eliminandoIds, setEliminandoIds] = useState<Set<string>>(new Set())
+  const [guardandoCampos, setGuardandoCampos] = useState<Set<string>>(new Set())
 
   const [query, setQuery] = useState('')
   const [topic, setTopic] = useState(TODAS_TEMATICAS)
-  const [level, setLevel] = useState(TODOS_NIVELES)
+  const [dificultad, setDificultad] = useState<FiltroDificultad>('todas')
   const [tipo, setTipo] = useState<FiltroTipo>('todos')
   const [estado, setEstado] = useState<FiltroEstado>('todos')
-  const [sinAsignar, setSinAsignar] = useState(false)
   const [page, setPage] = useState(1)
 
   useEffect(() => {
@@ -396,29 +430,84 @@ export function Preguntas() {
     }
   }
 
+  async function handleCambiarDificultad(pregunta: Pregunta, dificultad: Dificultad) {
+    const clave = `${pregunta.id}:dificultad`
+    if (guardandoCampos.has(clave)) return
+    const anterior = pregunta.dificultad
+
+    setGuardandoCampos((actual) => new Set(actual).add(clave))
+    setPreguntas(
+      (actual) => actual?.map((p) => (p.id === pregunta.id ? { ...p, dificultad } : p)) ?? actual,
+    )
+
+    try {
+      await actualizarDificultadPregunta(pregunta.id, dificultad)
+      setRowErrors((actual) => {
+        if (!(pregunta.id in actual)) return actual
+        const resto = { ...actual }
+        delete resto[pregunta.id]
+        return resto
+      })
+    } catch (error) {
+      setPreguntas(
+        (actual) =>
+          actual?.map((p) => (p.id === pregunta.id ? { ...p, dificultad: anterior } : p)) ?? actual,
+      )
+      setRowErrors((actual) => ({
+        ...actual,
+        [pregunta.id]:
+          error instanceof Error ? error.message : 'No se ha podido guardar la dificultad.',
+      }))
+    } finally {
+      setGuardandoCampos((actual) => {
+        const siguiente = new Set(actual)
+        siguiente.delete(clave)
+        return siguiente
+      })
+    }
+  }
+
+  async function handleCambiarActivo(pregunta: Pregunta, activo: boolean) {
+    const clave = `${pregunta.id}:activo`
+    if (guardandoCampos.has(clave)) return
+    const anterior = pregunta.activo
+
+    setGuardandoCampos((actual) => new Set(actual).add(clave))
+    setPreguntas(
+      (actual) => actual?.map((p) => (p.id === pregunta.id ? { ...p, activo } : p)) ?? actual,
+    )
+
+    try {
+      await actualizarActivoPregunta(pregunta.id, activo)
+      setRowErrors((actual) => {
+        if (!(pregunta.id in actual)) return actual
+        const resto = { ...actual }
+        delete resto[pregunta.id]
+        return resto
+      })
+    } catch (error) {
+      setPreguntas(
+        (actual) =>
+          actual?.map((p) => (p.id === pregunta.id ? { ...p, activo: anterior } : p)) ?? actual,
+      )
+      setRowErrors((actual) => ({
+        ...actual,
+        [pregunta.id]:
+          error instanceof Error ? error.message : 'No se ha podido guardar el estado.',
+      }))
+    } finally {
+      setGuardandoCampos((actual) => {
+        const siguiente = new Set(actual)
+        siguiente.delete(clave)
+        return siguiente
+      })
+    }
+  }
+
   const total = preguntas?.length ?? 0
   const bancoVacio = preguntas !== null && total === 0
 
-  const topicOptions = [
-    TODAS_TEMATICAS,
-    ...new Set((preguntas ?? []).flatMap((p) => p.usos.map((uso) => uso.tematicaNombre))),
-  ]
-
-  const nivelesPool = (preguntas ?? []).flatMap((p) => p.usos)
-  const nivelesScope =
-    topic === TODAS_TEMATICAS
-      ? nivelesPool
-      : nivelesPool.filter((uso) => uso.tematicaNombre === topic)
-  const nivelesUnicos = new Map(nivelesScope.map((uso) => [uso.nivelId, uso]))
-  const levelOptions = [
-    { id: TODOS_NIVELES, label: TODOS_NIVELES },
-    ...[...nivelesUnicos.values()]
-      .sort((a, b) => a.nivelOrden - b.nivelOrden)
-      .map((uso) => ({
-        id: uso.nivelId,
-        label: `${uso.tematicaNombre} · Nivel ${uso.nivelOrden}`,
-      })),
-  ]
+  const topicOptions = [TODAS_TEMATICAS, ...new Set((preguntas ?? []).map((p) => p.tematicaNombre))]
 
   const q = query.trim().toLowerCase()
   const filtradas = (preguntas ?? []).filter((p) => {
@@ -426,22 +515,19 @@ export function Preguntas() {
       !q ||
       p.nombreLugar.toLowerCase().includes(q) ||
       (p.textoPregunta ?? '').toLowerCase().includes(q)
-    const matchTopic =
-      topic === TODAS_TEMATICAS || p.usos.some((uso) => uso.tematicaNombre === topic)
-    const matchLevel = level === TODOS_NIVELES || p.usos.some((uso) => uso.nivelId === level)
+    const matchTopic = topic === TODAS_TEMATICAS || p.tematicaNombre === topic
+    const matchDificultad = dificultad === 'todas' || p.dificultad === dificultad
     const matchTipo = tipo === 'todos' || p.tipo === tipo
     const matchEstado = estado === 'todos' || (estado === 'activo') === p.activo
-    const matchSinAsignar = !sinAsignar || p.usos.length === 0
-    return matchQuery && matchTopic && matchLevel && matchTipo && matchEstado && matchSinAsignar
+    return matchQuery && matchTopic && matchDificultad && matchTipo && matchEstado
   })
 
   const hasFilters =
     q.length > 0 ||
     topic !== TODAS_TEMATICAS ||
-    level !== TODOS_NIVELES ||
+    dificultad !== 'todas' ||
     tipo !== 'todos' ||
-    estado !== 'todos' ||
-    sinAsignar
+    estado !== 'todos'
 
   const pageCount = Math.max(1, Math.ceil(filtradas.length / PAGE_SIZE))
   const paginaActual = Math.min(page, pageCount)
@@ -458,10 +544,9 @@ export function Preguntas() {
   function limpiarFiltros() {
     setQuery('')
     setTopic(TODAS_TEMATICAS)
-    setLevel(TODOS_NIVELES)
+    setDificultad('todas')
     setTipo('todos')
     setEstado('todos')
-    setSinAsignar(false)
     alCambiarFiltro()
   }
 
@@ -474,9 +559,6 @@ export function Preguntas() {
           </h1>
           <p className="mt-1.5 text-sm text-brand-night/55">
             {total} {total === 1 ? 'pregunta' : 'preguntas'} en el banco
-            {preguntas
-              ? ` · ${preguntas.filter((p) => p.usos.length === 0).length} sin asignar`
-              : ''}
           </p>
         </div>
         <Link
@@ -520,7 +602,6 @@ export function Preguntas() {
             value={topic}
             onChange={(e) => {
               setTopic(e.target.value)
-              setLevel(TODOS_NIVELES)
               alCambiarFiltro()
             }}
             className="h-10 rounded-xl border-[1.5px] border-brand-border bg-white px-3 text-sm font-medium text-brand-night/75"
@@ -533,17 +614,18 @@ export function Preguntas() {
           </select>
 
           <select
-            aria-label="Filtrar por nivel"
-            value={level}
+            aria-label="Filtrar por dificultad"
+            value={dificultad}
             onChange={(e) => {
-              setLevel(e.target.value)
+              setDificultad(e.target.value as FiltroDificultad)
               alCambiarFiltro()
             }}
             className="h-10 rounded-xl border-[1.5px] border-brand-border bg-white px-3 text-sm font-medium text-brand-night/75"
           >
-            {levelOptions.map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.label}
+            <option value="todas">Todas las dificultades</option>
+            {DIFICULTADES.map((d) => (
+              <option key={d.valor} value={d.valor}>
+                {d.label}
               </option>
             ))}
           </select>
@@ -577,18 +659,6 @@ export function Preguntas() {
             <option value="inactivo">Inactivo</option>
           </select>
 
-          <label className="flex h-10 items-center gap-2 rounded-xl border-[1.5px] border-brand-border bg-white px-3 text-sm font-medium text-brand-night/75">
-            <input
-              type="checkbox"
-              checked={sinAsignar}
-              onChange={(e) => {
-                setSinAsignar(e.target.checked)
-                alCambiarFiltro()
-              }}
-            />
-            Sin asignar a ningún nivel
-          </label>
-
           {hasFilters && (
             <button
               type="button"
@@ -610,9 +680,10 @@ export function Preguntas() {
               <thead>
                 <tr className="border-b border-brand-border bg-brand-base/60 text-[11px] font-semibold tracking-wider text-brand-night/45 uppercase">
                   <th className="px-5 py-3 font-semibold">Pregunta</th>
+                  <th className="px-5 py-3 font-semibold">Temática</th>
                   <th className="px-5 py-3 font-semibold">Tipo</th>
+                  <th className="px-5 py-3 font-semibold">Dificultad</th>
                   <th className="px-5 py-3 font-semibold">Estado</th>
-                  <th className="px-5 py-3 font-semibold">Usado en</th>
                   <th className="px-5 py-3 text-right font-semibold">Acciones</th>
                 </tr>
               </thead>
@@ -623,7 +694,11 @@ export function Preguntas() {
                     pregunta={p}
                     error={rowErrors[p.id]}
                     eliminando={eliminandoIds.has(p.id)}
+                    guardandoDificultad={guardandoCampos.has(`${p.id}:dificultad`)}
+                    guardandoActivo={guardandoCampos.has(`${p.id}:activo`)}
                     onEliminar={() => handleEliminar(p)}
+                    onCambiarDificultad={(dificultad) => handleCambiarDificultad(p, dificultad)}
+                    onCambiarActivo={(activo) => handleCambiarActivo(p, activo)}
                   />
                 ))}
               </tbody>

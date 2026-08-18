@@ -51,14 +51,14 @@ const TEMATICAS = [
   },
 ]
 
-const NIVELES = [{ tematica_id: 't-1' }, { tematica_id: 't-1' }, { tematica_id: 't-2' }]
+const CAMINO = [{ tematica_id: 't-1' }, { tematica_id: 't-1' }, { tematica_id: 't-2' }]
 
 describe('fetchTematicas', () => {
-  it('devuelve las temáticas ordenadas con el recuento de niveles calculado', async () => {
+  it('devuelve las temáticas ordenadas con el recuento de paradas del camino calculado', async () => {
     from.mockImplementation((table: string) => {
       if (table === 'tematicas') return { select: () => selectable(TEMATICAS) }
-      if (table === 'niveles')
-        return { select: () => Promise.resolve({ data: NIVELES, error: null }) }
+      if (table === 'camino')
+        return { select: () => Promise.resolve({ data: CAMINO, error: null }) }
       throw new Error(`tabla inesperada: ${table}`)
     })
 
@@ -71,7 +71,7 @@ describe('fetchTematicas', () => {
         imagenPortada: 'https://example.test/t-1.jpg',
         orden: 1,
         activo: true,
-        cantidadNiveles: 2,
+        cantidadParadas: 2,
       },
       {
         id: 't-2',
@@ -79,21 +79,21 @@ describe('fetchTematicas', () => {
         imagenPortada: 'https://example.test/t-2.jpg',
         orden: 2,
         activo: true,
-        cantidadNiveles: 1,
+        cantidadParadas: 1,
       },
     ])
   })
 
-  it('una temática sin niveles tiene cantidadNiveles 0', async () => {
+  it('una temática sin paradas en el camino tiene cantidadParadas 0', async () => {
     from.mockImplementation((table: string) => {
       if (table === 'tematicas') return { select: () => selectable(TEMATICAS) }
-      if (table === 'niveles') return { select: () => Promise.resolve({ data: [], error: null }) }
+      if (table === 'camino') return { select: () => Promise.resolve({ data: [], error: null }) }
       throw new Error(`tabla inesperada: ${table}`)
     })
 
     const tematicas = await fetchTematicas()
 
-    expect(tematicas.every((t) => t.cantidadNiveles === 0)).toBe(true)
+    expect(tematicas.every((t) => t.cantidadParadas === 0)).toBe(true)
   })
 
   it('propaga el error si falla la consulta de temáticas', async () => {
@@ -254,6 +254,13 @@ describe('eliminarTematica', () => {
     from.mockReturnValue({ delete: () => ({ eq }) })
 
     await expect(eliminarTematica('t-1')).rejects.toThrow('no autorizado')
+  })
+
+  it('traduce la violación de FK (desafíos propios) a un mensaje legible', async () => {
+    const eq = vi.fn().mockResolvedValue({ error: { code: '23503' } })
+    from.mockReturnValue({ delete: () => ({ eq }) })
+
+    await expect(eliminarTematica('t-1')).rejects.toThrow(/preguntas propias/)
   })
 })
 

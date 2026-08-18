@@ -6,7 +6,7 @@ export interface Tematica {
   imagenPortada: string
   orden: number
   activo: boolean
-  cantidadNiveles: number
+  cantidadParadas: number
 }
 
 interface TematicaRow {
@@ -17,27 +17,27 @@ interface TematicaRow {
   activo: boolean
 }
 
-interface NivelRow {
+interface CaminoRow {
   tematica_id: string
 }
 
 export async function fetchTematicas(): Promise<Tematica[]> {
-  const [{ data: tematicas, error: tematicasError }, { data: niveles, error: nivelesError }] =
+  const [{ data: tematicas, error: tematicasError }, { data: camino, error: caminoError }] =
     await Promise.all([
       supabase
         .from('tematicas')
         .select('id, nombre, imagen_portada, orden, activo')
         .order('orden', { ascending: true }),
-      supabase.from('niveles').select('tematica_id'),
+      supabase.from('camino').select('tematica_id'),
     ])
   if (tematicasError) throw tematicasError
-  if (nivelesError) throw nivelesError
+  if (caminoError) throw caminoError
 
   const cantidadPorTematica = new Map<string, number>()
-  for (const nivel of (niveles ?? []) as NivelRow[]) {
+  for (const parada of (camino ?? []) as CaminoRow[]) {
     cantidadPorTematica.set(
-      nivel.tematica_id,
-      (cantidadPorTematica.get(nivel.tematica_id) ?? 0) + 1,
+      parada.tematica_id,
+      (cantidadPorTematica.get(parada.tematica_id) ?? 0) + 1,
     )
   }
 
@@ -47,7 +47,7 @@ export async function fetchTematicas(): Promise<Tematica[]> {
     imagenPortada: tematica.imagen_portada,
     orden: tematica.orden,
     activo: tematica.activo,
-    cantidadNiveles: cantidadPorTematica.get(tematica.id) ?? 0,
+    cantidadParadas: cantidadPorTematica.get(tematica.id) ?? 0,
   }))
 }
 
@@ -133,6 +133,18 @@ export async function guardarTematica(input: GuardarTematicaInput): Promise<{ id
 
 export async function eliminarTematica(id: string): Promise<void> {
   const { error } = await supabase.from('tematicas').delete().eq('id', id)
+  if (!error) return
+
+  if (error.code === '23503') {
+    throw new Error(
+      'No se puede eliminar: esta temática todavía tiene preguntas propias. Bórralas o reasígnalas primero.',
+    )
+  }
+  throw new Error(error.message)
+}
+
+export async function actualizarActivoTematica(id: string, activo: boolean): Promise<void> {
+  const { error } = await supabase.from('tematicas').update({ activo }).eq('id', id)
   if (error) throw new Error(error.message)
 }
 

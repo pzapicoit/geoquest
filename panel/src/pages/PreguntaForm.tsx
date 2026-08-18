@@ -2,13 +2,13 @@ import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from '
 import { useNavigate, useParams } from 'react-router-dom'
 import { MapaVistaPrevia } from '../components/MapaVistaPrevia'
 import type { TipoDesafio } from '../lib/preguntas'
+import { DIFICULTADES, type Dificultad } from '../lib/dificultad'
 import {
-  asignarPreguntaANiveles,
-  fetchNivelesParaAsignar,
   fetchPregunta,
+  fetchTematicasParaPregunta,
   guardarPregunta,
   validarArchivoMedia,
-  type NivelParaAsignar,
+  type TematicaOpcion,
 } from '../lib/preguntaForm'
 
 const TIPOS: { valor: TipoDesafio; label: string; hint: string }[] = [
@@ -31,6 +31,17 @@ function useObjectUrl(file: File | null): string | null {
   }, [url])
 
   return url
+}
+
+function SeccionHeader({ numero, titulo }: { numero: number; titulo: string }) {
+  return (
+    <div className="flex items-center gap-2.5">
+      <span className="text-[10.5px] font-semibold tracking-widest text-brand-night/38 uppercase">
+        {numero} · {titulo}
+      </span>
+      <span className="h-px flex-1 bg-brand-base" />
+    </div>
+  )
 }
 
 function ErrorCampo({ mensaje }: { mensaje?: string }) {
@@ -182,132 +193,67 @@ function CampoVideo({
   )
 }
 
-function SeccionNiveles({
-  niveles,
-  errorNiveles,
-  seleccionados,
-  query,
-  onQueryChange,
-  onToggle,
+function SelectorTematicaYDificultad({
+  tematicaId,
+  tematicas,
+  errorTematicas,
+  dificultad,
+  errorTematicaId,
+  errorDificultad,
+  onTematicaChange,
+  onDificultadChange,
 }: {
-  niveles: NivelParaAsignar[] | null
-  errorNiveles: string
-  seleccionados: string[]
-  query: string
-  onQueryChange: (query: string) => void
-  onToggle: (nivelId: string) => void
+  tematicaId: string
+  tematicas: TematicaOpcion[] | null
+  errorTematicas: string
+  dificultad: Dificultad | ''
+  errorTematicaId?: string
+  errorDificultad?: string
+  onTematicaChange: (tematicaId: string) => void
+  onDificultadChange: (dificultad: Dificultad) => void
 }) {
-  const q = query.trim().toLowerCase()
-  const filtrados = (niveles ?? []).filter(
-    (n) => !q || n.tematicaNombre.toLowerCase().includes(q) || `nivel ${n.nivelOrden}`.includes(q),
-  )
-  const seleccionadosInfo = (niveles ?? []).filter((n) => seleccionados.includes(n.id))
-
   return (
-    <div className="flex flex-col gap-3.5 rounded-2xl border-[1.5px] border-dashed border-[#CFDDE3] bg-brand-teal/5 p-6">
-      <div className="flex flex-wrap items-center gap-2.5">
-        <h2 className="font-display text-lg font-extrabold text-brand-night">
-          Asignar a nivel(es) ahora
-        </h2>
-        <span className="rounded-full bg-brand-base px-2.5 py-1 text-[11px] font-semibold tracking-wider text-brand-night/55 uppercase">
-          Opcional
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <label className="flex flex-col gap-1.5">
+        <span className="text-sm font-semibold text-brand-night">
+          Temática <span className="text-[#E0454A]">*</span>
         </span>
-        <span className="ml-auto text-xs font-medium text-brand-night/50">
-          {seleccionados.length === 0
-            ? 'Ningún nivel seleccionado'
-            : seleccionados.length === 1
-              ? '1 nivel seleccionado'
-              : `${seleccionados.length} niveles seleccionados`}
-        </span>
-      </div>
-      <p className="max-w-xl text-sm text-brand-night/55">
-        Puedes guardarla solo en el banco y asignarla más tarde desde el nivel. Una misma pregunta
-        puede estar en varios niveles.
-      </p>
-
-      {seleccionadosInfo.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          {seleccionadosInfo.map((n) => (
-            <span
-              key={n.id}
-              className="flex items-center gap-2 rounded-full border-[1.5px] border-brand-teal bg-white py-1.5 pr-2 pl-3.5 text-sm font-semibold text-brand-night"
-            >
-              {n.tematicaNombre} · Nivel {n.nivelOrden}
-              <button
-                type="button"
-                onClick={() => onToggle(n.id)}
-                title="Quitar"
-                className="flex h-[18px] w-[18px] items-center justify-center rounded-full bg-brand-base text-xs font-semibold text-brand-night/55 hover:bg-[#B3282D]/15 hover:text-[#B3282D]"
-              >
-                ×
-              </button>
-            </span>
+        <select
+          value={tematicaId}
+          onChange={(e) => onTematicaChange(e.target.value)}
+          disabled={tematicas === null}
+          className={`${CAMPO_BASE} ${errorTematicaId ? CAMPO_ERROR : ''}`}
+        >
+          <option value="">
+            {tematicas === null ? 'Cargando temáticas…' : 'Selecciona una temática'}
+          </option>
+          {(tematicas ?? []).map((t) => (
+            <option key={t.id} value={t.id}>
+              {t.nombre}
+            </option>
           ))}
-        </div>
-      )}
+        </select>
+        <ErrorCampo mensaje={errorTematicas || errorTematicaId} />
+      </label>
 
-      <div className="overflow-hidden rounded-xl border border-brand-border bg-white">
-        <label className="flex h-[42px] items-center gap-2 border-b border-brand-base px-3.5">
-          <svg
-            width="15"
-            height="15"
-            viewBox="0 0 20 20"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            className="text-brand-night/40"
-          >
-            <circle cx="8.5" cy="8.5" r="5.5" />
-            <path d="M12.5 12.5 17 17" />
-          </svg>
-          <input
-            type="search"
-            value={query}
-            onChange={(e) => onQueryChange(e.target.value)}
-            placeholder="Buscar nivel o temática"
-            className="min-w-0 flex-1 border-0 bg-transparent text-sm text-brand-night outline-none placeholder:text-brand-night/40"
-          />
-        </label>
-        <div className="max-h-[214px] overflow-auto">
-          {niveles === null && !errorNiveles && (
-            <div className="p-6 text-center text-sm text-brand-night/45">Cargando niveles…</div>
-          )}
-          {errorNiveles && (
-            <div className="p-6 text-center text-sm text-[#B3282D]">{errorNiveles}</div>
-          )}
-          {niveles !== null && filtrados.length === 0 && (
-            <div className="p-6 text-center text-sm text-brand-night/45">
-              Ningún nivel coincide con «{query}».
-            </div>
-          )}
-          {filtrados.map((n) => {
-            const on = seleccionados.includes(n.id)
-            return (
-              <label
-                key={n.id}
-                onClick={() => onToggle(n.id)}
-                className={`flex cursor-pointer items-center gap-3 border-b border-brand-base px-3.5 py-2.5 last:border-0 hover:bg-[#F8FBFC] ${on ? 'bg-brand-teal/5' : 'bg-white'}`}
-              >
-                <span
-                  className={`flex h-[18px] w-[18px] flex-none items-center justify-center rounded-[5px] border-[1.5px] text-[11px] font-bold text-white ${
-                    on ? 'border-brand-blue bg-brand-blue' : 'border-[#CFDDE3] bg-white'
-                  }`}
-                >
-                  {on ? '✓' : ''}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-semibold text-brand-night">
-                    {n.tematicaNombre} · Nivel {n.nivelOrden}
-                  </span>
-                  <span className="block text-xs text-brand-night/45">
-                    {n.cantidadPreguntas} {n.cantidadPreguntas === 1 ? 'pregunta' : 'preguntas'}
-                  </span>
-                </span>
-              </label>
-            )
-          })}
-        </div>
-      </div>
+      <label className="flex flex-col gap-1.5">
+        <span className="text-sm font-semibold text-brand-night">
+          Dificultad <span className="text-[#E0454A]">*</span>
+        </span>
+        <select
+          value={dificultad}
+          onChange={(e) => onDificultadChange(e.target.value as Dificultad)}
+          className={`${CAMPO_BASE} ${errorDificultad ? CAMPO_ERROR : ''}`}
+        >
+          <option value="">Selecciona una dificultad</option>
+          {DIFICULTADES.map((d) => (
+            <option key={d.valor} value={d.valor}>
+              {d.label}
+            </option>
+          ))}
+        </select>
+        <ErrorCampo mensaje={errorDificultad} />
+      </label>
     </div>
   )
 }
@@ -330,11 +276,11 @@ export function PreguntaForm() {
   const [lng, setLng] = useState('')
   const [nombreLugar, setNombreLugar] = useState('')
   const [activo, setActivo] = useState(true)
+  const [tematicaId, setTematicaId] = useState('')
+  const [dificultad, setDificultad] = useState<Dificultad | ''>('')
 
-  const [niveles, setNiveles] = useState<NivelParaAsignar[] | null>(null)
-  const [errorNiveles, setErrorNiveles] = useState('')
-  const [nivelesSeleccionados, setNivelesSeleccionados] = useState<string[]>([])
-  const [levelQuery, setLevelQuery] = useState('')
+  const [tematicas, setTematicas] = useState<TematicaOpcion[] | null>(null)
+  const [errorTematicas, setErrorTematicas] = useState('')
 
   const [errores, setErrores] = useState<Record<string, string>>({})
   const [errorGuardado, setErrorGuardado] = useState('')
@@ -358,6 +304,8 @@ export function PreguntaForm() {
           setLng(String(pregunta.lngReal))
           setNombreLugar(pregunta.nombreLugar)
           setActivo(pregunta.activo)
+          setTematicaId(pregunta.tematicaId)
+          setDificultad(pregunta.dificultad)
         })
         .catch((error: unknown) => {
           if (!isMounted) return
@@ -367,16 +315,16 @@ export function PreguntaForm() {
         .finally(() => {
           if (isMounted) setCargando(false)
         })
-    } else {
-      fetchNivelesParaAsignar()
-        .then((lista) => {
-          if (isMounted) setNiveles(lista)
-        })
-        .catch((error: unknown) => {
-          console.error('Error cargando los niveles disponibles:', error)
-          if (isMounted) setErrorNiveles('No se han podido cargar los niveles disponibles.')
-        })
     }
+
+    fetchTematicasParaPregunta()
+      .then((lista) => {
+        if (isMounted) setTematicas(lista)
+      })
+      .catch((error: unknown) => {
+        console.error('Error cargando las temáticas:', error)
+        if (isMounted) setErrorTematicas('No se han podido cargar las temáticas.')
+      })
 
     return () => {
       isMounted = false
@@ -425,12 +373,6 @@ export function PreguntaForm() {
     setArchivoVideo(file)
   }
 
-  function toggleNivel(nivelId: string) {
-    setNivelesSeleccionados((actual) =>
-      actual.includes(nivelId) ? actual.filter((n) => n !== nivelId) : [...actual, nivelId],
-    )
-  }
-
   function validar(): Record<string, string> {
     const erroresLocal: Record<string, string> = {}
 
@@ -452,6 +394,12 @@ export function PreguntaForm() {
     if (tipo === 'pregunta_texto' && !textoPregunta.trim()) {
       erroresLocal.textoPregunta = 'Escribe el enunciado de la pregunta.'
     }
+    if (!tematicaId) {
+      erroresLocal.tematicaId = 'Selecciona una temática.'
+    }
+    if (!dificultad) {
+      erroresLocal.dificultad = 'Selecciona una dificultad.'
+    }
 
     return erroresLocal
   }
@@ -471,7 +419,7 @@ export function PreguntaForm() {
     setGuardando(true)
 
     try {
-      const { id: idGuardado } = await guardarPregunta({
+      await guardarPregunta({
         id: id ?? null,
         tipo,
         nombreLugar: nombreLugar.trim(),
@@ -479,22 +427,12 @@ export function PreguntaForm() {
         latReal: latNum,
         lngReal: lngNum,
         activo,
+        tematicaId,
+        dificultad: dificultad as Dificultad,
         archivo: tipo === 'imagen' ? archivoImagen : tipo === 'video' ? archivoVideo : null,
         imagenUrlActual,
         videoUrlActual,
       })
-
-      if (!esEdicion && nivelesSeleccionados.length > 0) {
-        const resultados = await asignarPreguntaANiveles(idGuardado, nivelesSeleccionados)
-        const fallidos = resultados.filter((r) => r.error)
-        if (fallidos.length > 0) {
-          window.alert(
-            `La pregunta se creó, pero no se pudo asignar a ${
-              fallidos.length === 1 ? '1 nivel' : `${fallidos.length} niveles`
-            }. Puedes asignarla manualmente desde el nivel.`,
-          )
-        }
-      }
 
       navigate('/preguntas')
     } catch (error) {
@@ -525,13 +463,13 @@ export function PreguntaForm() {
           {esEdicion ? 'Editar pregunta' : 'Nueva pregunta'}
         </h1>
         <p className="mt-1.5 text-sm text-brand-night/55">
-          Los campos marcados con <span className="text-[#E0454A]">*</span> son obligatorios. Se
-          guarda en el banco; asignarla a un nivel es opcional.
+          Los campos marcados con <span className="text-[#E0454A]">*</span> son obligatorios.
         </p>
       </div>
 
       <form onSubmit={handleGuardar} noValidate className="flex flex-col gap-5">
         <div className="flex flex-col gap-6 rounded-2xl border border-brand-border bg-white p-6">
+          <SeccionHeader numero={1} titulo="Contenido" />
           <SelectorTipo tipo={tipo} onChange={setTipo} />
 
           {tipo === 'imagen' && (
@@ -572,7 +510,7 @@ export function PreguntaForm() {
             </label>
           )}
 
-          <div className="h-px bg-brand-base" />
+          <SeccionHeader numero={2} titulo="Ubicación" />
 
           <div className="flex flex-col gap-3">
             <div>
@@ -583,61 +521,80 @@ export function PreguntaForm() {
                 Grados decimales. La puntuación se calcula por distancia a este punto.
               </span>
             </div>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <label className="flex flex-col gap-1.5">
-                <span className="text-xs font-medium text-brand-night/60">Latitud</span>
-                <input
-                  type="number"
-                  step="0.0001"
-                  min={-90}
-                  max={90}
-                  value={lat}
-                  onChange={(e) => {
-                    setLat(e.target.value)
-                    limpiarError('lat')
-                  }}
-                  placeholder="-90 a 90"
-                  className={`${CAMPO_BASE} [font-variant-numeric:tabular-nums] ${errores.lat ? CAMPO_ERROR : ''}`}
-                />
-              </label>
-              <label className="flex flex-col gap-1.5">
-                <span className="text-xs font-medium text-brand-night/60">Longitud</span>
-                <input
-                  type="number"
-                  step="0.0001"
-                  min={-180}
-                  max={180}
-                  value={lng}
-                  onChange={(e) => {
-                    setLng(e.target.value)
-                    limpiarError('lng')
-                  }}
-                  placeholder="-180 a 180"
-                  className={`${CAMPO_BASE} [font-variant-numeric:tabular-nums] ${errores.lng ? CAMPO_ERROR : ''}`}
-                />
-              </label>
-            </div>
-            <ErrorCampo mensaje={errores.lat ?? errores.lng} />
-
-            <div className="mt-1 flex flex-col gap-2">
-              <div className="flex items-baseline gap-2.5">
-                <span className="text-[11px] font-semibold tracking-wider text-brand-night/45 uppercase">
-                  Vista previa del punto
-                </span>
-                <span className="text-xs text-brand-night/40">
-                  solo comprobación visual · no editable
-                </span>
+            <div className="grid grid-cols-1 items-start gap-4 sm:grid-cols-[1fr_268px]">
+              <div className="flex flex-col gap-3">
+                <label className="flex flex-col gap-1.5">
+                  <span className="text-xs font-medium text-brand-night/60">Latitud</span>
+                  <input
+                    type="number"
+                    step="0.0001"
+                    min={-90}
+                    max={90}
+                    value={lat}
+                    onChange={(e) => {
+                      setLat(e.target.value)
+                      limpiarError('lat')
+                    }}
+                    placeholder="-90 a 90"
+                    className={`${CAMPO_BASE} [font-variant-numeric:tabular-nums] ${errores.lat ? CAMPO_ERROR : ''}`}
+                  />
+                </label>
+                <label className="flex flex-col gap-1.5">
+                  <span className="text-xs font-medium text-brand-night/60">Longitud</span>
+                  <input
+                    type="number"
+                    step="0.0001"
+                    min={-180}
+                    max={180}
+                    value={lng}
+                    onChange={(e) => {
+                      setLng(e.target.value)
+                      limpiarError('lng')
+                    }}
+                    placeholder="-180 a 180"
+                    className={`${CAMPO_BASE} [font-variant-numeric:tabular-nums] ${errores.lng ? CAMPO_ERROR : ''}`}
+                  />
+                </label>
+                <ErrorCampo mensaje={errores.lat ?? errores.lng} />
               </div>
-              <div className="overflow-hidden rounded-xl border border-brand-border bg-[#F8FBFC]">
-                <MapaVistaPrevia
-                  lat={coordsValidas ? latNum : null}
-                  lng={coordsValidas ? lngNum : null}
-                />
+
+              <div className="flex flex-col gap-2">
+                <div className="flex items-baseline gap-2">
+                  <span className="text-[10.5px] font-semibold tracking-wider text-brand-night/45 uppercase">
+                    Vista previa
+                  </span>
+                  <span className="text-[10.5px] text-brand-night/35">no editable</span>
+                </div>
+                <div className="overflow-hidden rounded-xl border border-brand-border bg-[#F8FBFC]">
+                  <MapaVistaPrevia
+                    lat={coordsValidas ? latNum : null}
+                    lng={coordsValidas ? lngNum : null}
+                  />
+                </div>
               </div>
             </div>
           </div>
 
-          <div className="h-px bg-brand-base" />
+          <SeccionHeader numero={3} titulo="Clasificación" />
+
+          <SelectorTematicaYDificultad
+            tematicaId={tematicaId}
+            tematicas={tematicas}
+            errorTematicas={errorTematicas}
+            dificultad={dificultad}
+            errorTematicaId={errores.tematicaId}
+            errorDificultad={errores.dificultad}
+            onTematicaChange={(valor) => {
+              setTematicaId(valor)
+              limpiarError('tematicaId')
+            }}
+            onDificultadChange={(valor) => {
+              setDificultad(valor)
+              limpiarError('dificultad')
+            }}
+          />
+
+          <SeccionHeader numero={4} titulo="Datos y estado" />
 
           <label className="flex max-w-[440px] flex-col gap-1.5">
             <span className="text-sm font-semibold text-brand-night">
@@ -675,23 +632,12 @@ export function PreguntaForm() {
               </span>
               <span className="mt-1 block text-xs text-brand-night/45">
                 {activo
-                  ? 'Puede salir en partidas de los niveles donde esté asignada.'
+                  ? 'Puede salir en partidas de su temática y dificultad.'
                   : 'Se guarda en el banco pero no se muestra a los jugadores.'}
               </span>
             </span>
           </label>
         </div>
-
-        {!esEdicion && (
-          <SeccionNiveles
-            niveles={niveles}
-            errorNiveles={errorNiveles}
-            seleccionados={nivelesSeleccionados}
-            query={levelQuery}
-            onQueryChange={setLevelQuery}
-            onToggle={toggleNivel}
-          />
-        )}
 
         <div className="sticky bottom-0 flex flex-wrap items-center gap-3 border-t border-brand-border bg-brand-base/90 py-3.5 backdrop-blur-sm">
           {errorGuardado && (

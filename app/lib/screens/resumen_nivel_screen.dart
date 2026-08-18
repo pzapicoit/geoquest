@@ -35,7 +35,7 @@ class ResumenNivelScreen extends StatefulWidget {
   const ResumenNivelScreen({
     super.key,
     required this.resultado,
-    required this.nivelId,
+    required this.caminoId,
     required this.totalDesafios,
     required this.gateway,
     this.nivelNombre,
@@ -45,7 +45,7 @@ class ResumenNivelScreen extends StatefulWidget {
   });
 
   final ResultadoIntento resultado;
-  final String nivelId;
+  final String caminoId;
   final int totalDesafios;
   final NivelJuegoGateway gateway;
   final String? nivelNombre;
@@ -129,7 +129,7 @@ class _ResumenNivelScreenState extends State<ResumenNivelScreen> {
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
         builder: (_) => NivelJuegoScreen(
-          nivelId: widget.nivelId,
+          caminoId: widget.caminoId,
           nivelNombre: widget.nivelNombre,
           nivelOrden: widget.nivelOrden,
           tematicaNombre: widget.tematicaNombre,

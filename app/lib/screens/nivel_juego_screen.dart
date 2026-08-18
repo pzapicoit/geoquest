@@ -18,19 +18,19 @@ const _gold = Color(0xFFFFC53D);
 const _rojo = Color(0xFFFF5A5F);
 
 /// Pantalla de juego de un nivel: arranca un intento real
-/// (`iniciar_intento_nivel`), muestra la pista de cada desafío en un toast y,
+/// (`iniciar_intento_parada`), muestra la pista de cada desafío en un toast y,
 /// al cerrarlo, deja al jugador adivinar sobre el mapa mundial (INT-92).
 ///
 /// Confirmar manda el pin a `responder_desafio` y revela el resultado sobre el
 /// mismo mapa (INT-93): la ubicación real, el encuadre de los dos pines, la
 /// línea entre ellos y los contadores de distancia y puntos. De ahí se avanza
 /// con "Siguiente", o con "Ver resultados" en el último desafío, que cierra
-/// el intento (`cerrar_intento_nivel`) y entra en el resumen del nivel
+/// el intento (`cerrar_intento_parada`) y entra en el resumen del nivel
 /// (INT-94).
 class NivelJuegoScreen extends StatefulWidget {
   const NivelJuegoScreen({
     super.key,
-    required this.nivelId,
+    required this.caminoId,
     this.nivelNombre,
     this.nivelOrden,
     this.tematicaNombre,
@@ -38,7 +38,7 @@ class NivelJuegoScreen extends StatefulWidget {
     this.cargadorDeMundo,
   });
 
-  final String nivelId;
+  final String caminoId;
 
   /// Nombre que se enseña en el HUD. Llega desde el camino, que ya lo tiene
   /// cargado (D9 de `design.md`), en vez de costar una consulta extra.
@@ -169,7 +169,7 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
   /// escucha `_futuro` (el `FutureBuilder` de [build]) es quien enseña el
   /// estado de error, así que no hace falta un segundo manejador.
   void _iniciarIntento() {
-    final futuro = _gateway.iniciarIntento(widget.nivelId);
+    final futuro = _gateway.iniciarIntento(widget.caminoId);
     _futuro = futuro;
     futuro.then(_alCargarElIntento, onError: (Object _) {});
   }
@@ -454,7 +454,7 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
         MaterialPageRoute(
           builder: (_) => ResumenNivelScreen(
             resultado: resultado,
-            nivelId: widget.nivelId,
+            caminoId: widget.caminoId,
             nivelNombre: widget.nivelNombre,
             nivelOrden: widget.nivelOrden,
             tematicaNombre: widget.tematicaNombre,
@@ -1288,7 +1288,7 @@ class _HojaDeRevelado extends StatelessWidget {
 
   final double avanceDelDestello;
 
-  /// `true` mientras `cerrar_intento_nivel` está en curso, disparado desde
+  /// `true` mientras `cerrar_intento_parada` está en curso, disparado desde
   /// "Ver resultados" del último desafío (INT-94).
   final bool cerrando;
 

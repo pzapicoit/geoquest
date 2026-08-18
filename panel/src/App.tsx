@@ -5,10 +5,9 @@ import { Login } from './pages/Login'
 import { Home } from './pages/Home'
 import { Preguntas } from './pages/Preguntas'
 import { PreguntaForm } from './pages/PreguntaForm'
-import { NivelRecorrido } from './pages/NivelRecorrido'
 import { Tematicas } from './pages/Tematicas'
-import { NivelesTematica } from './pages/NivelesTematica'
 import { Camino } from './pages/Camino'
+import { DificultadDefaults } from './pages/DificultadDefaults'
 
 export function App() {
   return (
@@ -36,21 +35,21 @@ export function App() {
           }
         />
         <Route
-          path="/tematicas/:id/niveles"
-          element={
-            <RequireAuth>
-              <PanelLayout>
-                <NivelesTematica />
-              </PanelLayout>
-            </RequireAuth>
-          }
-        />
-        <Route
           path="/camino"
           element={
             <RequireAuth>
               <PanelLayout>
                 <Camino />
+              </PanelLayout>
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/dificultades"
+          element={
+            <RequireAuth>
+              <PanelLayout>
+                <DificultadDefaults />
               </PanelLayout>
             </RequireAuth>
           }
@@ -81,16 +80,6 @@ export function App() {
             <RequireAuth>
               <PanelLayout>
                 <PreguntaForm />
-              </PanelLayout>
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="/niveles/:id"
-          element={
-            <RequireAuth>
-              <PanelLayout>
-                <NivelRecorrido />
               </PanelLayout>
             </RequireAuth>
           }

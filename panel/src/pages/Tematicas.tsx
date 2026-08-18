@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ChangeEvent, type DragEvent } from 'react'
-import { Link } from 'react-router-dom'
 import {
+  actualizarActivoTematica,
   eliminarTematica,
   fetchTematicas,
   guardarTematica,
@@ -125,6 +125,7 @@ function FilaTematica({
   total,
   error,
   eliminando,
+  guardandoActivo,
   arrastrando,
   onDragStart,
   onDragOver,
@@ -132,12 +133,14 @@ function FilaTematica({
   onMover,
   onEditar,
   onEliminar,
+  onCambiarActivo,
 }: {
   tematica: Tematica
   index: number
   total: number
   error?: string
   eliminando: boolean
+  guardandoActivo: boolean
   arrastrando: boolean
   onDragStart: () => void
   onDragOver: (e: DragEvent<HTMLTableRowElement>) => void
@@ -145,6 +148,7 @@ function FilaTematica({
   onMover: (delta: number) => void
   onEditar: () => void
   onEliminar: () => void
+  onCambiarActivo: (activo: boolean) => void
 }) {
   return (
     <tr
@@ -164,29 +168,36 @@ function FilaTematica({
         <div className="flex items-center gap-3">
           <Portada tematica={tematica} />
           <div className="min-w-0">
-            <Link
-              to={`/tematicas/${tematica.id}/niveles`}
-              className="block truncate text-sm font-semibold text-brand-night hover:text-brand-blue hover:underline"
-            >
+            <span className="block truncate text-sm font-semibold text-brand-night">
               {tematica.nombre}
-            </Link>
+            </span>
           </div>
         </div>
       </td>
       <td className="px-3 py-3">
         <span className="inline-flex items-center rounded-lg bg-brand-base px-2.5 py-1 text-xs font-semibold text-brand-night/60 tabular-nums">
-          {tematica.cantidadNiveles} {tematica.cantidadNiveles === 1 ? 'nivel' : 'niveles'}
+          {tematica.cantidadParadas} {tematica.cantidadParadas === 1 ? 'parada' : 'paradas'}
         </span>
       </td>
       <td className="px-3 py-3">
-        <span
-          className={`inline-flex items-center gap-1.5 text-xs font-semibold ${tematica.activo ? 'text-brand-success' : 'text-brand-night/45'}`}
-        >
-          <span
-            className={`h-1.5 w-1.5 rounded-full ${tematica.activo ? 'bg-brand-success' : 'bg-brand-border'}`}
+        <label className="flex cursor-pointer items-center gap-2">
+          <input
+            type="checkbox"
+            aria-label={`Cambiar estado de "${tematica.nombre}"`}
+            checked={tematica.activo}
+            disabled={guardandoActivo}
+            onChange={(e) => onCambiarActivo(e.target.checked)}
+            className="peer sr-only"
           />
-          {tematica.activo ? 'Activa' : 'Inactiva'}
-        </span>
+          <span className="relative h-5 w-9 flex-none rounded-full bg-brand-border transition-colors peer-checked:bg-brand-success peer-disabled:opacity-60">
+            <span className="absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform peer-checked:translate-x-4" />
+          </span>
+          <span
+            className={`text-xs font-semibold ${tematica.activo ? 'text-brand-success' : 'text-brand-night/45'}`}
+          >
+            {tematica.activo ? 'Activa' : 'Inactiva'}
+          </span>
+        </label>
       </td>
       <td className="px-3 py-3">
         <div className="flex items-center justify-end gap-1.5">
@@ -244,8 +255,8 @@ function EstadoVacio({ onCrear }: { onCrear: () => void }) {
       </div>
       <h4 className="font-display text-xl font-extrabold text-brand-night">Aún no hay temáticas</h4>
       <p className="max-w-md text-sm text-brand-night/55">
-        Las temáticas son los mundos del juego: agrupan un recorrido de niveles. Crea la primera
-        para empezar.
+        Las temáticas son los mundos del juego: agrupan preguntas que el camino resuelve por
+        dificultad. Crea la primera para empezar.
       </p>
       <button
         type="button"
@@ -387,6 +398,7 @@ function PanelTematica({
           <label className="flex cursor-pointer items-center gap-3.5 border-t border-brand-base pt-5">
             <input
               type="checkbox"
+              aria-label="Cambiar estado de la temática"
               checked={form.activo}
               onChange={(e) => onCambiar({ ...form, activo: e.target.checked })}
               className="peer sr-only"
@@ -401,7 +413,7 @@ function PanelTematica({
               <span className="mt-1 block text-xs text-brand-night/45">
                 {form.activo
                   ? 'Visible en el mapa del jugador.'
-                  : 'Oculta para los jugadores; puedes seguir editando sus niveles.'}
+                  : 'Oculta para los jugadores; puedes seguir editando sus preguntas.'}
               </span>
             </span>
           </label>
@@ -438,6 +450,7 @@ export function Tematicas() {
   const [error, setError] = useState('')
   const [rowErrors, setRowErrors] = useState<Record<string, string>>({})
   const [eliminandoIds, setEliminandoIds] = useState<Set<string>>(new Set())
+  const [guardandoActivoIds, setGuardandoActivoIds] = useState<Set<string>>(new Set())
   const [errorOrden, setErrorOrden] = useState('')
   const [operandoOrden, setOperandoOrden] = useState(false)
   const [dragIndex, setDragIndex] = useState<number | null>(null)
@@ -545,13 +558,49 @@ export function Tematicas() {
     }
   }
 
+  async function handleCambiarActivo(tematica: Tematica, activo: boolean) {
+    if (guardandoActivoIds.has(tematica.id)) return
+    const anterior = tematica.activo
+
+    setGuardandoActivoIds((actual) => new Set(actual).add(tematica.id))
+    setTematicas(
+      (actual) => actual?.map((t) => (t.id === tematica.id ? { ...t, activo } : t)) ?? actual,
+    )
+
+    try {
+      await actualizarActivoTematica(tematica.id, activo)
+      setRowErrors((actual) => {
+        if (!(tematica.id in actual)) return actual
+        const resto = { ...actual }
+        delete resto[tematica.id]
+        return resto
+      })
+    } catch (error) {
+      setTematicas(
+        (actual) =>
+          actual?.map((t) => (t.id === tematica.id ? { ...t, activo: anterior } : t)) ?? actual,
+      )
+      setRowErrors((actual) => ({
+        ...actual,
+        [tematica.id]:
+          error instanceof Error ? error.message : 'No se ha podido guardar el estado.',
+      }))
+    } finally {
+      setGuardandoActivoIds((actual) => {
+        const siguiente = new Set(actual)
+        siguiente.delete(tematica.id)
+        return siguiente
+      })
+    }
+  }
+
   async function handleEliminar(tematica: Tematica) {
     if (eliminandoIds.has(tematica.id)) return
 
     const confirmado = window.confirm(
-      `¿Eliminar "${tematica.nombre}"? Se eliminarán también sus ${tematica.cantidadNiveles} ${
-        tematica.cantidadNiveles === 1 ? 'nivel' : 'niveles'
-      }, las asignaciones de preguntas a esos niveles y el progreso de los jugadores en ellos. El banco de preguntas no se ve afectado. Esta acción no se puede deshacer.`,
+      `¿Eliminar "${tematica.nombre}"? Se eliminarán también sus ${tematica.cantidadParadas} ${
+        tematica.cantidadParadas === 1 ? 'parada' : 'paradas'
+      } en el camino y el progreso de los jugadores en ellas. El banco de preguntas no se ve afectado, pero si la temática tiene preguntas propias el borrado se rechazará hasta que las borres o reasignes.`,
     )
     if (!confirmado) return
 
@@ -680,7 +729,7 @@ export function Tematicas() {
                   <th className="w-10 px-3 py-3" aria-hidden="true" />
                   <th className="px-2 py-3 font-semibold">#</th>
                   <th className="px-3 py-3 font-semibold">Temática</th>
-                  <th className="px-3 py-3 font-semibold">Niveles</th>
+                  <th className="px-3 py-3 font-semibold">Paradas en el camino</th>
                   <th className="px-3 py-3 font-semibold">Estado</th>
                   <th className="px-3 py-3 text-right font-semibold">Acciones</th>
                 </tr>
@@ -694,6 +743,7 @@ export function Tematicas() {
                     total={lista.length}
                     error={rowErrors[tematica.id]}
                     eliminando={eliminandoIds.has(tematica.id)}
+                    guardandoActivo={guardandoActivoIds.has(tematica.id)}
                     arrastrando={dragIndex === index}
                     onDragStart={() => setDragIndex(index)}
                     onDragOver={(e) => e.preventDefault()}
@@ -701,6 +751,7 @@ export function Tematicas() {
                     onMover={(delta) => handleMover(index, delta)}
                     onEditar={() => abrirEditar(tematica)}
                     onEliminar={() => handleEliminar(tematica)}
+                    onCambiarActivo={(activo) => handleCambiarActivo(tematica, activo)}
                   />
                 ))}
               </tbody>

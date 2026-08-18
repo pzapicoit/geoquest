@@ -21,7 +21,7 @@ tiene `profiles.role = 'admin'`, sin devolver ningún dato.
 `profiles` con `role = 'jugador'`), `jugadores_activos_7d` (conteo
 distinto de jugadores con al menos un `intentos_nivel` en los últimos 7
 días), `partidas_hoy` (conteo de `intentos_nivel` cuya `fecha` cae en el
-día actual) y `niveles_activos` (conteo de `niveles` con `activo = true`),
+día actual) y `paradas_activas` (conteo de `camino` con `activo = true`),
 considerando las filas de **todos** los jugadores, no solo las del admin
 que invoca la función.
 
@@ -46,8 +46,8 @@ que invoca la función.
 - **THEN** `partidas_hoy` cuenta cada uno de esos intentos, sin agrupar
   por jugador
 
-#### Scenario: Niveles activos
+#### Scenario: Paradas activas
 
-- **WHEN** existen niveles con `activo = true` y niveles con
+- **WHEN** existen paradas de `camino` con `activo = true` y con
   `activo = false`
-- **THEN** `niveles_activos` cuenta solo los primeros
+- **THEN** `paradas_activas` cuenta solo las primeras

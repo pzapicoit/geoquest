@@ -32,7 +32,7 @@ describe('fetchMetricasHome', () => {
           jugadores_totales: 4907,
           jugadores_activos_7d: 1843,
           partidas_hoy: 1284,
-          niveles_activos: 86,
+          paradas_activas: 86,
         },
       ],
       error: null,
@@ -45,7 +45,7 @@ describe('fetchMetricasHome', () => {
       jugadoresTotales: 4907,
       jugadoresActivos7d: 1843,
       partidasHoy: 1284,
-      nivelesActivos: 86,
+      paradasActivas: 86,
     })
   })
 
@@ -63,13 +63,13 @@ describe('fetchMetricasHome', () => {
 })
 
 describe('fetchAlertasContenido', () => {
-  it('resuelve el nombre legible de niveles y desafíos con una consulta por tabla', async () => {
+  it('resuelve el nombre legible de paradas y desafíos con una consulta por tabla', async () => {
     rpc.mockResolvedValue({
       data: [
         {
           tipo: 'nivel_baja_tasa',
-          referencia_id: 'nivel-1',
-          titulo: 'Nivel con baja tasa de superacion',
+          referencia_id: 'camino-1',
+          titulo: 'Parada con baja tasa de superacion',
           detalle: { tasa_superacion: 0.2, total_intentos: 10 },
         },
         {
@@ -82,7 +82,10 @@ describe('fetchAlertasContenido', () => {
       error: null,
     })
     mockTables({
-      niveles: { data: [{ id: 'nivel-1', orden: 9, tematica_id: 'tematica-1' }], error: null },
+      camino: {
+        data: [{ id: 'camino-1', dificultad: 'facil', tematica_id: 'tematica-1' }],
+        error: null,
+      },
       tematicas: { data: [{ id: 'tematica-1', nombre: 'Fiordos de Noruega' }], error: null },
       desafios: {
         data: [{ id: 'desafio-1', tipo: 'imagen', nombre_lugar: 'Coliseo' }],
@@ -94,12 +97,12 @@ describe('fetchAlertasContenido', () => {
 
     expect(alertas).toEqual([
       expect.objectContaining({
-        referenciaId: 'nivel-1',
-        etiqueta: 'Fiordos de Noruega · Nivel 9',
+        referenciaId: 'camino-1',
+        etiqueta: 'Fiordos de Noruega · Fácil',
       }),
       expect.objectContaining({ referenciaId: 'desafio-1', etiqueta: 'Coliseo (imagen)' }),
     ])
-    // niveles, tematicas y desafios: una llamada cada una, no una por alerta.
+    // camino, tematicas y desafios: una llamada cada una, no una por alerta.
     expect(from).toHaveBeenCalledTimes(3)
   })
 
@@ -108,18 +111,18 @@ describe('fetchAlertasContenido', () => {
       data: [
         {
           tipo: 'nivel_baja_tasa',
-          referencia_id: 'nivel-huerfano',
-          titulo: 'Nivel con baja tasa de superacion',
+          referencia_id: 'camino-huerfano',
+          titulo: 'Parada con baja tasa de superacion',
           detalle: {},
         },
       ],
       error: null,
     })
-    mockTables({ niveles: { data: [], error: null } })
+    mockTables({ camino: { data: [], error: null } })
 
     const alertas = await fetchAlertasContenido()
 
-    expect(alertas[0].etiqueta).toBe('Nivel con baja tasa de superacion')
+    expect(alertas[0].etiqueta).toBe('Parada con baja tasa de superacion')
   })
 
   it('sin alertas no consulta ninguna tabla auxiliar', async () => {
@@ -133,14 +136,14 @@ describe('fetchAlertasContenido', () => {
 })
 
 describe('fetchActividadReciente', () => {
-  it('resuelve el nombre del nivel solo para eventos nivel_superado', async () => {
+  it('resuelve el nombre de la parada solo para eventos nivel_superado', async () => {
     rpc.mockResolvedValue({
       data: [
         {
           tipo: 'nivel_superado',
           ocurrido_en: '2026-08-15T21:51:52.295314+00:00',
           texto: 'Jugador0925',
-          detalle: { estrellas_obtenidas: 3, nivel_id: 'nivel-1', tematica_id: 'tematica-1' },
+          detalle: { estrellas_obtenidas: 3, camino_id: 'camino-1', tematica_id: 'tematica-1' },
         },
         {
           tipo: 'nuevo_registro',
@@ -152,7 +155,10 @@ describe('fetchActividadReciente', () => {
       error: null,
     })
     mockTables({
-      niveles: { data: [{ id: 'nivel-1', orden: 4, tematica_id: 'tematica-1' }], error: null },
+      camino: {
+        data: [{ id: 'camino-1', dificultad: 'intermedio', tematica_id: 'tematica-1' }],
+        error: null,
+      },
       tematicas: { data: [{ id: 'tematica-1', nombre: 'Fiordos de Noruega' }], error: null },
     })
 
@@ -160,7 +166,7 @@ describe('fetchActividadReciente', () => {
 
     expect(eventos[0]).toMatchObject({
       tipo: 'nivel_superado',
-      etiqueta: 'Fiordos de Noruega · Nivel 4',
+      etiqueta: 'Fiordos de Noruega · Intermedio',
     })
     expect(eventos[1]).toMatchObject({ tipo: 'nuevo_registro', etiqueta: null })
   })

@@ -15,6 +15,8 @@ function renderPreguntas() {
 
 const fetchPreguntas = vi.fn()
 const eliminarPregunta = vi.fn()
+const actualizarDificultadPregunta = vi.fn()
+const actualizarActivoPregunta = vi.fn()
 
 vi.mock('../lib/preguntas', async () => {
   const actual = await vi.importActual<typeof import('../lib/preguntas')>('../lib/preguntas')
@@ -22,6 +24,8 @@ vi.mock('../lib/preguntas', async () => {
     ...actual,
     fetchPreguntas: (...args: unknown[]) => fetchPreguntas(...args),
     eliminarPregunta: (...args: unknown[]) => eliminarPregunta(...args),
+    actualizarDificultadPregunta: (...args: unknown[]) => actualizarDificultadPregunta(...args),
+    actualizarActivoPregunta: (...args: unknown[]) => actualizarActivoPregunta(...args),
   }
 })
 
@@ -32,7 +36,9 @@ function pregunta(overrides: Partial<Pregunta> & { id: string }): Pregunta {
     textoPregunta: null,
     imagenUrl: null,
     activo: true,
-    usos: [],
+    dificultad: 'normal',
+    tematicaId: 't-1',
+    tematicaNombre: 'Temática de prueba',
     ...overrides,
   }
 }
@@ -41,10 +47,9 @@ const TORRE_EIFFEL = pregunta({
   id: 'd-eiffel',
   nombreLugar: 'Torre Eiffel',
   tipo: 'imagen',
-  usos: [
-    { nivelId: 'n-1', tematicaNombre: 'Capitales', nivelOrden: 1 },
-    { nivelId: 'n-2', tematicaNombre: 'Paisajes', nivelOrden: 3 },
-  ],
+  dificultad: 'dificil',
+  tematicaId: 't-patrimonio',
+  tematicaNombre: 'Patrimonio',
 })
 
 const MACHU_PICCHU = pregunta({
@@ -53,7 +58,9 @@ const MACHU_PICCHU = pregunta({
   tipo: 'pregunta_texto',
   textoPregunta: 'Ciudadela inca a 2 430 m de altitud',
   activo: true,
-  usos: [{ nivelId: 'n-3', tematicaNombre: 'Patrimonio', nivelOrden: 2 }],
+  dificultad: 'muy_dificil',
+  tematicaId: 't-paisajes',
+  tematicaNombre: 'Paisajes',
 })
 
 const DESAFIO_SUELTO = pregunta({
@@ -61,26 +68,33 @@ const DESAFIO_SUELTO = pregunta({
   nombreLugar: 'Desafío suelto',
   tipo: 'video',
   activo: false,
-  usos: [],
+  dificultad: 'facil',
 })
 
 beforeEach(() => {
   fetchPreguntas.mockReset()
   eliminarPregunta.mockReset()
+  actualizarDificultadPregunta.mockReset()
+  actualizarActivoPregunta.mockReset()
   vi.spyOn(window, 'confirm').mockReturnValue(true)
 })
 
 describe('Preguntas', () => {
-  it('muestra una fila por desafío, no por asignación, con el indicador de uso', async () => {
+  it('muestra una fila por desafío con su temática y badge de dificultad', async () => {
     fetchPreguntas.mockResolvedValue([TORRE_EIFFEL, MACHU_PICCHU, DESAFIO_SUELTO])
 
     renderPreguntas()
 
-    expect(await screen.findByText('Torre Eiffel')).toBeInTheDocument()
+    const filaEiffel = (await screen.findByText('Torre Eiffel')).closest('tr') as HTMLElement
     expect(screen.getAllByText('Torre Eiffel')).toHaveLength(1)
-    expect(screen.getByText('Usado en 2 niveles')).toBeInTheDocument()
-    expect(screen.getByText('Usado en 1 nivel')).toBeInTheDocument()
-    expect(screen.getByText('Sin asignar')).toBeInTheDocument()
+    expect(within(filaEiffel).getByText('Patrimonio')).toBeInTheDocument()
+    expect(within(filaEiffel).getByText('Difícil')).toBeInTheDocument()
+
+    const filaMachu = screen.getByText('Machu Picchu').closest('tr') as HTMLElement
+    expect(within(filaMachu).getByText('Muy difícil')).toBeInTheDocument()
+
+    const filaSuelto = screen.getByText('Desafío suelto').closest('tr') as HTMLElement
+    expect(within(filaSuelto).getByText('Fácil')).toBeInTheDocument()
   })
 
   it('cae a un ícono si la miniatura de imagen falla al cargar', async () => {
@@ -100,24 +114,6 @@ describe('Preguntas', () => {
     fireEvent.error(img)
 
     await waitFor(() => expect(screen.queryByAltText('')).not.toBeInTheDocument())
-  })
-
-  it('el detalle del indicador de uso lista cada temática y nivel al abrirlo', async () => {
-    fetchPreguntas.mockResolvedValue([TORRE_EIFFEL])
-    const user = userEvent.setup()
-
-    renderPreguntas()
-
-    const resumen = await screen.findByText('Usado en 2 niveles')
-    const detalle = resumen.closest('details') as HTMLElement
-    expect(detalle).not.toHaveAttribute('open')
-
-    await user.click(resumen)
-
-    expect(detalle).toHaveAttribute('open')
-
-    expect(within(detalle).getByText('Capitales · Nivel 1')).toBeInTheDocument()
-    expect(within(detalle).getByText('Paisajes · Nivel 3')).toBeInTheDocument()
   })
 
   it('busca por nombre de lugar o texto de la pregunta', async () => {
@@ -148,29 +144,28 @@ describe('Preguntas', () => {
     expect(screen.queryByText('Desafío suelto')).not.toBeInTheDocument()
   })
 
-  it('filtra por temática y por nivel', async () => {
+  it('filtra por temática', async () => {
     fetchPreguntas.mockResolvedValue([TORRE_EIFFEL, MACHU_PICCHU])
     const user = userEvent.setup()
 
     renderPreguntas()
     await screen.findByText('Torre Eiffel')
 
-    await user.selectOptions(screen.getByLabelText(/filtrar por temática/i), 'Patrimonio')
+    await user.selectOptions(screen.getByLabelText(/filtrar por temática/i), 'Paisajes')
     expect(screen.queryByText('Torre Eiffel')).not.toBeInTheDocument()
     expect(screen.getByText('Machu Picchu')).toBeInTheDocument()
   })
 
-  it('filtra por "sin asignar a ningún nivel"', async () => {
-    fetchPreguntas.mockResolvedValue([TORRE_EIFFEL, DESAFIO_SUELTO])
+  it('filtra por dificultad', async () => {
+    fetchPreguntas.mockResolvedValue([TORRE_EIFFEL, MACHU_PICCHU])
     const user = userEvent.setup()
 
     renderPreguntas()
     await screen.findByText('Torre Eiffel')
 
-    await user.click(screen.getByLabelText(/sin asignar a ningún nivel/i))
-
+    await user.selectOptions(screen.getByLabelText(/filtrar por dificultad/i), 'muy_dificil')
     expect(screen.queryByText('Torre Eiffel')).not.toBeInTheDocument()
-    expect(screen.getByText('Desafío suelto')).toBeInTheDocument()
+    expect(screen.getByText('Machu Picchu')).toBeInTheDocument()
   })
 
   it('pagina los resultados y reinicia a la primera página al cambiar un filtro', async () => {
@@ -278,9 +273,7 @@ describe('Preguntas', () => {
   it('muestra el mensaje de error y conserva la fila si el desafío está en uso', async () => {
     fetchPreguntas.mockResolvedValue([TORRE_EIFFEL])
     eliminarPregunta.mockRejectedValue(
-      new Error(
-        'No se puede eliminar: esta pregunta está en uso o tiene respuestas registradas de jugadores.',
-      ),
+      new Error('No se puede eliminar: esta pregunta tiene respuestas registradas de jugadores.'),
     )
     const user = userEvent.setup()
 
@@ -305,6 +298,48 @@ describe('Preguntas', () => {
 
     expect(eliminarPregunta).not.toHaveBeenCalled()
     expect(screen.getByText('Torre Eiffel')).toBeInTheDocument()
+  })
+
+  it('cambia la dificultad desde el listado sin navegar', async () => {
+    fetchPreguntas.mockResolvedValue([TORRE_EIFFEL])
+    actualizarDificultadPregunta.mockResolvedValue(undefined)
+    const user = userEvent.setup()
+
+    renderPreguntas()
+    const fila = (await screen.findByText('Torre Eiffel')).closest('tr') as HTMLElement
+
+    await user.selectOptions(within(fila).getByLabelText('Dificultad de "Torre Eiffel"'), 'facil')
+
+    expect(actualizarDificultadPregunta).toHaveBeenCalledWith('d-eiffel', 'facil')
+    expect(screen.getByText('Torre Eiffel')).toBeInTheDocument()
+  })
+
+  it('cambia el estado activo/inactivo desde el listado', async () => {
+    fetchPreguntas.mockResolvedValue([TORRE_EIFFEL])
+    actualizarActivoPregunta.mockResolvedValue(undefined)
+    const user = userEvent.setup()
+
+    renderPreguntas()
+    const fila = (await screen.findByText('Torre Eiffel')).closest('tr') as HTMLElement
+
+    await user.click(within(fila).getByLabelText('Cambiar estado de "Torre Eiffel"'))
+
+    expect(actualizarActivoPregunta).toHaveBeenCalledWith('d-eiffel', false)
+    expect(within(fila).getByText('Inactivo')).toBeInTheDocument()
+  })
+
+  it('revierte el cambio y muestra un error si el guardado inline falla', async () => {
+    fetchPreguntas.mockResolvedValue([TORRE_EIFFEL])
+    actualizarActivoPregunta.mockRejectedValue(new Error('No se ha podido guardar.'))
+    const user = userEvent.setup()
+
+    renderPreguntas()
+    const fila = (await screen.findByText('Torre Eiffel')).closest('tr') as HTMLElement
+
+    await user.click(within(fila).getByLabelText('Cambiar estado de "Torre Eiffel"'))
+
+    expect(await within(fila).findByText('No se ha podido guardar.')).toBeInTheDocument()
+    expect(within(fila).getByText('Activo')).toBeInTheDocument()
   })
 
   it('muestra un error si falla la carga del listado', async () => {

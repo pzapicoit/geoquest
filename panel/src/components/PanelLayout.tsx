@@ -10,6 +10,7 @@ const NAV_ITEMS = [
   { label: 'Ranking', to: '/', enabled: false },
   { label: 'Temáticas', to: '/tematicas', enabled: true },
   { label: 'Camino', to: '/camino', enabled: true },
+  { label: 'Dificultades', to: '/dificultades', enabled: true },
   { label: 'Preguntas/Desafíos', to: '/preguntas', enabled: true },
 ]
 

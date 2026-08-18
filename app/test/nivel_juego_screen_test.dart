@@ -47,7 +47,7 @@ Widget _appConCamino(NivelJuegoGateway gateway, {String? nivelNombre}) {
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute<void>(
                 builder: (_) => NivelJuegoScreen(
-                  nivelId: 'nivel-1',
+                  caminoId: 'nivel-1',
                   nivelNombre: nivelNombre,
                   gateway: gateway,
                   cargadorDeMundo: cargarMundoDePrueba,
@@ -215,7 +215,7 @@ void main() {
       await _abrirNivel(tester, gateway);
 
       expect(find.text('¿Dónde está esto?'), findsOneWidget);
-      expect(gateway.ultimoNivelId, 'nivel-1');
+      expect(gateway.ultimoCaminoId, 'nivel-1');
     });
 
     testWidgets('un desafío de imagen muestra Image.network', (tester) async {

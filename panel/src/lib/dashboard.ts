@@ -1,10 +1,11 @@
 import { supabase } from './supabaseClient'
+import { DIFICULTAD_LABEL, type Dificultad } from './dificultad'
 
 export interface MetricasHome {
   jugadoresTotales: number
   jugadoresActivos7d: number
   partidasHoy: number
-  nivelesActivos: number
+  paradasActivas: number
 }
 
 export interface AlertaContenido {
@@ -27,7 +28,7 @@ interface MetricasHomeRow {
   jugadores_totales: number
   jugadores_activos_7d: number
   partidas_hoy: number
-  niveles_activos: number
+  paradas_activas: number
 }
 
 interface AlertaContenidoRow {
@@ -55,26 +56,27 @@ export async function fetchMetricasHome(): Promise<MetricasHome> {
     jugadoresTotales: row.jugadores_totales,
     jugadoresActivos7d: row.jugadores_activos_7d,
     partidasHoy: row.partidas_hoy,
-    nivelesActivos: row.niveles_activos,
+    paradasActivas: row.paradas_activas,
   }
 }
 
-// Nombre legible de un nivel: "<temática> · Nivel <orden>". Una consulta a
-// `niveles` y una a `tematicas` (batch por ids únicos), no una por fila.
-async function resolveNivelEtiquetas(
-  nivelIds: (string | undefined)[],
+// Nombre legible de una parada del camino: "<temática> · <dificultad>". Una
+// consulta a `camino` y una a `tematicas` (batch por ids únicos), no una por
+// fila.
+async function resolveParadaEtiquetas(
+  caminoIds: (string | undefined)[],
 ): Promise<Map<string, string>> {
   const etiquetas = new Map<string, string>()
-  const ids = [...new Set(nivelIds.filter((id): id is string => Boolean(id)))]
+  const ids = [...new Set(caminoIds.filter((id): id is string => Boolean(id)))]
   if (ids.length === 0) return etiquetas
 
-  const { data: niveles, error: nivelesError } = await supabase
-    .from('niveles')
-    .select('id, orden, tematica_id')
+  const { data: camino, error: caminoError } = await supabase
+    .from('camino')
+    .select('id, dificultad, tematica_id')
     .in('id', ids)
-  if (nivelesError) throw nivelesError
+  if (caminoError) throw caminoError
 
-  const tematicaIds = [...new Set((niveles ?? []).map((nivel) => nivel.tematica_id as string))]
+  const tematicaIds = [...new Set((camino ?? []).map((parada) => parada.tematica_id as string))]
   const { data: tematicas, error: tematicasError } =
     tematicaIds.length > 0
       ? await supabase.from('tematicas').select('id, nombre').in('id', tematicaIds)
@@ -85,9 +87,12 @@ async function resolveNivelEtiquetas(
     (tematicas ?? []).map((tematica) => [tematica.id, tematica.nombre]),
   )
 
-  for (const nivel of niveles ?? []) {
-    const nombreTematica = nombrePorTematica.get(nivel.tematica_id) ?? 'Temática desconocida'
-    etiquetas.set(nivel.id, `${nombreTematica} · Nivel ${nivel.orden}`)
+  for (const parada of camino ?? []) {
+    const nombreTematica = nombrePorTematica.get(parada.tematica_id) ?? 'Temática desconocida'
+    etiquetas.set(
+      parada.id,
+      `${nombreTematica} · ${DIFICULTAD_LABEL[parada.dificultad as Dificultad]}`,
+    )
   }
 
   return etiquetas
@@ -119,15 +124,15 @@ export async function fetchAlertasContenido(): Promise<AlertaContenido[]> {
   if (error) throw error
 
   const filas = (data ?? []) as AlertaContenidoRow[]
-  const nivelIds = filas
+  const caminoIds = filas
     .filter((fila) => fila.tipo === 'nivel_baja_tasa')
     .map((fila) => fila.referencia_id)
   const desafioIds = filas
     .filter((fila) => fila.tipo === 'desafio_incompleto')
     .map((fila) => fila.referencia_id)
 
-  const [nivelEtiquetas, desafioEtiquetas] = await Promise.all([
-    resolveNivelEtiquetas(nivelIds),
+  const [paradaEtiquetas, desafioEtiquetas] = await Promise.all([
+    resolveParadaEtiquetas(caminoIds),
     resolveDesafioEtiquetas(desafioIds),
   ])
 
@@ -137,7 +142,7 @@ export async function fetchAlertasContenido(): Promise<AlertaContenido[]> {
     titulo: fila.titulo,
     detalle: fila.detalle,
     etiqueta:
-      nivelEtiquetas.get(fila.referencia_id) ??
+      paradaEtiquetas.get(fila.referencia_id) ??
       desafioEtiquetas.get(fila.referencia_id) ??
       fila.titulo,
   }))
@@ -148,11 +153,11 @@ export async function fetchActividadReciente(limite = 20): Promise<EventoActivid
   if (error) throw error
 
   const filas = (data ?? []) as EventoActividadRow[]
-  const nivelIds = filas
+  const caminoIds = filas
     .filter((fila) => fila.tipo === 'nivel_superado')
-    .map((fila) => fila.detalle?.nivel_id as string | undefined)
+    .map((fila) => fila.detalle?.camino_id as string | undefined)
 
-  const nivelEtiquetas = await resolveNivelEtiquetas(nivelIds)
+  const paradaEtiquetas = await resolveParadaEtiquetas(caminoIds)
 
   return filas.map((fila) => ({
     tipo: fila.tipo,
@@ -161,7 +166,7 @@ export async function fetchActividadReciente(limite = 20): Promise<EventoActivid
     detalle: fila.detalle,
     etiqueta:
       fila.tipo === 'nivel_superado'
-        ? (nivelEtiquetas.get(fila.detalle?.nivel_id as string) ?? null)
+        ? (paradaEtiquetas.get(fila.detalle?.camino_id as string) ?? null)
         : null,
   }))
 }

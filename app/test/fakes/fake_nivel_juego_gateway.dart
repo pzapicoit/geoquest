@@ -79,7 +79,7 @@ class FakeNivelJuegoGateway implements NivelJuegoGateway {
   Object? throwOnNextCall;
 
   int iniciarIntentoCalls = 0;
-  String? ultimoNivelId;
+  String? ultimoCaminoId;
 
   /// Deja `iniciarIntento` colgado hasta que el test lo complete, para poder
   /// mirar el estado de carga sin depender de cuántos fotogramas caben antes
@@ -138,9 +138,9 @@ class FakeNivelJuegoGateway implements NivelJuegoGateway {
   }
 
   @override
-  Future<IntentoNivel> iniciarIntento(String nivelId) async {
+  Future<IntentoNivel> iniciarIntento(String caminoId) async {
     iniciarIntentoCalls++;
-    ultimoNivelId = nivelId;
+    ultimoCaminoId = caminoId;
 
     await pausaAlIniciar?.future;
 

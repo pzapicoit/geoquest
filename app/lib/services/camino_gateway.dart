@@ -2,11 +2,15 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// Una posición de `camino_jugador`, con la portada de su temática ya
 /// resuelta a URL pública.
+///
+/// Desde INT-106, una parada ya no referencia un `nivel_id` curado a mano:
+/// `caminoId` (la propia fila de `camino`) es su único identificador, y
+/// `nivelNombre` pasa a leerse de `camino.nombre` directamente en vez de vía
+/// un join a `niveles`.
 class ParadaCamino {
   const ParadaCamino({
     required this.caminoId,
     required this.orden,
-    required this.nivelId,
     this.nivelNombre,
     required this.tematicaId,
     required this.tematicaNombre,
@@ -21,7 +25,6 @@ class ParadaCamino {
 
   final String caminoId;
   final int orden;
-  final String nivelId;
   final String? nivelNombre;
   final String tematicaId;
   final String tematicaNombre;
@@ -104,8 +107,7 @@ class SupabaseCaminoGateway implements CaminoGateway {
     return ParadaCamino(
       caminoId: row['camino_id'] as String,
       orden: row['orden'] as int,
-      nivelId: row['nivel_id'] as String,
-      nivelNombre: row['nivel_nombre'] as String?,
+      nivelNombre: row['nombre'] as String?,
       tematicaId: row['tematica_id'] as String,
       tematicaNombre: row['tematica_nombre'] as String,
       superado: row['superado'] as bool,

@@ -63,7 +63,7 @@ ResumenNivelScreen _pantallaSuperada({
       puntajeMinimoSuperar: 1500,
       mejorPuntajeAnterior: mejorPuntajeAnterior,
     ),
-    nivelId: 'nivel-1',
+    caminoId: 'nivel-1',
     nivelNombre: 'Capitales del Mediterráneo',
     nivelOrden: 3,
     tematicaNombre: 'Praderas de Europa',
@@ -90,7 +90,7 @@ ResumenNivelScreen _pantallaNoSuperada({
       puntajeMinimoSuperar: puntajeMinimoSuperar,
       mejorPuntajeAnterior: null,
     ),
-    nivelId: 'nivel-1',
+    caminoId: 'nivel-1',
     nivelNombre: 'Capitales del Mediterráneo',
     nivelOrden: 3,
     tematicaNombre: 'Praderas de Europa',
@@ -276,7 +276,7 @@ void main() {
 
       expect(find.byType(NivelJuegoScreen), findsOneWidget);
       expect(gateway.iniciarIntentoCalls, 1);
-      expect(gateway.ultimoNivelId, 'nivel-1');
+      expect(gateway.ultimoCaminoId, 'nivel-1');
       expect(find.byKey(const Key('resumen-nivel-reintentar')), findsNothing);
     });
 

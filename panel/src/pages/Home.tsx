@@ -8,7 +8,7 @@ import {
   type MetricasHome,
 } from '../lib/dashboard'
 
-const QUICK_ACTIONS = ['Nueva temática', 'Nuevo nivel', 'Nuevo desafío']
+const QUICK_ACTIONS = ['Nueva temática', 'Nueva parada del camino', 'Nuevo desafío']
 
 const METRIC_CARDS: {
   key: keyof MetricasHome
@@ -30,9 +30,9 @@ const METRIC_CARDS: {
   },
   { key: 'partidasHoy', label: 'Partidas hoy', note: 'Intentos de hoy', color: 'bg-brand-gold' },
   {
-    key: 'nivelesActivos',
-    label: 'Niveles publicados',
-    note: 'Actualmente activos',
+    key: 'paradasActivas',
+    label: 'Paradas publicadas',
+    note: 'Actualmente activas',
     color: 'bg-brand-special',
   },
 ]
@@ -51,7 +51,7 @@ function textoActividad(evento: EventoActividad): string {
     return `Nuevo registro: ${evento.texto}`
   }
   const estrellas = Math.max(0, Math.min(3, Number(evento.detalle?.estrellas_obtenidas ?? 0)))
-  const destino = evento.etiqueta ?? 'un nivel'
+  const destino = evento.etiqueta ?? 'una parada'
   return `${evento.texto} superó ${destino} (${'★'.repeat(estrellas)}${'☆'.repeat(3 - estrellas)})`
 }
 

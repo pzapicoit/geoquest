@@ -71,7 +71,7 @@ nombre del lugar y el puntaje máximo alcanzable.
 El revelado SHALL entregarse únicamente como resultado de registrar la
 jugada. La RPC SHALL no ofrecer ninguna vía para consultar la coordenada
 real de un desafío sin responderlo, y el resto de superficies de lectura
-(`desafios`, `desafios_para_jugar`, `iniciar_intento_nivel`) SHALL seguir
+(`desafios`, `desafios_para_jugar`, `iniciar_intento_parada`) SHALL seguir
 sin exponerla.
 
 #### Scenario: Un jugador responde a un desafío de su propio intento
@@ -114,7 +114,7 @@ sin exponerla.
 - **WHEN** un jugador (incluida una sesión anónima) intenta leer la
   coordenada real de un desafío por cualquier otra vía —`select` sobre
   `desafios`, `desafios_para_jugar` o la respuesta de
-  `iniciar_intento_nivel`—
+  `iniciar_intento_parada`—
 - **THEN** no la obtiene por ninguna de ellas
 
 ### Requirement: Persistencia de distancia, tiempo y puntaje siempre calculados por el servidor

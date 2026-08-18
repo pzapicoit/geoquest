@@ -40,14 +40,16 @@ class DesafioJuego {
 }
 
 /// Resultado de arrancar una partida: el intento creado y los desafíos que
-/// le tocaron (INT-95: `iniciar_intento_nivel`).
+/// le tocaron (INT-95: `iniciar_intento_nivel`; renombrada a
+/// `iniciar_intento_parada` en INT-106).
 ///
-/// Desde INT-99 trae también `segundosPorDesafio`, el límite de tiempo del
-/// nivel que la pantalla usa para inicializar la cuenta atrás de cada
-/// desafío. Con un valor por defecto de 60 —el mismo que trae la columna
-/// `niveles.segundos_por_desafio` en Postgres— para no romper los
-/// constructores `const` ya existentes en otros tests que no ejercitan el
-/// temporizador.
+/// Desde INT-99 trae también `segundosPorDesafio`, el límite de tiempo de la
+/// parada que la pantalla usa para inicializar la cuenta atrás de cada
+/// desafío. Con un valor por defecto de 60 —el mismo que traía la columna
+/// `niveles.segundos_por_desafio` en Postgres, ahora resuelto desde
+/// `dificultad_defaults` o el override de la parada (INT-106)— para no
+/// romper los constructores `const` ya existentes en otros tests que no
+/// ejercitan el temporizador.
 class IntentoNivel {
   const IntentoNivel({
     required this.intentoId,
@@ -68,7 +70,7 @@ class IntentoNivel {
 /// ubicación real, el nombre del lugar y el puntaje máximo alcanzable—. Ese
 /// dato solo viaja en la respuesta a la propia jugada (D2 de `design.md`):
 /// RLS lo sigue escondiendo en `desafios`, `desafios_para_jugar` y
-/// `iniciar_intento_nivel`.
+/// `iniciar_intento_parada`.
 ///
 /// Desde INT-99, `responder_desafio` acepta una respuesta sin pin (tiempo
 /// agotado sin coordenadas): en ese caso el servidor no tiene distancia que
@@ -115,11 +117,12 @@ class RespuestaDesafio {
 }
 
 /// Resultado de cerrar un intento, tal como lo devuelve la RPC
-/// `cerrar_intento_nivel` (INT-79, ampliada en INT-94): además del
-/// resultado del propio intento, trae lo que el resumen del nivel necesita
-/// y que no viaja a ningún otro sitio — el mínimo del nivel y el mejor
-/// puntaje que tenía el jugador en ese nivel *antes* de este cierre (D1/D2
-/// de `design.md` de INT-94).
+/// `cerrar_intento_nivel` (INT-79, ampliada en INT-94; renombrada a
+/// `cerrar_intento_parada` en INT-106): además del resultado del propio
+/// intento, trae lo que el resumen del nivel necesita y que no viaja a
+/// ningún otro sitio — el mínimo efectivo de la parada y el mejor puntaje
+/// que tenía el jugador en ella *antes* de este cierre (D1/D2 de
+/// `design.md` de INT-94).
 class ResultadoIntento {
   const ResultadoIntento({
     required this.puntajeTotal,
@@ -142,7 +145,7 @@ class ResultadoIntento {
 /// Superficie mínima de Supabase para jugar un nivel, para poder probar la
 /// pantalla de juego con un falso sin salir a la red.
 abstract class NivelJuegoGateway {
-  Future<IntentoNivel> iniciarIntento(String nivelId);
+  Future<IntentoNivel> iniciarIntento(String caminoId);
 
   /// `latitud`/`longitud` llegan `null` cuando el tiempo se agota sin pin
   /// colocado (INT-99): la RPC registra una respuesta de 0 puntos sin
@@ -174,10 +177,10 @@ class SupabaseNivelJuegoGateway implements NivelJuegoGateway {
   final SupabaseClient _client;
 
   @override
-  Future<IntentoNivel> iniciarIntento(String nivelId) async {
+  Future<IntentoNivel> iniciarIntento(String caminoId) async {
     final respuesta = await _client.rpc(
-      'iniciar_intento_nivel',
-      params: {'p_nivel_id': nivelId},
+      'iniciar_intento_parada',
+      params: {'p_camino_id': caminoId},
     );
 
     return mapearIntentoNivel(respuesta as Map<String, dynamic>);
@@ -217,7 +220,7 @@ class SupabaseNivelJuegoGateway implements NivelJuegoGateway {
   @override
   Future<ResultadoIntento> cerrarIntento(String intentoId) async {
     final respuesta = await _client.rpc(
-      'cerrar_intento_nivel',
+      'cerrar_intento_parada',
       params: {'p_intento_id': intentoId},
     );
 
@@ -226,7 +229,7 @@ class SupabaseNivelJuegoGateway implements NivelJuegoGateway {
 }
 
 /// Mapea el jsonb `{"intento_id", "desafios", "segundos_por_desafio"}` que
-/// devuelve `iniciar_intento_nivel` a [IntentoNivel]. Función pura, extraída
+/// devuelve `iniciar_intento_parada` a [IntentoNivel]. Función pura, extraída
 /// para poder probar el mapeo sin red (INT-91, mismo patrón que
 /// `sumarPuntos` en `camino_gateway.dart`).
 ///
@@ -273,7 +276,7 @@ RespuestaDesafio mapearRespuestaDesafio(Map<String, dynamic> fila) {
   );
 }
 
-/// Mapea el `jsonb` que devuelve `cerrar_intento_nivel` (INT-94). Función
+/// Mapea el `jsonb` que devuelve `cerrar_intento_parada` (INT-94). Función
 /// pura, extraída por el mismo motivo que [mapearIntentoNivel]: poder
 /// probar el mapeo sin red.
 ResultadoIntento mapearResultadoIntento(Map<String, dynamic> fila) {

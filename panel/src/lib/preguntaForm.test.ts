@@ -1,11 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import {
   fetchPregunta,
-  fetchNivelesParaAsignar,
+  fetchTematicasParaPregunta,
   validarArchivoMedia,
   subirMediaDesafio,
   guardarPregunta,
-  asignarPreguntaANiveles,
 } from './preguntaForm'
 
 const from = vi.fn()
@@ -28,7 +27,7 @@ function archivo(nombre: string, tipo: string, bytes = 1024) {
 }
 
 describe('fetchPregunta', () => {
-  it('devuelve una pregunta con sus campos en camelCase', async () => {
+  it('devuelve una pregunta con sus campos en camelCase, incluida temática y dificultad', async () => {
     const single = vi.fn().mockResolvedValue({
       data: {
         id: 'd-1',
@@ -40,6 +39,8 @@ describe('fetchPregunta', () => {
         lat_real: 48.8584,
         lng_real: 2.2945,
         activo: true,
+        tematica_id: 't-1',
+        dificultad: 'dificil',
       },
       error: null,
     })
@@ -60,6 +61,8 @@ describe('fetchPregunta', () => {
       latReal: 48.8584,
       lngReal: 2.2945,
       activo: true,
+      tematicaId: 't-1',
+      dificultad: 'dificil',
     })
   })
 
@@ -71,65 +74,31 @@ describe('fetchPregunta', () => {
   })
 })
 
-describe('fetchNivelesParaAsignar', () => {
-  it('combina niveles, temáticas y conteo de asignaciones, ordenado por temática y nivel', async () => {
-    from.mockImplementation((table: string) => ({
-      select: () => {
-        if (table === 'niveles') {
-          return Promise.resolve({
-            data: [
-              { id: 'n-2', orden: 2, tematica_id: 't-patrimonio' },
-              { id: 'n-1', orden: 3, tematica_id: 't-paisajes' },
-            ],
-            error: null,
-          })
-        }
-        if (table === 'tematicas') {
-          return Promise.resolve({
-            data: [
-              { id: 't-paisajes', nombre: 'Paisajes' },
-              { id: 't-patrimonio', nombre: 'Patrimonio' },
-            ],
-            error: null,
-          })
-        }
-        if (table === 'nivel_desafios') {
-          return Promise.resolve({
-            data: [{ nivel_id: 'n-1' }, { nivel_id: 'n-1' }, { nivel_id: 'n-2' }],
-            error: null,
-          })
-        }
-        throw new Error(`tabla inesperada: ${table}`)
-      },
-    }))
+describe('fetchTematicasParaPregunta', () => {
+  it('devuelve las temáticas ordenadas por orden', async () => {
+    const order = vi.fn().mockResolvedValue({
+      data: [
+        { id: 't-1', nombre: 'Paisajes' },
+        { id: 't-2', nombre: 'Patrimonio' },
+      ],
+      error: null,
+    })
+    from.mockReturnValue({ select: () => ({ order }) })
 
-    const niveles = await fetchNivelesParaAsignar()
+    const tematicas = await fetchTematicasParaPregunta()
 
-    expect(niveles).toEqual([
-      { id: 'n-1', tematicaNombre: 'Paisajes', nivelOrden: 3, cantidadPreguntas: 2 },
-      { id: 'n-2', tematicaNombre: 'Patrimonio', nivelOrden: 2, cantidadPreguntas: 1 },
+    expect(from).toHaveBeenCalledWith('tematicas')
+    expect(tematicas).toEqual([
+      { id: 't-1', nombre: 'Paisajes' },
+      { id: 't-2', nombre: 'Patrimonio' },
     ])
   })
 
-  it('un nivel sin asignaciones tiene cantidadPreguntas 0', async () => {
-    from.mockImplementation((table: string) => ({
-      select: () => {
-        if (table === 'niveles') {
-          return Promise.resolve({
-            data: [{ id: 'n-1', orden: 1, tematica_id: 't-1' }],
-            error: null,
-          })
-        }
-        if (table === 'tematicas') {
-          return Promise.resolve({ data: [{ id: 't-1', nombre: 'Geografía' }], error: null })
-        }
-        return Promise.resolve({ data: [], error: null })
-      },
-    }))
+  it('propaga el error si falla la consulta', async () => {
+    const order = vi.fn().mockResolvedValue({ data: null, error: { message: 'fallo de red' } })
+    from.mockReturnValue({ select: () => ({ order }) })
 
-    const niveles = await fetchNivelesParaAsignar()
-
-    expect(niveles[0]).toMatchObject({ cantidadPreguntas: 0 })
+    await expect(fetchTematicasParaPregunta()).rejects.toThrow('fallo de red')
   })
 })
 
@@ -192,7 +161,7 @@ describe('guardarPregunta', () => {
     return upsert
   }
 
-  it('crea una pregunta de tipo texto generando un id nuevo', async () => {
+  it('crea una pregunta de tipo texto generando un id nuevo, con temática y dificultad', async () => {
     const upsert = mockUpsert()
 
     const { id } = await guardarPregunta({
@@ -203,6 +172,8 @@ describe('guardarPregunta', () => {
       latReal: -13.1631,
       lngReal: -72.545,
       activo: true,
+      tematicaId: 't-1',
+      dificultad: 'normal',
       archivo: null,
       imagenUrlActual: null,
       videoUrlActual: null,
@@ -220,6 +191,8 @@ describe('guardarPregunta', () => {
         texto_pregunta: '¿Ciudadela inca?',
         nombre_lugar: 'Machu Picchu',
         activo: true,
+        tematica_id: 't-1',
+        dificultad: 'normal',
       }),
     )
   })
@@ -240,6 +213,8 @@ describe('guardarPregunta', () => {
       latReal: 48.8584,
       lngReal: 2.2945,
       activo: true,
+      tematicaId: 't-1',
+      dificultad: 'facil',
       archivo: archivo('foto.png', 'image/png'),
       imagenUrlActual: null,
       videoUrlActual: null,
@@ -262,6 +237,8 @@ describe('guardarPregunta', () => {
       latReal: 48.8584,
       lngReal: 2.2945,
       activo: true,
+      tematicaId: 't-1',
+      dificultad: 'dificil',
       archivo: null,
       imagenUrlActual: 'https://cdn/imagen/d-1.png',
       videoUrlActual: null,
@@ -285,75 +262,12 @@ describe('guardarPregunta', () => {
         latReal: 0,
         lngReal: 0,
         activo: true,
+        tematicaId: 't-1',
+        dificultad: 'normal',
         archivo: null,
         imagenUrlActual: null,
         videoUrlActual: null,
       }),
     ).rejects.toThrow('restricción violada')
-  })
-})
-
-describe('asignarPreguntaANiveles', () => {
-  it('no consulta nada si no se seleccionó ningún nivel', async () => {
-    const resultado = await asignarPreguntaANiveles('d-1', [])
-
-    expect(resultado).toEqual([])
-    expect(from).not.toHaveBeenCalled()
-  })
-
-  it('inserta cada nivel con orden = max(orden) + 1 de ese nivel', async () => {
-    const insert = vi.fn().mockResolvedValue({ error: null })
-    from.mockImplementation((table: string) => {
-      if (table === 'nivel_desafios') {
-        return {
-          select: () => ({
-            in: () =>
-              Promise.resolve({
-                data: [
-                  { nivel_id: 'n-1', orden: 2 },
-                  { nivel_id: 'n-1', orden: 1 },
-                ],
-                error: null,
-              }),
-          }),
-          insert,
-        }
-      }
-      throw new Error(`tabla inesperada: ${table}`)
-    })
-
-    const resultado = await asignarPreguntaANiveles('d-1', ['n-1', 'n-2'])
-
-    expect(insert).toHaveBeenCalledWith({ nivel_id: 'n-1', desafio_id: 'd-1', orden: 3 })
-    expect(insert).toHaveBeenCalledWith({ nivel_id: 'n-2', desafio_id: 'd-1', orden: 1 })
-    expect(resultado).toEqual(
-      expect.arrayContaining([
-        { nivelId: 'n-1', error: null },
-        { nivelId: 'n-2', error: null },
-      ]),
-    )
-  })
-
-  it('reporta el error de una asignación sin afectar a las demás', async () => {
-    const insert = vi
-      .fn()
-      .mockImplementation(({ nivel_id: nivelId }: { nivel_id: string }) =>
-        Promise.resolve(
-          nivelId === 'n-1' ? { error: { message: 'conflicto de orden' } } : { error: null },
-        ),
-      )
-    from.mockImplementation(() => ({
-      select: () => ({ in: () => Promise.resolve({ data: [], error: null }) }),
-      insert,
-    }))
-
-    const resultado = await asignarPreguntaANiveles('d-1', ['n-1', 'n-2'])
-
-    expect(resultado).toEqual(
-      expect.arrayContaining([
-        { nivelId: 'n-1', error: 'conflicto de orden' },
-        { nivelId: 'n-2', error: null },
-      ]),
-    )
   })
 })
