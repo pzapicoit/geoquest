@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../route_observer.dart';
 import '../services/camino_gateway.dart';
 import '../services/nivel_juego_gateway.dart';
 import '../services/username_storage.dart';
@@ -91,7 +92,7 @@ class CaminoScreen extends StatefulWidget {
   State<CaminoScreen> createState() => _CaminoScreenState();
 }
 
-class _CaminoScreenState extends State<CaminoScreen> {
+class _CaminoScreenState extends State<CaminoScreen> with RouteAware {
   late final CaminoGateway _caminoGateway =
       widget.caminoGateway ?? SupabaseCaminoGateway(Supabase.instance.client);
   late final UsernameStorage _usernameStorage =
@@ -113,10 +114,35 @@ class _CaminoScreenState extends State<CaminoScreen> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // `didChangeDependencies` puede llamarse más de una vez (p. ej. si
+    // cambia un `InheritedWidget` del que depende `build`, como
+    // `MediaQuery`); desuscribirse antes de cada suscripción evita
+    // depender de que `RouteObserver` deduplique por identidad.
+    routeObserver.unsubscribe(this);
+    routeObserver.subscribe(this, ModalRoute.of(context)! as PageRoute);
+  }
+
+  @override
   void dispose() {
+    routeObserver.unsubscribe(this);
     _controller.removeListener(_onScroll);
     _controller.dispose();
     super.dispose();
+  }
+
+  /// El camino puede haber cambiado (estrellas, desbloqueos) al volver de
+  /// jugar, con o sin terminar el nivel (D6 de `design.md` de INT-94) — se
+  /// recarga siempre, sin distinguir casos. Se dispara cuando esta pantalla
+  /// vuelve a ser la visible, sea cual sea la cadena de `push`/
+  /// `pushReplacement` que haya habido por encima (p. ej. "Reintentar" desde
+  /// el resumen), no solo al volver de la primera pantalla empujada.
+  @override
+  void didPopNext() {
+    setState(() {
+      _futuro = _cargar();
+    });
   }
 
   Future<CaminoJugador> _cargar() async {
@@ -199,6 +225,10 @@ class _CaminoScreenState extends State<CaminoScreen> {
           // el camino ya lo tiene cargado (D9 de `design.md` de INT-92): la
           // temática hace de reserva para los niveles sin nombre propio.
           nivelNombre: parada.nivelNombre ?? parada.tematicaNombre,
+          // El pill del resumen del nivel necesita ambos (D4 de `design.md`
+          // de INT-94); el camino ya los tiene cargados.
+          nivelOrden: parada.orden,
+          tematicaNombre: parada.tematicaNombre,
           gateway: widget.nivelJuegoGateway,
         ),
       ),

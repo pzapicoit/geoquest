@@ -8,6 +8,7 @@ import 'package:video_player/video_player.dart';
 import '../mapa/mapa_mundi.dart';
 import '../mapa/mapa_mundi_controller.dart';
 import '../services/nivel_juego_gateway.dart';
+import 'resumen_nivel_screen.dart';
 
 const _ink = Color(0xFF0E1620);
 const _cardBg = Color(0xFF16242F);
@@ -23,13 +24,16 @@ const _rojo = Color(0xFFFF5A5F);
 /// Confirmar manda el pin a `responder_desafio` y revela el resultado sobre el
 /// mismo mapa (INT-93): la ubicación real, el encuadre de los dos pines, la
 /// línea entre ellos y los contadores de distancia y puntos. De ahí se avanza
-/// con "Siguiente". Cerrar el intento al terminar el nivel es INT-94 — hoy
-/// imposible por INT-100 (ver D12 de `design.md` de INT-92).
+/// con "Siguiente", o con "Ver resultados" en el último desafío, que cierra
+/// el intento (`cerrar_intento_nivel`) y entra en el resumen del nivel
+/// (INT-94).
 class NivelJuegoScreen extends StatefulWidget {
   const NivelJuegoScreen({
     super.key,
     required this.nivelId,
     this.nivelNombre,
+    this.nivelOrden,
+    this.tematicaNombre,
     this.gateway,
     this.cargadorDeMundo,
   });
@@ -39,6 +43,13 @@ class NivelJuegoScreen extends StatefulWidget {
   /// Nombre que se enseña en el HUD. Llega desde el camino, que ya lo tiene
   /// cargado (D9 de `design.md`), en vez de costar una consulta extra.
   final String? nivelNombre;
+
+  /// Posición del nivel en el camino del jugador y nombre de su temática,
+  /// para el rótulo "Nivel N · Zona" del resumen (D4 de `design.md` de
+  /// INT-94). El camino ya los tiene cargados, mismo motivo que
+  /// `nivelNombre`.
+  final int? nivelOrden;
+  final String? tematicaNombre;
 
   /// Inyectable para poder probar la pantalla sin salir a la red.
   final NivelJuegoGateway? gateway;
@@ -109,6 +120,7 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
   int _indice = 0;
   bool _pistaVisible = true;
   bool _enviando = false;
+  bool _cerrando = false;
   int _puntaje = 0;
   String? _mensaje;
   Timer? _temporizadorDelMensaje;
@@ -280,15 +292,12 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
   int get _puntajeConElRevelado =>
       _puntaje + (_revelado?.respuesta.puntos ?? 0);
 
-  void _avanzarDesdeElRevelado() {
+  void _avanzarDesdeElRevelado(IntentoNivel intento) {
     final revelado = _revelado;
     if (revelado == null) return;
 
     if (revelado.esElUltimo) {
-      // D12 de `design.md` de INT-92: el intento no se cierra aquí. Calcular
-      // estrellas es INT-94 y hoy `cerrar_intento_nivel` ni siquiera puede
-      // con un nivel que reparte preguntas al azar (INT-100).
-      Navigator.of(context).pop();
+      _cerrarYVerResultados(intento);
       return;
     }
 
@@ -306,6 +315,43 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
       _camaraDelRevelado = null;
       _tamanoDelRevelado = null;
     });
+  }
+
+  /// Cierra el intento al terminar el último desafío y, si sale bien, entra
+  /// en el resumen del nivel en vez de volver directamente al camino (D11
+  /// de `design.md` de INT-94: es el único punto en que la pantalla sabe
+  /// con certeza que el jugador ya vio el último revelado).
+  Future<void> _cerrarYVerResultados(IntentoNivel intento) async {
+    if (_cerrando) return;
+
+    setState(() => _cerrando = true);
+    try {
+      final resultado = await _gateway.cerrarIntento(intento.intentoId);
+      if (!mounted) return;
+
+      setState(() => _cerrando = false);
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => ResumenNivelScreen(
+            resultado: resultado,
+            nivelId: widget.nivelId,
+            nivelNombre: widget.nivelNombre,
+            nivelOrden: widget.nivelOrden,
+            tematicaNombre: widget.tematicaNombre,
+            totalDesafios: intento.desafios.length,
+            gateway: _gateway,
+            cargadorDeMundo: widget.cargadorDeMundo,
+          ),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      // El revelado se conserva en pantalla: el jugador ya lo vio entero,
+      // perderlo por un fallo de red además de tener que reintentar sería
+      // castigarle dos veces por lo mismo.
+      setState(() => _cerrando = false);
+      _avisar('No se pudo cerrar el nivel. Inténtalo de nuevo.');
+    }
   }
 
   Future<void> _pedirSalir() async {
@@ -406,7 +452,8 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
                           revelado.respuesta.distanciaKm * _avanceDeLaDistancia,
                       puntos: _puntosDelContador,
                       avanceDelDestello: _avanceDeLosPuntos,
-                      onContinuar: _avanzarDesdeElRevelado,
+                      cerrando: _cerrando,
+                      onContinuar: () => _avanzarDesdeElRevelado(intento),
                       onRepetir: _lanzarElRevelado,
                     ),
                   ),
@@ -1005,6 +1052,7 @@ class _HojaDeRevelado extends StatelessWidget {
     required this.distanciaKm,
     required this.puntos,
     required this.avanceDelDestello,
+    required this.cerrando,
     required this.onContinuar,
     required this.onRepetir,
   });
@@ -1018,6 +1066,11 @@ class _HojaDeRevelado extends StatelessWidget {
   final int puntos;
 
   final double avanceDelDestello;
+
+  /// `true` mientras `cerrar_intento_nivel` está en curso, disparado desde
+  /// "Ver resultados" del último desafío (INT-94).
+  final bool cerrando;
+
   final VoidCallback onContinuar;
   final VoidCallback onRepetir;
 
@@ -1103,21 +1156,32 @@ class _HojaDeRevelado extends StatelessWidget {
                     ),
                     child: TextButton(
                       key: const Key('nivel-juego-siguiente'),
-                      onPressed: onContinuar,
+                      onPressed: cerrando ? null : onContinuar,
                       style: TextButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 19),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(18),
                         ),
                       ),
-                      child: Text(
-                        revelado.esElUltimo ? 'Ver resultados' : 'Siguiente',
-                        style: GoogleFonts.baloo2(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
+                      child: cerrando
+                          ? const SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.4,
+                                color: Colors.white,
+                              ),
+                            )
+                          : Text(
+                              revelado.esElUltimo
+                                  ? 'Ver resultados'
+                                  : 'Siguiente',
+                              style: GoogleFonts.baloo2(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
                     ),
                   ),
                 ),
