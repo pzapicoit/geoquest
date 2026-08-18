@@ -3,27 +3,25 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { PreguntaForm } from './PreguntaForm'
-import type { NivelParaAsignar, PreguntaDetalle } from '../lib/preguntaForm'
+import type { PreguntaDetalle, TematicaOpcion } from '../lib/preguntaForm'
 
 const fetchPregunta = vi.fn()
-const fetchNivelesParaAsignar = vi.fn()
+const fetchTematicasParaPregunta = vi.fn()
 const guardarPregunta = vi.fn()
-const asignarPreguntaANiveles = vi.fn()
 
 vi.mock('../lib/preguntaForm', async () => {
   const actual = await vi.importActual<typeof import('../lib/preguntaForm')>('../lib/preguntaForm')
   return {
     ...actual,
     fetchPregunta: (...args: unknown[]) => fetchPregunta(...args),
-    fetchNivelesParaAsignar: (...args: unknown[]) => fetchNivelesParaAsignar(...args),
+    fetchTematicasParaPregunta: (...args: unknown[]) => fetchTematicasParaPregunta(...args),
     guardarPregunta: (...args: unknown[]) => guardarPregunta(...args),
-    asignarPreguntaANiveles: (...args: unknown[]) => asignarPreguntaANiveles(...args),
   }
 })
 
-const NIVELES: NivelParaAsignar[] = [
-  { id: 'n-1', tematicaNombre: 'Capitales', nivelOrden: 1, cantidadPreguntas: 4 },
-  { id: 'n-2', tematicaNombre: 'Paisajes', nivelOrden: 3, cantidadPreguntas: 2 },
+const TEMATICAS: TematicaOpcion[] = [
+  { id: 't-1', nombre: 'Capitales' },
+  { id: 't-2', nombre: 'Paisajes' },
 ]
 
 const PREGUNTA_EXISTENTE: PreguntaDetalle = {
@@ -36,6 +34,8 @@ const PREGUNTA_EXISTENTE: PreguntaDetalle = {
   latReal: 48.8584,
   lngReal: 2.2945,
   activo: true,
+  tematicaId: 't-1',
+  dificultad: 'normal',
 }
 
 function renderNueva() {
@@ -64,16 +64,17 @@ function renderEditar(id: string) {
 
 beforeEach(() => {
   fetchPregunta.mockReset()
-  fetchNivelesParaAsignar.mockReset()
+  fetchTematicasParaPregunta.mockReset()
   guardarPregunta.mockReset()
-  asignarPreguntaANiveles.mockReset()
-  fetchNivelesParaAsignar.mockResolvedValue(NIVELES)
+  fetchTematicasParaPregunta.mockResolvedValue(TEMATICAS)
 })
 
 async function rellenarCamposComunes(user: ReturnType<typeof userEvent.setup>) {
   await user.type(screen.getByPlaceholderText(/torre eiffel, parís/i), 'Machu Picchu')
   await user.type(screen.getByPlaceholderText('-90 a 90'), '-13.1631')
   await user.type(screen.getByPlaceholderText('-180 a 180'), '-72.545')
+  await user.selectOptions(screen.getByLabelText(/^temática/i), 't-1')
+  await user.selectOptions(screen.getByLabelText(/^dificultad/i), 'normal')
 }
 
 function archivo(nombre: string, tipo: string, bytes = 1024) {
@@ -130,29 +131,18 @@ describe('PreguntaForm — creación', () => {
     expect(screen.queryByText('Sin vídeo todavía')).not.toBeInTheDocument()
   })
 
-  it('busca niveles por temática y quita una selección con la pill', async () => {
-    const user = userEvent.setup()
+  it('ofrece las temáticas cargadas en el selector', async () => {
     renderNueva()
 
-    await screen.findByText('4 preguntas')
-    await user.click(screen.getByText('Capitales · Nivel 1'))
-    expect(await screen.findByText('1 nivel seleccionado')).toBeInTheDocument()
-
-    await user.type(screen.getByPlaceholderText(/buscar nivel o temática/i), 'paisajes')
-    expect(screen.queryByText('4 preguntas')).not.toBeInTheDocument()
-    expect(screen.getByText('2 preguntas')).toBeInTheDocument()
-
-    await user.click(screen.getByTitle('Quitar'))
-    expect(await screen.findByText('Ningún nivel seleccionado')).toBeInTheDocument()
+    await screen.findByText('Paisajes')
+    expect(screen.getByText('Capitales')).toBeInTheDocument()
   })
 
-  it('muestra un aviso si no se pueden cargar los niveles disponibles', async () => {
-    fetchNivelesParaAsignar.mockRejectedValue(new Error('network down'))
+  it('muestra un aviso si no se pueden cargar las temáticas', async () => {
+    fetchTematicasParaPregunta.mockRejectedValue(new Error('network down'))
     renderNueva()
 
-    expect(
-      await screen.findByText('No se han podido cargar los niveles disponibles.'),
-    ).toBeInTheDocument()
+    expect(await screen.findByText('No se han podido cargar las temáticas.')).toBeInTheDocument()
   })
 
   it('bloquea el guardado y muestra error si el tipo imagen no tiene archivo', async () => {
@@ -163,6 +153,23 @@ describe('PreguntaForm — creación', () => {
     await user.click(screen.getByRole('button', { name: /guardar pregunta/i }))
 
     expect(await screen.findByText('Selecciona una imagen.')).toBeInTheDocument()
+    expect(guardarPregunta).not.toHaveBeenCalled()
+  })
+
+  it('bloquea el guardado sin elegir temática ni dificultad', async () => {
+    const user = userEvent.setup()
+    renderNueva()
+
+    await user.click(screen.getByText('Pregunta de texto'))
+    await user.type(screen.getByPlaceholderText(/ciudadela inca/i), '¿Dónde está esto?')
+    await user.type(screen.getByPlaceholderText(/torre eiffel, parís/i), 'Lugar')
+    await user.type(screen.getByPlaceholderText('-90 a 90'), '1')
+    await user.type(screen.getByPlaceholderText('-180 a 180'), '2')
+
+    await user.click(screen.getByRole('button', { name: /guardar pregunta/i }))
+
+    expect(await screen.findByText('Selecciona una temática.')).toBeInTheDocument()
+    expect(screen.getByText('Selecciona una dificultad.')).toBeInTheDocument()
     expect(guardarPregunta).not.toHaveBeenCalled()
   })
 
@@ -184,7 +191,7 @@ describe('PreguntaForm — creación', () => {
     expect(guardarPregunta).not.toHaveBeenCalled()
   })
 
-  it('crea una pregunta de tipo texto y vuelve al listado', async () => {
+  it('crea una pregunta de tipo texto con temática y dificultad, y vuelve al listado', async () => {
     guardarPregunta.mockResolvedValue({ id: 'd-nueva' })
     const user = userEvent.setup()
     renderNueva()
@@ -205,27 +212,10 @@ describe('PreguntaForm — creación', () => {
         latReal: -13.1631,
         lngReal: -72.545,
         activo: true,
+        tematicaId: 't-1',
+        dificultad: 'normal',
       }),
     )
-    expect(asignarPreguntaANiveles).not.toHaveBeenCalled()
-    expect(await screen.findByText('Listado de preguntas')).toBeInTheDocument()
-  })
-
-  it('al crear y seleccionar un nivel, asigna la pregunta a ese nivel', async () => {
-    guardarPregunta.mockResolvedValue({ id: 'd-nueva' })
-    asignarPreguntaANiveles.mockResolvedValue([{ nivelId: 'n-1', error: null }])
-    const user = userEvent.setup()
-    renderNueva()
-
-    await user.click(screen.getByText('Pregunta de texto'))
-    await user.type(screen.getByPlaceholderText(/ciudadela inca/i), '¿Ciudadela inca?')
-    await rellenarCamposComunes(user)
-
-    await screen.findByText('Capitales · Nivel 1')
-    await user.click(screen.getByText('Capitales · Nivel 1'))
-    await user.click(screen.getByRole('button', { name: /guardar pregunta/i }))
-
-    await waitFor(() => expect(asignarPreguntaANiveles).toHaveBeenCalledWith('d-nueva', ['n-1']))
     expect(await screen.findByText('Listado de preguntas')).toBeInTheDocument()
   })
 
@@ -256,7 +246,7 @@ describe('PreguntaForm — creación', () => {
 })
 
 describe('PreguntaForm — edición', () => {
-  it('precarga los datos existentes y no muestra la sección de asignar niveles', async () => {
+  it('precarga los datos existentes, incluida temática y dificultad', async () => {
     fetchPregunta.mockResolvedValue(PREGUNTA_EXISTENTE)
     renderEditar('d-eiffel')
 
@@ -264,7 +254,8 @@ describe('PreguntaForm — edición', () => {
     expect(screen.getByDisplayValue('Torre Eiffel')).toBeInTheDocument()
     expect(screen.getByDisplayValue('48.8584')).toBeInTheDocument()
     expect(screen.getByDisplayValue('2.2945')).toBeInTheDocument()
-    expect(screen.queryByText('Asignar a nivel(es) ahora')).not.toBeInTheDocument()
+    expect(screen.getByLabelText(/^temática/i)).toHaveValue('t-1')
+    expect(screen.getByLabelText(/^dificultad/i)).toHaveValue('normal')
   })
 
   it('guarda una edición conservando la media existente si no se sube un archivo nuevo', async () => {
@@ -282,9 +273,10 @@ describe('PreguntaForm — edición', () => {
         id: 'd-eiffel',
         imagenUrlActual: 'https://cdn.test/imagen/d-eiffel.jpg',
         archivo: null,
+        tematicaId: 't-1',
+        dificultad: 'normal',
       }),
     )
-    expect(fetchNivelesParaAsignar).not.toHaveBeenCalled()
   })
 
   it('muestra un error de carga si la pregunta no existe', async () => {

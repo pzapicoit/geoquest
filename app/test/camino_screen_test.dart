@@ -26,9 +26,8 @@ final _nivelJuegoGatewayDePrueba = FakeNivelJuegoGateway(
 );
 
 const _monumentos = ParadaCamino(
-  caminoId: 'c1',
   orden: 1,
-  nivelId: 'nivel-superado',
+  caminoId: 'nivel-superado',
   tematicaId: 'monumentos',
   tematicaNombre: 'Monumentos',
   superado: true,
@@ -40,9 +39,8 @@ const _monumentos = ParadaCamino(
 );
 
 const _monumentos2 = ParadaCamino(
-  caminoId: 'c2',
   orden: 2,
-  nivelId: 'nivel-actual',
+  caminoId: 'nivel-actual',
   tematicaId: 'monumentos',
   tematicaNombre: 'Monumentos',
   superado: false,
@@ -54,9 +52,8 @@ const _monumentos2 = ParadaCamino(
 );
 
 const _banderas = ParadaCamino(
-  caminoId: 'c3',
   orden: 3,
-  nivelId: 'nivel-bloqueado',
+  caminoId: 'nivel-bloqueado',
   tematicaId: 'banderas',
   tematicaNombre: 'Banderas',
   superado: false,
@@ -150,7 +147,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(NivelJuegoScreen), findsOneWidget);
-      expect(_nivelJuegoGatewayDePrueba.ultimoNivelId, 'nivel-actual');
+      expect(_nivelJuegoGatewayDePrueba.ultimoCaminoId, 'nivel-actual');
     },
   );
 
@@ -307,9 +304,8 @@ void main() {
         bool superado = false,
       }) {
         return ParadaCamino(
-          caminoId: 'c$orden',
           orden: orden,
-          nivelId: 'nivel-$orden',
+          caminoId: 'nivel-$orden',
           tematicaId: 'monumentos',
           tematicaNombre: 'Monumentos',
           superado: superado,
@@ -357,9 +353,8 @@ void main() {
     'el botón "Jugar nivel" aparece con la parada actual y navega a ella',
     (tester) async {
       const unica = ParadaCamino(
-        caminoId: 'c1',
         orden: 1,
-        nivelId: 'nivel-1',
+        caminoId: 'nivel-1',
         tematicaId: 'monumentos',
         tematicaNombre: 'Monumentos',
         superado: false,
@@ -390,9 +385,8 @@ void main() {
     'sin ninguna parada actual (camino completo), el botón "Jugar nivel" no aparece',
     (tester) async {
       const completa = ParadaCamino(
-        caminoId: 'c1',
         orden: 1,
-        nivelId: 'nivel-1',
+        caminoId: 'nivel-1',
         tematicaId: 'monumentos',
         tematicaNombre: 'Monumentos',
         superado: true,
@@ -423,9 +417,8 @@ void main() {
       addTearDown(tester.view.reset);
 
       const unica = ParadaCamino(
-        caminoId: 'c1',
         orden: 1,
-        nivelId: 'nivel-unico',
+        caminoId: 'nivel-unico',
         tematicaId: 'monumentos',
         tematicaNombre: 'Monumentos',
         superado: false,
@@ -532,9 +525,8 @@ void main() {
 
       ParadaCamino nivel(int orden, {bool esActual = false}) {
         return ParadaCamino(
-          caminoId: 'c$orden',
           orden: orden,
-          nivelId: 'nivel-$orden',
+          caminoId: 'nivel-$orden',
           tematicaId: 'monumentos',
           tematicaNombre: 'Monumentos',
           superado: false,
@@ -612,9 +604,8 @@ void main() {
     'rellena entero (INT-105)',
     (tester) async {
       const completa = ParadaCamino(
-        caminoId: 'c1',
         orden: 1,
-        nivelId: 'nivel-1',
+        caminoId: 'nivel-1',
         tematicaId: 'monumentos',
         tematicaNombre: 'Monumentos',
         superado: true,

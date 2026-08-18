@@ -16,7 +16,7 @@ const METRICAS = {
   jugadoresTotales: 4907,
   jugadoresActivos7d: 1843,
   partidasHoy: 1284,
-  nivelesActivos: 86,
+  paradasActivas: 86,
 }
 
 beforeEach(() => {
@@ -36,7 +36,7 @@ describe('Home', () => {
     expect(screen.getByText(/jugadores totales/i)).toBeInTheDocument()
     expect(screen.getByText(/activos 7 días/i)).toBeInTheDocument()
     expect(screen.getByText(/partidas hoy/i)).toBeInTheDocument()
-    expect(screen.getByText(/niveles publicados/i)).toBeInTheDocument()
+    expect(screen.getByText(/paradas publicadas/i)).toBeInTheDocument()
   })
 
   it('muestra los 3 accesos rápidos deshabilitados', async () => {
@@ -44,10 +44,10 @@ describe('Home', () => {
     await screen.findByText('4907')
 
     const nuevaTematica = screen.getByText(/nueva temática/i)
-    const nuevoNivel = screen.getByText(/nuevo nivel/i)
+    const nuevaParada = screen.getByText(/nueva parada del camino/i)
     const nuevoDesafio = screen.getByText(/nuevo desafío/i)
 
-    for (const accion of [nuevaTematica, nuevoNivel, nuevoDesafio]) {
+    for (const accion of [nuevaTematica, nuevaParada, nuevoDesafio]) {
       expect(accion).toHaveAttribute('aria-disabled', 'true')
     }
     expect(screen.queryByRole('link', { name: /nueva temática/i })).not.toBeInTheDocument()
@@ -67,14 +67,14 @@ describe('Home', () => {
         ocurridoEn: '2026-08-15T21:51:52.295314+00:00',
         texto: 'Jugador0925',
         detalle: { estrellas_obtenidas: 3 },
-        etiqueta: 'Fiordos de Noruega · Nivel 4',
+        etiqueta: 'Fiordos de Noruega · Difícil',
       },
     ])
 
     render(<Home />)
 
     expect(await screen.findByText(/nuevo registro: jugador0925/i)).toBeInTheDocument()
-    expect(screen.getByText(/superó fiordos de noruega · nivel 4 \(★★★\)/i)).toBeInTheDocument()
+    expect(screen.getByText(/superó fiordos de noruega · difícil \(★★★\)/i)).toBeInTheDocument()
   })
 
   it('no revienta si estrellas_obtenidas viene fuera de rango (0-3)', async () => {
@@ -84,14 +84,14 @@ describe('Home', () => {
         ocurridoEn: '2026-08-15T21:51:52.295314+00:00',
         texto: 'Jugador0925',
         detalle: { estrellas_obtenidas: 5 },
-        etiqueta: 'Fiordos de Noruega · Nivel 4',
+        etiqueta: 'Fiordos de Noruega · Difícil',
       },
     ])
 
     render(<Home />)
 
     expect(
-      await screen.findByText(/superó fiordos de noruega · nivel 4 \(★★★\)/i),
+      await screen.findByText(/superó fiordos de noruega · difícil \(★★★\)/i),
     ).toBeInTheDocument()
   })
 
@@ -105,16 +105,16 @@ describe('Home', () => {
     fetchAlertasContenido.mockResolvedValue([
       {
         tipo: 'nivel_baja_tasa',
-        referenciaId: 'nivel-1',
-        titulo: 'Nivel con baja tasa de superacion',
+        referenciaId: 'camino-1',
+        titulo: 'Parada con baja tasa de superacion',
         detalle: {},
-        etiqueta: 'Fiordos de Noruega · Nivel 9',
+        etiqueta: 'Fiordos de Noruega · Difícil',
       },
     ])
 
     render(<Home />)
 
-    expect(await screen.findByText('Fiordos de Noruega · Nivel 9')).toBeInTheDocument()
+    expect(await screen.findByText('Fiordos de Noruega · Difícil')).toBeInTheDocument()
     expect(screen.getByText('1')).toBeInTheDocument()
   })
 

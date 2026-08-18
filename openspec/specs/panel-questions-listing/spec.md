@@ -16,32 +16,19 @@ mostrarse deshabilitado.
 - **THEN** el panel navega a la pantalla de listado de preguntas
 
 ### Requirement: Listado del banco de desafíos, una fila por desafío
-La pantalla de listado SHALL mostrar una fila por cada desafío del banco
-(no una fila por asignación a nivel), con: miniatura (imagen real para
-`tipo = 'imagen'`, ícono para `video`/`pregunta_texto`), nombre del lugar,
-badge de tipo, estado (activo/inactivo) y un indicador de en cuántos
-niveles se usa.
+La pantalla de listado SHALL mostrar una fila por cada desafío del banco,
+con: miniatura (imagen real para `tipo = 'imagen'`, ícono para
+`video`/`pregunta_texto`), nombre del lugar, badge de tipo, badge de
+dificultad y estado (activo/inactivo).
 
-#### Scenario: Un desafío se usa en varios niveles
-- **WHEN** un desafío del banco está asignado a 2 niveles distintos vía
-  `nivel_desafios`
-- **THEN** aparece en el listado una única vez, con el indicador de uso
-  mostrando 2 niveles
+#### Scenario: Se muestra la dificultad de cada desafío
+- **WHEN** un desafío del banco tiene `dificultad = 'dificil'`
+- **THEN** su fila muestra el badge "Difícil"
 
-#### Scenario: Un desafío no está asignado a ningún nivel
-- **WHEN** un desafío del banco no tiene ninguna fila en `nivel_desafios`
-- **THEN** su indicador de uso muestra que no está asignado a ningún nivel
-
-### Requirement: Detalle de niveles al pasar el cursor o abrir
-El indicador de uso de cada fila SHALL exponer, al pasar el cursor o al
-abrirlo, el detalle de en qué temática y nivel concretos se usa ese
-desafío (nombre de la temática y número/nombre del nivel para cada
-asignación).
-
-#### Scenario: Se abre el detalle de un desafío usado en varios niveles
-- **WHEN** un admin abre el detalle del indicador de uso de un desafío
-  asignado a los niveles "Paisajes · Nivel 3" y "Patrimonio · Nivel 2"
-- **THEN** el detalle lista ambas combinaciones de temática y nivel
+#### Scenario: Desafíos migrados sin dificultad propia asignada aún
+- **WHEN** un desafío creado antes de este cambio conserva `dificultad = 'normal'`
+  por la migración
+- **THEN** su fila muestra el badge "Normal", editable como cualquier otro
 
 ### Requirement: Búsqueda por lugar o texto de la pregunta
 El listado SHALL ofrecer un buscador que filtre los desafíos cuyo
@@ -53,9 +40,8 @@ El listado SHALL ofrecer un buscador que filtre los desafíos cuyo
 - **THEN** el listado muestra solo los desafíos cuyo `nombre_lugar` o
   `texto_pregunta` contiene "eiffel" (sin distinguir mayúsculas/minúsculas)
 
-### Requirement: Filtros combinables por temática, nivel, tipo y estado
-El listado SHALL ofrecer filtros combinables por temática, nivel (acotado
-a las temáticas y niveles donde algún desafío está efectivamente asignado),
+### Requirement: Filtros combinables por temática, dificultad, tipo y estado
+El listado SHALL ofrecer filtros combinables por temática, dificultad,
 tipo de contenido (imagen/vídeo/pregunta de texto) y estado
 (activo/inactivo), aplicados todos a la vez sobre el resultado de la
 búsqueda.
@@ -64,14 +50,9 @@ búsqueda.
 - **WHEN** un admin filtra por tipo "Imagen" y estado "Activo"
 - **THEN** el listado muestra solo desafíos activos de tipo imagen
 
-### Requirement: Filtro de desafíos sin asignar
-El listado SHALL ofrecer un filtro adicional que muestre únicamente los
-desafíos del banco que no están asignados a ningún nivel.
-
-#### Scenario: Filtrar por sin asignar
-- **WHEN** un admin activa el filtro "Sin asignar a ningún nivel"
-- **THEN** el listado muestra solo los desafíos sin ninguna fila en
-  `nivel_desafios`, independientemente de los demás filtros
+#### Scenario: Filtrar por dificultad
+- **WHEN** un admin filtra por dificultad "Muy difícil"
+- **THEN** el listado muestra solo los desafíos con `dificultad = 'muy_dificil'`
 
 ### Requirement: Paginación
 El listado SHALL paginar los resultados filtrados, mostrando el rango
@@ -104,19 +85,18 @@ acción para crear la primera pregunta.
 ### Requirement: Eliminar un desafío del banco
 Cada fila SHALL ofrecer una acción "Eliminar" que, tras confirmación,
 borre el desafío del banco. Si la base de datos rechaza el borrado por
-estar el desafío referenciado (asignado a algún nivel o con historial de
-respuestas de jugadores), el listado SHALL mostrar un mensaje explicando
-que no se puede eliminar por estar en uso, sin mostrar el error crudo de
-la base de datos.
+estar el desafío referenciado (con historial de respuestas de jugadores),
+el listado SHALL mostrar un mensaje explicando que no se puede eliminar por
+estar en uso, sin mostrar el error crudo de la base de datos.
 
 #### Scenario: Eliminar un desafío sin referencias
-- **WHEN** un admin confirma "Eliminar" sobre un desafío sin asignaciones
-  ni respuestas registradas
+- **WHEN** un admin confirma "Eliminar" sobre un desafío sin respuestas
+  registradas
 - **THEN** el desafío se borra y desaparece del listado
 
 #### Scenario: Eliminar un desafío referenciado
-- **WHEN** un admin confirma "Eliminar" sobre un desafío que está asignado
-  a un nivel o tiene respuestas de jugadores registradas
+- **WHEN** un admin confirma "Eliminar" sobre un desafío que tiene
+  respuestas de jugadores registradas
 - **THEN** el borrado se rechaza y el listado muestra un mensaje indicando
   que no se puede eliminar por estar en uso, y la fila permanece en el
   listado
@@ -133,3 +113,18 @@ El botón "Nueva pregunta" SHALL navegar a `/preguntas/nueva`, y la acción
 - **WHEN** un admin hace click en la acción "Editar" de una pregunta con
   `id = <uuid>`
 - **THEN** el panel navega a `/preguntas/<uuid>/editar`
+
+### Requirement: Edición inline de dificultad y estado por fila
+Cada fila SHALL permitir cambiar `dificultad` (selector) y `activo` (toggle) directamente desde el listado, persistiendo el cambio al momento sin navegar al formulario completo. Mientras un campo de una fila esté guardando, ese control SHALL quedar deshabilitado; si el guardado falla, la fila SHALL mostrar un mensaje de error y revertir visualmente al valor anterior.
+
+#### Scenario: Cambiar la dificultad desde el listado
+- **WHEN** un admin cambia el selector de dificultad de una fila de "Fácil" a "Difícil"
+- **THEN** la fila guarda el cambio sin recargar el listado ni navegar a otra pantalla, y el badge de dificultad pasa a reflejar "Difícil"
+
+#### Scenario: Cambiar el estado activo/inactivo desde el listado
+- **WHEN** un admin desactiva el toggle de estado de una pregunta activa
+- **THEN** la pregunta se guarda como inactiva y su indicador de estado pasa a "Inactivo"
+
+#### Scenario: El guardado inline falla
+- **WHEN** el cambio de dificultad o estado de una fila falla al guardarse (error de red o del servidor)
+- **THEN** la fila muestra un mensaje de error junto al control afectado y el control vuelve a mostrar el valor que tenía antes del cambio

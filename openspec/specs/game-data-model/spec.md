@@ -5,48 +5,24 @@ TBD - created by archiving change int-74-esquema-base-datos. Update Purpose afte
 
 ## Requirements
 
-### Requirement: Jerarquía temática → nivel → desafío
+### Requirement: Jerarquía temática → desafío, con dificultad y camino como resolución automática
 
-El esquema SHALL modelar la jerarquía temáticas → niveles → desafíos como
-tres entidades relacionadas: `tematicas`, `niveles` (con FK a su temática) y
-`desafios` (banco independiente, sin FK fija a ningún nivel).
+El esquema SHALL modelar la jerarquía temáticas → desafíos como dos entidades relacionadas: `tematicas` y `desafios` (con FK obligatoria `tematica_id` a su temática y una `dificultad` del catálogo cerrado — ver `question-difficulty`). No SHALL existir ninguna entidad "nivel" ni tabla de curación manual de preguntas: la pareja temática+dificultad de un desafío basta para que participe en el sorteo de cualquier parada de `camino` que apunte a esa misma pareja.
 
-#### Scenario: Un nivel pertenece a una sola temática
+#### Scenario: Un desafío pertenece a una sola temática
 
-- **WHEN** se crea un nivel
-- **THEN** su fila exige un `tematica_id` que referencia una fila existente
-  de `tematicas`
-- **AND** borrar esa temática borra en cascada sus niveles
+- **WHEN** se crea un desafío
+- **THEN** su fila exige un `tematica_id` que referencia una fila existente de `tematicas`
 
-#### Scenario: Un desafío no depende de ningún nivel
+#### Scenario: Se intenta borrar una temática que todavía tiene desafíos
 
-- **WHEN** se crea un desafío en el banco
-- **THEN** su fila no contiene ninguna referencia a un nivel concreto
-- **AND** puede existir sin estar asignado a ningún nivel todavía
+- **WHEN** se intenta borrar una temática que tiene al menos un desafío con ese `tematica_id`
+- **THEN** la base de datos rechaza el borrado, igual que hoy el banco de preguntas nunca se ve afectado por borrar una temática — el admin debe borrar o reasignar antes esos desafíos
 
-### Requirement: Asignación de desafíos a niveles con orden propio y reutilización
+#### Scenario: Un desafío participa automáticamente en el sorteo de su pool
 
-La tabla `nivel_desafios` SHALL asignar desafíos del banco a niveles
-concretos, permitiendo que el mismo desafío se reutilice en varios niveles
-con un orden independiente en cada uno.
-
-#### Scenario: La misma pregunta se usa en dos niveles distintos
-
-- **WHEN** un desafío se asigna al nivel A en la posición 2 y al nivel B en
-  la posición 5
-- **THEN** ambas asignaciones coexisten sin conflicto
-
-#### Scenario: Se intenta asignar el mismo desafío dos veces al mismo nivel
-
-- **WHEN** se intenta insertar una segunda fila con el mismo `nivel_id` y
-  `desafio_id`
-- **THEN** la base de datos rechaza la operación
-
-#### Scenario: Se intenta poner dos desafíos en la misma posición de un nivel
-
-- **WHEN** se intenta insertar dos filas con el mismo `nivel_id` y el mismo
-  `orden`
-- **THEN** la base de datos rechaza la operación
+- **WHEN** se crea un desafío `activo` con `tematica_id` y `dificultad` dados
+- **THEN** queda disponible de inmediato para el sorteo de cualquier parada de `camino` que resuelva esa misma pareja temática+dificultad, sin ninguna asignación manual adicional
 
 ### Requirement: Exclusividad de contenido según el tipo de desafío
 
@@ -92,25 +68,19 @@ límite de intentos por nivel.
 - **THEN** el esquema permite crear un nuevo `intento_nivel` para ese
   jugador y ese nivel, independiente de los intentos previos
 
-### Requirement: Progreso agregado por jugador y nivel sin recálculo histórico
+### Requirement: Progreso agregado por jugador y parada del camino sin recálculo histórico
 
-El esquema SHALL mantener una fila por jugador y nivel
-(`progreso_usuario_nivel`) con el mejor resultado obtenido, de forma que
-consultar el progreso de un jugador no requiera recorrer su historial
-completo de intentos.
+El esquema SHALL mantener una fila por jugador y parada del camino (`progreso_usuario_nivel`, con columna `camino_id` en vez de `nivel_id`) con el mejor resultado obtenido, de forma que consultar el progreso de un jugador no requiera recorrer su historial completo de intentos.
 
-#### Scenario: Se consulta el progreso de un jugador en un nivel
+#### Scenario: Se consulta el progreso de un jugador en una parada
 
-- **WHEN** se lee `progreso_usuario_nivel` para un `usuario_id` y `nivel_id`
-  dados
-- **THEN** existe como máximo una fila con el mejor puntaje, mejores
-  estrellas y estado de desbloqueo conocidos hasta ese momento
+- **WHEN** se lee `progreso_usuario_nivel` para un `usuario_id` y `camino_id` dados
+- **THEN** existe como máximo una fila con el mejor puntaje, mejores estrellas y estado de desbloqueo conocidos hasta ese momento
 
-#### Scenario: Un jugador sin intentos previos en un nivel
+#### Scenario: Un jugador sin intentos previos en una parada
 
-- **WHEN** un jugador no ha intentado nunca un nivel dado
-- **THEN** no existe fila en `progreso_usuario_nivel` para ese par
-  usuario/nivel
+- **WHEN** un jugador no ha intentado nunca una parada dada
+- **THEN** no existe fila en `progreso_usuario_nivel` para ese par usuario/parada
 
 ### Requirement: Cada usuario tiene un perfil con rol
 
@@ -202,43 +172,32 @@ reutilizable desde cualquier policy de RLS del esquema del juego.
   (incluida una sesión anónima) invoca `is_admin()`
 - **THEN** la función devuelve `false`
 
-### Requirement: Lectura pública de `tematicas`, `niveles`, `nivel_desafios` y `camino` para autenticados
+### Requirement: Lectura pública de `tematicas` y `camino` para autenticados
 
-`tematicas`, `niveles`, `nivel_desafios` y `camino` SHALL tener Row Level
-Security habilitado, con una policy que permita `select` a cualquier
-usuario autenticado (incluida una sesión anónima), sin restricción
-adicional por fila.
+`tematicas` y `camino` SHALL tener Row Level Security habilitado, con una policy que permita `select` a cualquier usuario autenticado (incluida una sesión anónima), sin restricción adicional por fila.
 
-#### Scenario: Un jugador lee el catálogo de temáticas y niveles
+#### Scenario: Un jugador lee el catálogo de temáticas
 
-- **WHEN** un usuario autenticado (o con sesión anónima) hace `select`
-  sobre `tematicas`, `niveles` o `nivel_desafios`
+- **WHEN** un usuario autenticado (o con sesión anónima) hace `select` sobre `tematicas`
 - **THEN** la operación se permite y devuelve todas las filas
 
 #### Scenario: Un jugador lee la secuencia del camino
 
-- **WHEN** un usuario autenticado (o con sesión anónima) hace `select`
-  sobre `camino`
+- **WHEN** un usuario autenticado (o con sesión anónima) hace `select` sobre `camino`
 - **THEN** la operación se permite y devuelve todas las filas
 
 ### Requirement: Escritura de contenido del juego restringida a administradores
 
-`tematicas`, `niveles`, `desafios`, `nivel_desafios` y `camino` SHALL
-rechazar cualquier `insert`, `update` o `delete` de un usuario para el que
-`is_admin()` devuelva `false`.
+`tematicas`, `desafios` y `camino` SHALL rechazar cualquier `insert`, `update` o `delete` de un usuario para el que `is_admin()` devuelva `false`.
 
 #### Scenario: Un admin crea o edita contenido
 
-- **WHEN** un usuario con `is_admin() = true` hace `insert`, `update` o
-  `delete` sobre `tematicas`, `niveles`, `desafios`, `nivel_desafios` o
-  `camino`
+- **WHEN** un usuario con `is_admin() = true` hace `insert`, `update` o `delete` sobre `tematicas`, `desafios` o `camino`
 - **THEN** la operación se permite
 
 #### Scenario: Un jugador intenta crear o editar contenido
 
-- **WHEN** un usuario con `is_admin() = false` (incluida una sesión
-  anónima) intenta `insert`, `update` o `delete` sobre `tematicas`,
-  `niveles`, `desafios`, `nivel_desafios` o `camino`
+- **WHEN** un usuario con `is_admin() = false` (incluida una sesión anónima) intenta `insert`, `update` o `delete` sobre `tematicas`, `desafios` o `camino`
 - **THEN** la operación se rechaza
 
 ### Requirement: `desafios` no es legible directamente por jugadores
@@ -314,70 +273,39 @@ filas; `respuestas_desafio` no.
 - **THEN** la operación se rechaza, porque no existe policy de `update`
   para esta tabla
 
-### Requirement: `niveles` admite un nombre editable opcional
+### Requirement: Camino como secuencia global de paradas temática+dificultad
 
-`niveles` SHALL tener una columna `nombre` de tipo texto, opcional
-(nullable, sin valor por defecto), independiente de `orden`. Los niveles
-existentes sin `nombre` SHALL seguir identificándose por su `orden` en
-cualquier pantalla que ya lo hiciera así.
+El esquema SHALL modelar el camino de juego como una tabla `camino` independiente de `tematicas`, donde cada fila representa una posición (`orden`) que apunta a una pareja `tematica_id` + `dificultad`, define su propio `estrellas_requeridas` para desbloquearse, un `nombre` opcional, un estado `activo`, y overrides opcionales (`preguntas_por_partida`, `segundos_por_desafio`, `puntaje_minimo_superar`, `umbral_estrella_2`, `umbral_estrella_3`, todos nullable) que sustituyen a los valores de `dificultad_defaults` cuando están rellenos. El esquema SHALL permitir intercalar paradas de distintas temáticas y dificultades en cualquier orden, incluyendo repetir la misma pareja temática+dificultad en más de una posición.
 
-#### Scenario: Se asigna un nombre a un nivel existente
+#### Scenario: Se define un camino que intercala temáticas y dificultades
 
-- **WHEN** se actualiza un nivel existente estableciendo `nombre = 'Costas
-  del Mediterráneo'`
-- **THEN** la fila queda con ese `nombre` sin afectar a su `orden` ni a sus
-  asignaciones en `nivel_desafios`
+- **WHEN** el admin crea filas de `camino` con `orden` 1, 2 y 3 apuntando a "Monumentos·Fácil", "Banderas·Normal" y "Monumentos·Difícil" respectivamente
+- **THEN** las tres filas coexisten sin conflicto
 
-#### Scenario: Un nivel sin nombre asignado
+#### Scenario: La misma pareja temática+dificultad aparece en dos posiciones
 
-- **WHEN** se crea o consulta un nivel cuyo `nombre` nunca se ha establecido
-- **THEN** la columna `nombre` es `NULL` y el nivel sigue siendo válido e
-  identificable por `tematica_id` + `orden`
-
-### Requirement: Camino como secuencia global ordenada de niveles
-
-El esquema SHALL modelar el camino de juego como una tabla `camino`
-independiente de `tematicas`, donde cada fila representa una posición
-(`orden`) que apunta a un `nivel_id` concreto y define su propio
-`estrellas_requeridas` para desbloquearse, permitiendo intercalar niveles
-de distintas temáticas en cualquier orden.
-
-#### Scenario: Se define un camino que intercala temáticas
-
-- **WHEN** el admin crea filas de `camino` con `orden` 1, 2 y 3 apuntando a
-  un nivel de la temática "Monumentos", uno de "Banderas" y otro de
-  "Monumentos" respectivamente
-- **THEN** las tres filas coexisten sin conflicto, independientemente de
-  las temáticas de sus niveles
+- **WHEN** el admin crea dos filas de `camino` que apuntan ambas a "Monumentos·Fácil", con overrides distintos de `puntaje_minimo_superar`
+- **THEN** ambas filas coexisten sin conflicto, cada una con su propio progreso y su propio override
 
 #### Scenario: Se intenta duplicar una posición del camino
 
 - **WHEN** se intenta insertar dos filas de `camino` con el mismo `orden`
 - **THEN** la base de datos rechaza la operación
 
-#### Scenario: Se borra un nivel referenciado por el camino
+#### Scenario: Se borra una temática referenciada por el camino
 
-- **WHEN** se borra un nivel que tiene una fila asociada en `camino`
-- **THEN** esa fila de `camino` se borra en cascada junto con el nivel
+- **WHEN** se borra una temática que tiene al menos una fila asociada en `camino`
+- **THEN** esas filas de `camino` se borran en cascada junto con la temática
 
-### Requirement: Cada nivel define cuántas preguntas se juegan por partida
+#### Scenario: Una parada sin overrides usa los valores por defecto de su dificultad
 
-`niveles` SHALL tener una columna `preguntas_por_partida` de tipo entero,
-opcional (nullable, sin valor por defecto). Cuando sea `NULL`, una partida
-usa todas las preguntas asignadas al nivel en `nivel_desafios`.
+- **WHEN** una parada de `camino` tiene `dificultad = 'dificil'` y todas sus columnas de override en `NULL`
+- **THEN** su `preguntas_por_partida`, `segundos_por_desafio`, `puntaje_minimo_superar`, `umbral_estrella_2` y `umbral_estrella_3` efectivos son los de la fila `'dificil'` de `dificultad_defaults`
 
-#### Scenario: Nivel sin preguntas_por_partida definido
+#### Scenario: Una parada con override propio ignora el valor por defecto
 
-- **WHEN** un nivel tiene `preguntas_por_partida = NULL` y 8 preguntas
-  asignadas en `nivel_desafios`
-- **THEN** el esquema no impone ningún límite sobre cuántas preguntas se
-  juegan de ese nivel
-
-#### Scenario: Nivel con preguntas_por_partida definido
-
-- **WHEN** un nivel tiene `preguntas_por_partida = 5`
-- **THEN** el valor queda disponible para que la lógica de arranque de
-  intento (`INT-95`) seleccione ese número de preguntas al azar
+- **WHEN** una parada de `camino` tiene `puntaje_minimo_superar` relleno con un valor propio
+- **THEN** ese valor propio se usa como mínimo efectivo, sin importar el valor de `dificultad_defaults` para su dificultad
 
 ### Requirement: Selección de desafíos persistida por intento
 
@@ -442,7 +370,7 @@ fila.
 - **WHEN** se intenta borrar un `desafio_id` que tiene al menos una fila en
   `intento_desafios`
 - **THEN** la base de datos rechaza el borrado, igual que si estuviera
-  referenciado en `nivel_desafios` o `respuestas_desafio`
+  referenciado en `respuestas_desafio`
 
 #### Scenario: Se borra un intento
 

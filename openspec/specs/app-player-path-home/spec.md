@@ -139,20 +139,20 @@ acción del jugador.
 - **THEN** el scroll se posiciona al final del camino ya superado
 
 ### Requirement: Toque en parada desbloqueada navega al nivel
-Tocar una parada cuya posición traiga `desbloqueado = true` (superada o
-actual) SHALL iniciar la navegación hacia la pantalla de juego de ese
-nivel, identificándolo por su `nivel_id`.
+La app SHALL iniciar la navegación hacia la pantalla de juego de una parada
+cuando el jugador la toque y su posición traiga `desbloqueado = true`
+(superada o actual), identificándola por su `camino_id`.
 
 #### Scenario: El jugador toca la parada actual
 - **WHEN** un jugador toca la parada cuya posición trae
   `es_actual = true`
-- **THEN** la app navega hacia la pantalla de juego del `nivel_id` de
+- **THEN** la app navega hacia la pantalla de juego del `camino_id` de
   esa posición
 
 #### Scenario: El jugador toca una parada ya superada
 - **WHEN** un jugador toca una parada cuya posición trae
   `superado = true`
-- **THEN** la app navega hacia la pantalla de juego del `nivel_id` de
+- **THEN** la app navega hacia la pantalla de juego del `camino_id` de
   esa posición, permitiendo rejugarla
 
 ### Requirement: Arte de cada parada desde la portada de su temática
@@ -187,7 +187,7 @@ completo), el botón no SHALL mostrarse.
 #### Scenario: Hay una parada actual
 - **WHEN** una posición del camino trae `es_actual = true`
 - **THEN** la Home muestra un botón fijo que, al tocarlo, navega a la
-  pantalla de juego del `nivel_id` de esa posición
+  pantalla de juego del `camino_id` de esa posición
 
 #### Scenario: Camino completo sin parada actual
 - **WHEN** ninguna posición del camino trae `es_actual = true`

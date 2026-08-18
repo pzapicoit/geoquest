@@ -29,14 +29,14 @@ los jugadores, no solo las asociadas al admin que invoca.
 - **THEN** `actividad_reciente()` incluye una fila `nuevo_registro` para ese
   jugador, con `ocurrido_en` igual a la fecha de alta en `auth.users`
 
-### Requirement: Feed incluye niveles superados de todos los jugadores
+### Requirement: Feed incluye paradas superadas de todos los jugadores
 
 `actividad_reciente()` SHALL incluir una fila de tipo `nivel_superado` por
 cada `intentos_nivel` con `superado = true`, de **todos** los jugadores, con
 `ocurrido_en` igual a `intentos_nivel.fecha` y `detalle` conteniendo
-`estrellas_obtenidas`, `nivel_id` y `tematica_id` del intento.
+`estrellas_obtenidas`, `camino_id` y `tematica_id` del intento.
 
-#### Scenario: Un jugador supera un nivel
+#### Scenario: Un jugador supera una parada
 
 - **WHEN** un `intentos_nivel` queda con `superado = true`
 - **THEN** `actividad_reciente()` incluye una fila `nivel_superado` con

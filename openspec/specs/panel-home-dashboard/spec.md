@@ -11,16 +11,13 @@ La zona autenticada del panel SHALL mostrar una navegación lateral fija con
 los enlaces Home, Jugadores, Ranking, Temáticas y Preguntas/Desafíos.
 Home, Temáticas y Preguntas/Desafíos SHALL navegar a su pantalla propia;
 Jugadores y Ranking SHALL renderizarse deshabilitados (sin navegación al
-hacer click) hasta que tengan pantalla propia. La navegación SHALL no
-incluir un enlace "Niveles": los niveles no tienen una pantalla de listado
-fuera del contexto de una temática (ver `/tematicas/:id/niveles` en
-`panel-levels-listing`).
+hacer click) hasta que tengan pantalla propia.
 
 #### Scenario: Admin autenticado ve la navegación vigente
 
 - **WHEN** un admin autenticado abre el panel
 - **THEN** ve la navegación lateral con 5 enlaces (Home, Jugadores,
-  Ranking, Temáticas, Preguntas/Desafíos), sin "Niveles"
+  Ranking, Temáticas, Preguntas/Desafíos)
 - **AND** Home, Temáticas y Preguntas/Desafíos navegan a su pantalla
   propia
 
@@ -49,21 +46,21 @@ cerrar sesión que termina la sesión de Supabase y redirige a login.
 
 La pantalla Home SHALL mostrar 4 tarjetas con los valores de
 `metricas_home()`: jugadores totales, jugadores activos (últimos 7 días),
-partidas jugadas hoy y niveles publicados (activos). No SHALL ofrecer un
-selector de rango temporal, dado que `metricas_home()` no soporta más de una
-ventana.
+partidas jugadas hoy y paradas del camino publicadas (activas). No SHALL
+ofrecer un selector de rango temporal, dado que `metricas_home()` no
+soporta más de una ventana.
 
 #### Scenario: Home muestra las 4 métricas
 
 - **WHEN** un admin abre Home
 - **THEN** ve 4 tarjetas con `jugadores_totales`, `jugadores_activos_7d`,
-  `partidas_hoy` y `niveles_activos` de `metricas_home()`
+  `partidas_hoy` y `paradas_activas` de `metricas_home()`
 
 ### Requirement: Accesos rápidos deshabilitados sin pantalla de destino
 
-Home SHALL mostrar 3 accesos rápidos (nueva temática, nuevo nivel, nuevo
-desafío), renderizados deshabilitados porque sus pantallas de destino no
-existen todavía.
+Home SHALL mostrar 3 accesos rápidos (nueva temática, nueva parada del
+camino, nuevo desafío), renderizados deshabilitados porque sus pantallas de
+destino no existen todavía.
 
 #### Scenario: Click en un acceso rápido
 
@@ -74,8 +71,8 @@ existen todavía.
 
 Home SHALL mostrar una columna "Actividad reciente" con los eventos de
 `actividad_reciente()`, resolviendo para cada evento `nivel_superado` el
-nombre legible de la temática y el número de nivel mediante lecturas
-adicionales de `tematicas`/`niveles`.
+nombre legible de la temática y de la parada mediante lecturas
+adicionales de `tematicas`/`camino`.
 
 #### Scenario: Home muestra actividad reciente
 
@@ -92,8 +89,8 @@ adicionales de `tematicas`/`niveles`.
 ### Requirement: Columna de alertas de contenido
 
 Home SHALL mostrar una columna "Alertas de contenido" con los eventos de
-`alertas_contenido()`, resolviendo el nombre legible de cada nivel/desafío
-referenciado mediante lecturas adicionales de `tematicas`/`niveles`/
+`alertas_contenido()`, resolviendo el nombre legible de cada parada/desafío
+referenciado mediante lecturas adicionales de `tematicas`/`camino`/
 `desafios`.
 
 #### Scenario: Home muestra alertas de contenido

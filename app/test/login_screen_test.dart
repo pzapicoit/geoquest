@@ -11,9 +11,8 @@ import 'fakes/fake_camino_gateway.dart';
 import 'fakes/fake_profile_gateway.dart';
 
 const _monumentos = ParadaCamino(
-  caminoId: 'c1',
   orden: 1,
-  nivelId: 'nivel-1',
+  caminoId: 'nivel-1',
   nivelNombre: 'Coliseo',
   tematicaId: 'monumentos',
   tematicaNombre: 'Monumentos',
@@ -26,9 +25,8 @@ const _monumentos = ParadaCamino(
 );
 
 const _museos = ParadaCamino(
-  caminoId: 'c2',
   orden: 2,
-  nivelId: 'nivel-2',
+  caminoId: 'nivel-2',
   nivelNombre: 'Museos',
   tematicaId: 'museos',
   tematicaNombre: 'Museos',

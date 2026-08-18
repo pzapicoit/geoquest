@@ -10,10 +10,7 @@ vi.mock('./supabaseClient', () => ({
 }))
 
 function selectable(data: unknown[] | null, error: unknown = null) {
-  const result = { data, error }
-  return Object.assign(Promise.resolve(result), {
-    in: () => Promise.resolve(result),
-  })
+  return Promise.resolve({ data, error })
 }
 
 const DESAFIOS = [
@@ -24,25 +21,19 @@ const DESAFIOS = [
     texto_pregunta: null,
     imagen_url: 'https://example.test/eiffel.jpg',
     activo: true,
+    dificultad: 'dificil',
+    tematica_id: 't-patrimonio',
   },
   {
-    id: 'd-suelto',
+    id: 'd-texto',
     tipo: 'pregunta_texto',
-    nombre_lugar: 'Desafío suelto',
-    texto_pregunta: '¿Pregunta sin asignar?',
+    nombre_lugar: 'Machu Picchu',
+    texto_pregunta: '¿Ciudadela inca?',
     imagen_url: null,
     activo: true,
+    dificultad: 'normal',
+    tematica_id: 't-paisajes',
   },
-]
-
-const ASIGNACIONES = [
-  { desafio_id: 'd-eiffel', nivel_id: 'n-1' },
-  { desafio_id: 'd-eiffel', nivel_id: 'n-2' },
-]
-
-const NIVELES = [
-  { id: 'n-1', orden: 3, tematica_id: 't-paisajes' },
-  { id: 'n-2', orden: 2, tematica_id: 't-patrimonio' },
 ]
 
 const TEMATICAS = [
@@ -54,8 +45,6 @@ function mockTables(overrides: Partial<Record<string, unknown[] | null>> = {}) {
   from.mockImplementation((table: string) => ({
     select: () => {
       if (table === 'desafios') return selectable(overrides.desafios ?? DESAFIOS)
-      if (table === 'nivel_desafios') return selectable(overrides.nivel_desafios ?? ASIGNACIONES)
-      if (table === 'niveles') return selectable(overrides.niveles ?? NIVELES)
       if (table === 'tematicas') return selectable(overrides.tematicas ?? TEMATICAS)
       throw new Error(`tabla inesperada: ${table}`)
     },
@@ -67,7 +56,7 @@ beforeEach(() => {
 })
 
 describe('fetchPreguntas', () => {
-  it('devuelve una fila por desafío, con sus usos resueltos a temática·nivel', async () => {
+  it('devuelve una fila por desafío con dificultad y nombre de temática resuelto', async () => {
     mockTables()
 
     const preguntas = await fetchPreguntas()
@@ -80,40 +69,36 @@ describe('fetchPreguntas', () => {
       nombreLugar: 'Torre Eiffel',
       imagenUrl: 'https://example.test/eiffel.jpg',
       activo: true,
+      dificultad: 'dificil',
+      tematicaId: 't-patrimonio',
+      tematicaNombre: 'Patrimonio',
     })
-    expect(eiffel?.usos).toEqual(
-      expect.arrayContaining([
-        { nivelId: 'n-1', tematicaNombre: 'Paisajes', nivelOrden: 3 },
-        { nivelId: 'n-2', tematicaNombre: 'Patrimonio', nivelOrden: 2 },
-      ]),
-    )
-    expect(eiffel?.usos).toHaveLength(2)
+
+    const texto = preguntas.find((p) => p.id === 'd-texto')
+    expect(texto).toMatchObject({ dificultad: 'normal', tematicaNombre: 'Paisajes' })
   })
 
-  it('un desafío sin asignaciones tiene usos vacío', async () => {
-    mockTables()
+  it('usa "Temática desconocida" si la temática referenciada ya no existe', async () => {
+    mockTables({ tematicas: [] })
 
     const preguntas = await fetchPreguntas()
 
-    const suelto = preguntas.find((p) => p.id === 'd-suelto')
-    expect(suelto?.usos).toEqual([])
-  })
-
-  it('no consulta niveles/temáticas si no hay asignaciones', async () => {
-    mockTables({ nivel_desafios: [] })
-
-    await fetchPreguntas()
-
-    expect(from).not.toHaveBeenCalledWith('niveles')
-    expect(from).not.toHaveBeenCalledWith('tematicas')
+    expect(preguntas.every((p) => p.tematicaNombre === 'Temática desconocida')).toBe(true)
   })
 
   it('propaga el error si falla la consulta de desafíos', async () => {
     from.mockImplementation((table: string) => ({
       select: () =>
-        table === 'desafios'
-          ? selectable(null, new Error('rechazado'))
-          : selectable(table === 'nivel_desafios' ? [] : []),
+        table === 'desafios' ? selectable(null, new Error('rechazado')) : selectable([]),
+    }))
+
+    await expect(fetchPreguntas()).rejects.toThrow('rechazado')
+  })
+
+  it('propaga el error si falla la consulta de temáticas', async () => {
+    from.mockImplementation((table: string) => ({
+      select: () =>
+        table === 'tematicas' ? selectable(null, new Error('rechazado')) : selectable(DESAFIOS),
     }))
 
     await expect(fetchPreguntas()).rejects.toThrow('rechazado')
@@ -136,15 +121,10 @@ describe('eliminarPregunta', () => {
       .mockResolvedValue({ error: { code: '23503', message: 'foreign key violation' } })
     from.mockReturnValue({ delete: () => ({ eq }) })
 
-    await expect(eliminarPregunta('d-eiffel')).rejects.toThrow(/está en uso o tiene respuestas/i)
+    await expect(eliminarPregunta('d-eiffel')).rejects.toThrow(/respuestas registradas/i)
   })
 
   it('propaga cualquier otro error de la base de datos como Error con su mensaje', async () => {
-    // El cliente de Supabase nunca lanza PostgrestError como instancia real
-    // (solo con .throwOnError()): el `error` que resuelve la promesa es un
-    // objeto plano deserializado del cuerpo de la respuesta. eliminarPregunta
-    // debe envolverlo en un Error de verdad para que `instanceof Error` en la
-    // UI funcione también fuera del caso 23503.
     const eq = vi.fn().mockResolvedValue({ error: { code: '42501', message: 'no autorizado' } })
     from.mockReturnValue({ delete: () => ({ eq }) })
 

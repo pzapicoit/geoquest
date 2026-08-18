@@ -215,7 +215,7 @@ class _CaminoScreenState extends State<CaminoScreen> with RouteAware {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => NivelJuegoScreen(
-          nivelId: parada.nivelId,
+          caminoId: parada.caminoId,
           // El HUD de la pantalla de juego necesita un nombre que enseñar y
           // el camino ya lo tiene cargado (D9 de `design.md` de INT-92): la
           // temática hace de reserva para los niveles sin nombre propio.
@@ -254,7 +254,7 @@ class _CaminoScreenState extends State<CaminoScreen> with RouteAware {
     final direccion = (vb - bottomEdge) >= (_topBarAltura - vt) ? 1.0 : -1.0;
 
     return Positioned(
-      key: ValueKey(parada.nivelId),
+      key: ValueKey(parada.caminoId),
       top: top,
       left: 18,
       right: 18,
@@ -687,10 +687,10 @@ class _ParadaTile extends StatelessWidget {
           ),
           Expanded(
             child: GestureDetector(
-              key: Key('parada-${parada.nivelId}'),
+              key: Key('parada-${parada.caminoId}'),
               onTap: onTap,
               child: Container(
-                key: Key('parada-borde-${parada.nivelId}'),
+                key: Key('parada-borde-${parada.caminoId}'),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(24),
                   border: Border.all(

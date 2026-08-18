@@ -1,5 +1,6 @@
 import { supabase } from './supabaseClient'
 import type { TipoDesafio } from './preguntas'
+import type { Dificultad } from './dificultad'
 
 export type TipoMedia = Extract<TipoDesafio, 'imagen' | 'video'>
 
@@ -13,6 +14,8 @@ export interface PreguntaDetalle {
   latReal: number
   lngReal: number
   activo: boolean
+  tematicaId: string
+  dificultad: Dificultad
 }
 
 interface DesafioDetalleRow {
@@ -25,13 +28,15 @@ interface DesafioDetalleRow {
   lat_real: number
   lng_real: number
   activo: boolean
+  tematica_id: string
+  dificultad: Dificultad
 }
 
 export async function fetchPregunta(id: string): Promise<PreguntaDetalle> {
   const { data, error } = await supabase
     .from('desafios')
     .select(
-      'id, tipo, nombre_lugar, texto_pregunta, imagen_url, video_url, lat_real, lng_real, activo',
+      'id, tipo, nombre_lugar, texto_pregunta, imagen_url, video_url, lat_real, lng_real, activo, tematica_id, dificultad',
     )
     .eq('id', id)
     .single()
@@ -48,47 +53,23 @@ export async function fetchPregunta(id: string): Promise<PreguntaDetalle> {
     latReal: row.lat_real,
     lngReal: row.lng_real,
     activo: row.activo,
+    tematicaId: row.tematica_id,
+    dificultad: row.dificultad,
   }
 }
 
-export interface NivelParaAsignar {
+export interface TematicaOpcion {
   id: string
-  tematicaNombre: string
-  nivelOrden: number
-  cantidadPreguntas: number
+  nombre: string
 }
 
-export async function fetchNivelesParaAsignar(): Promise<NivelParaAsignar[]> {
-  const [
-    { data: niveles, error: nivelesError },
-    { data: tematicas, error: tematicasError },
-    { data: asignaciones, error: asignacionesError },
-  ] = await Promise.all([
-    supabase.from('niveles').select('id, orden, tematica_id'),
-    supabase.from('tematicas').select('id, nombre'),
-    supabase.from('nivel_desafios').select('nivel_id'),
-  ])
-  if (nivelesError) throw nivelesError
-  if (tematicasError) throw tematicasError
-  if (asignacionesError) throw asignacionesError
-
-  const nombrePorTematica = new Map(
-    (tematicas ?? []).map((tematica) => [tematica.id as string, tematica.nombre as string]),
-  )
-  const cantidadPorNivel = new Map<string, number>()
-  for (const fila of asignaciones ?? []) {
-    const nivelId = fila.nivel_id as string
-    cantidadPorNivel.set(nivelId, (cantidadPorNivel.get(nivelId) ?? 0) + 1)
-  }
-
-  return (niveles ?? [])
-    .map((nivel) => ({
-      id: nivel.id as string,
-      tematicaNombre: nombrePorTematica.get(nivel.tematica_id as string) ?? 'Temática desconocida',
-      nivelOrden: nivel.orden as number,
-      cantidadPreguntas: cantidadPorNivel.get(nivel.id as string) ?? 0,
-    }))
-    .sort((a, b) => a.tematicaNombre.localeCompare(b.tematicaNombre) || a.nivelOrden - b.nivelOrden)
+export async function fetchTematicasParaPregunta(): Promise<TematicaOpcion[]> {
+  const { data, error } = await supabase
+    .from('tematicas')
+    .select('id, nombre')
+    .order('orden', { ascending: true })
+  if (error) throw new Error(error.message)
+  return (data ?? []) as TematicaOpcion[]
 }
 
 const MAX_MEDIA_BYTES = 50 * 1024 * 1024
@@ -136,6 +117,8 @@ export interface GuardarPreguntaInput {
   latReal: number
   lngReal: number
   activo: boolean
+  tematicaId: string
+  dificultad: Dificultad
   archivo: File | null
   imagenUrlActual: string | null
   videoUrlActual: string | null
@@ -163,45 +146,10 @@ export async function guardarPregunta(input: GuardarPreguntaInput): Promise<{ id
     lng_real: input.lngReal,
     nombre_lugar: input.nombreLugar,
     activo: input.activo,
+    tematica_id: input.tematicaId,
+    dificultad: input.dificultad,
   })
   if (error) throw new Error(error.message)
 
   return { id }
-}
-
-export interface AsignacionResultado {
-  nivelId: string
-  error: string | null
-}
-
-export async function asignarPreguntaANiveles(
-  desafioId: string,
-  nivelIds: string[],
-): Promise<AsignacionResultado[]> {
-  if (nivelIds.length === 0) return []
-
-  const { data: asignaciones, error } = await supabase
-    .from('nivel_desafios')
-    .select('nivel_id, orden')
-    .in('nivel_id', nivelIds)
-  if (error) throw new Error(error.message)
-
-  const maxOrdenPorNivel = new Map<string, number>()
-  for (const fila of asignaciones ?? []) {
-    const nivelId = fila.nivel_id as string
-    maxOrdenPorNivel.set(
-      nivelId,
-      Math.max(maxOrdenPorNivel.get(nivelId) ?? 0, fila.orden as number),
-    )
-  }
-
-  return Promise.all(
-    nivelIds.map(async (nivelId) => {
-      const orden = (maxOrdenPorNivel.get(nivelId) ?? 0) + 1
-      const { error: insertError } = await supabase
-        .from('nivel_desafios')
-        .insert({ nivel_id: nivelId, desafio_id: desafioId, orden })
-      return { nivelId, error: insertError ? insertError.message : null }
-    }),
-  )
 }

@@ -98,26 +98,23 @@ o inactiva, activa por defecto al crear.
 - **WHEN** un admin desmarca el estado antes de guardar una pregunta nueva
 - **THEN** la pregunta se guarda con `activo = false`
 
-### Requirement: Asignación opcional a niveles solo al crear
-El formulario SHALL ofrecer, únicamente en modo creación, una sección
-opcional para seleccionar uno o varios niveles a los que añadir la
-pregunta al guardarla; en modo edición esta sección no SHALL mostrarse.
+### Requirement: Selector de temática obligatorio
+El formulario SHALL ofrecer un selector obligatorio de temática (`tematica_id`), listando las temáticas existentes, y SHALL bloquear el guardado si no se elige ninguna. Este campo sustituye a la asignación indirecta de temática que hoy se deducía de a qué nivel se asignaba la pregunta.
 
-#### Scenario: Crear y asignar a dos niveles
-- **WHEN** un admin crea una pregunta y selecciona dos niveles en la
-  sección de asignación antes de guardar
-- **THEN** al guardar, la pregunta queda asignada a esos dos niveles,
-  cada una en la última posición de orden de su nivel
+#### Scenario: Guardar sin elegir temática
+- **WHEN** un admin intenta guardar una pregunta nueva sin seleccionar ninguna temática
+- **THEN** el formulario bloquea el guardado y muestra un error en ese campo
 
-#### Scenario: Crear sin seleccionar ningún nivel
-- **WHEN** un admin guarda una pregunta nueva sin seleccionar ningún nivel
-  en la sección de asignación
-- **THEN** la pregunta se crea en el banco sin ninguna asignación en
-  `nivel_desafios`
+#### Scenario: Preguntas ya existentes antes de este cambio
+- **WHEN** un admin abre para editar una pregunta creada antes de la existencia de `desafios.tematica_id`
+- **THEN** el selector muestra la temática que la migración le asignó, editable como cualquier otra pregunta
 
-#### Scenario: Editar no muestra la sección de asignación
-- **WHEN** un admin abre el formulario para editar una pregunta existente
-- **THEN** el formulario no muestra la sección "Asignar a nivel(es) ahora"
+### Requirement: Selector de dificultad
+El formulario SHALL mostrar el selector de dificultad definido en `question-difficulty`, con los 5 valores del catálogo, y SHALL bloquear el guardado si no se elige ninguno.
+
+#### Scenario: Se cambia la dificultad de una pregunta existente
+- **WHEN** un admin edita una pregunta existente y cambia su dificultad de "Normal" a "Difícil"
+- **THEN** al guardar, la fila de `desafios` queda con `dificultad = 'dificil'`
 
 ### Requirement: Validación de campos obligatorios según el tipo
 El formulario SHALL bloquear el guardado y señalar los campos con error

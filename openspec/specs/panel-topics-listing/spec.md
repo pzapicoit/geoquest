@@ -17,24 +17,14 @@ que navegue a la pantalla de listado, en lugar de mostrarse deshabilitado.
 ### Requirement: Listado de temáticas con una fila por temática
 La pantalla de listado SHALL mostrar una fila por cada temática existente,
 ordenadas por su columna `orden`, con: miniatura de portada, nombre,
-cantidad de niveles y estado (activo/inactivo).
+cantidad de paradas en el camino que la referencian y estado
+(activo/inactivo).
 
 #### Scenario: Listado con temáticas existentes
 - **WHEN** existen temáticas creadas
 - **THEN** el listado muestra una fila por temática en el orden de su
-  columna `orden`, con su portada, nombre, cantidad de niveles y estado
-
-### Requirement: Recuento de niveles por temática
-Cada fila SHALL mostrar cuántos niveles pertenecen a esa temática, contando
-las filas de `niveles` cuyo `tematica_id` corresponde.
-
-#### Scenario: Temática con niveles
-- **WHEN** una temática tiene 8 niveles asociados
-- **THEN** su fila muestra "8 niveles"
-
-#### Scenario: Temática sin niveles todavía
-- **WHEN** una temática recién creada no tiene ningún nivel asociado
-- **THEN** su fila muestra "0 niveles"
+  columna `orden`, con su portada, nombre, cantidad de paradas del camino y
+  estado
 
 ### Requirement: Reorden manual por arrastre
 El listado SHALL permitir reordenar las temáticas arrastrando una fila a
@@ -56,30 +46,29 @@ una nueva posición, persistiendo el nuevo orden completo mediante la RPC
 
 ### Requirement: Eliminación de una temática con confirmación explícita
 El listado SHALL exigir una confirmación antes de eliminar una temática, y
-el diálogo de confirmación SHALL advertir que se eliminan en cascada sus
-niveles, las asignaciones de preguntas a esos niveles y el progreso de
-jugadores registrado en ellos, aclarando explícitamente que el banco de
-preguntas no se ve afectado.
+el diálogo de confirmación SHALL advertir que se eliminan en cascada las
+paradas del camino que la referencian y el progreso de jugadores registrado
+en ellas, aclarando explícitamente que el banco de preguntas no se ve
+afectado. Si la temática todavía tiene desafíos asociados, el listado SHALL
+rechazar el borrado y explicar que hay que borrar o reasignar esas
+preguntas primero.
 
 #### Scenario: Confirmar la eliminación
-- **WHEN** un admin confirma la eliminación de una temática con 8 niveles
-- **THEN** la temática y sus 8 niveles se eliminan, junto con las
-  asignaciones de preguntas y el progreso de jugadores asociados a esos
-  niveles, y el listado deja de mostrar esa fila
+- **WHEN** un admin confirma la eliminación de una temática sin desafíos
+  propios que tiene 8 paradas en el camino
+- **THEN** la temática y esas 8 paradas se eliminan, junto con el progreso
+  de jugadores asociado a ellas, y el listado deja de mostrar esa fila
 
 #### Scenario: Cancelar la eliminación
 - **WHEN** un admin abre el diálogo de confirmación de borrado y pulsa
   "Cancelar"
 - **THEN** la temática no se elimina y el diálogo se cierra
 
-### Requirement: Enlace del nombre habilitado hacia el listado de niveles
-El nombre de cada fila SHALL enlazar a la pantalla de listado de niveles de
-esa temática (`/tematicas/:id/niveles`).
-
-#### Scenario: Click en el nombre de una temática
-- **WHEN** un admin hace click en el nombre de una temática en el listado
-- **THEN** el panel navega a la pantalla de listado de niveles de esa
-  temática
+#### Scenario: La temática todavía tiene preguntas
+- **WHEN** un admin intenta eliminar una temática que todavía tiene
+  desafíos asociados
+- **THEN** el borrado se rechaza y el panel explica que hay que borrar o
+  reasignar esas preguntas antes de poder eliminar la temática
 
 ### Requirement: Estado vacío
 Cuando no exista ninguna temática, el listado SHALL mostrar un estado
@@ -90,3 +79,14 @@ de una tabla sin filas.
 - **WHEN** la tabla `tematicas` no tiene ninguna fila
 - **THEN** el listado muestra el estado vacío con el botón "Crear la
   primera temática"
+
+### Requirement: Edición inline del estado por fila
+Cada fila SHALL permitir cambiar `activo` (toggle) directamente desde el listado de temáticas, persistiendo el cambio al momento sin abrir el panel lateral de edición. Mientras el toggle de una fila esté guardando, SHALL quedar deshabilitado; si el guardado falla, la fila SHALL mostrar un mensaje de error y revertir visualmente al valor anterior.
+
+#### Scenario: Desactivar una temática desde el listado
+- **WHEN** un admin desactiva el toggle de estado de una temática activa
+- **THEN** la temática se guarda como inactiva sin abrir el panel lateral, y su indicador de estado pasa a "Inactiva"
+
+#### Scenario: El guardado inline falla
+- **WHEN** el cambio de estado de una fila falla al guardarse (error de red o del servidor)
+- **THEN** la fila muestra un mensaje de error junto al toggle y el toggle vuelve a mostrar el valor que tenía antes del cambio

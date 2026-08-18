@@ -16,33 +16,33 @@ no tiene `profiles.role = 'admin'`, sin devolver ninguna fila.
   `alertas_contenido()`
 - **THEN** la llamada se rechaza
 
-### Requirement: Alerta de nivel con tasa de superación baja
+### Requirement: Alerta de parada con tasa de superación baja
 
 `alertas_contenido()` SHALL incluir una fila de tipo `nivel_baja_tasa` por
-cada nivel `activo` cuya tasa de superación (`intentos_nivel.superado =
-true` sobre el total de `intentos_nivel` de ese nivel, considerando
+cada parada de `camino` `activo` cuya tasa de superación (`intentos_nivel.superado =
+true` sobre el total de `intentos_nivel` de esa parada, considerando
 intentos de todos los jugadores) sea menor que 40%, y SHALL excluir
-cualquier nivel con menos de 5 `intentos_nivel` registrados en total,
+cualquier parada con menos de 5 `intentos_nivel` registrados en total,
 para evitar falsos positivos por muestra pequeña.
 
-#### Scenario: Nivel con tasa de superación baja y muestra suficiente
+#### Scenario: Parada con tasa de superación baja y muestra suficiente
 
-- **WHEN** un nivel activo tiene 10 intentos registrados de distintos
+- **WHEN** una parada activa tiene 10 intentos registrados de distintos
   jugadores y menos de 4 quedaron `superado = true`
 - **THEN** `alertas_contenido()` incluye una fila `nivel_baja_tasa` para
-  ese nivel
+  esa parada
 
-#### Scenario: Nivel con tasa baja pero muestra insuficiente
+#### Scenario: Parada con tasa baja pero muestra insuficiente
 
-- **WHEN** un nivel activo tiene solo 2 intentos registrados y ninguno
+- **WHEN** una parada activa tiene solo 2 intentos registrados y ninguno
   quedó `superado = true`
-- **THEN** `alertas_contenido()` no incluye ninguna fila para ese nivel
+- **THEN** `alertas_contenido()` no incluye ninguna fila para esa parada
 
-#### Scenario: Nivel inactivo con tasa de superación baja
+#### Scenario: Parada inactiva con tasa de superación baja
 
-- **WHEN** un nivel con `activo = false` tendría una tasa de superación
+- **WHEN** una parada con `activo = false` tendría una tasa de superación
   baja según sus intentos históricos
-- **THEN** `alertas_contenido()` no incluye ninguna fila para ese nivel
+- **THEN** `alertas_contenido()` no incluye ninguna fila para esa parada
 
 ### Requirement: Alerta de desafío con datos incompletos
 

@@ -8,19 +8,20 @@ TBD - created by archiving change int-96-vista-camino-jugador. Update Purpose af
 ### Requirement: Vista única del camino con progreso del jugador
 El sistema SHALL exponer una vista `camino_jugador` que devuelva, en una
 sola consulta, todas las posiciones de `camino` en orden (`orden`
-ascendente), cada una con la temática y el nivel al que apunta, y el
-progreso del usuario autenticado sobre ese nivel (`superado`,
+ascendente), cada una con su temática, dificultad y nombre de la parada, y
+el progreso del usuario autenticado sobre esa parada (`superado`,
 `estrellas_obtenidas`).
 
 #### Scenario: El jugador consulta su camino
 - **WHEN** un jugador autenticado consulta `camino_jugador`
 - **THEN** recibe una fila por cada posición existente en `camino`, ordenadas
-  por `orden`, cada una con la temática y el nivel de esa posición
+  por `orden`, cada una con la temática, la dificultad y el nombre de la
+  parada de esa posición
 
 ### Requirement: Posiciones nunca jugadas devuelven progreso vacío
 El sistema SHALL incluir en `camino_jugador` toda posición del camino
-aunque el jugador no tenga ninguna fila en `progreso_usuario_nivel` para el
-nivel de esa posición, mostrando `superado = false` y
+aunque el jugador no tenga ninguna fila en `progreso_usuario_nivel` para
+esa parada (`camino_id`), mostrando `superado = false` y
 `estrellas_obtenidas = 0` en ese caso.
 
 #### Scenario: Jugador sin ningún intento cerrado
@@ -29,8 +30,8 @@ nivel de esa posición, mostrando `superado = false` y
   `superado = false` y `estrellas_obtenidas = 0`
 
 #### Scenario: El jugador ya jugó algunas posiciones pero no todas
-- **WHEN** un jugador tiene `progreso_usuario_nivel` solo para algunos de los
-  niveles del camino
+- **WHEN** un jugador tiene `progreso_usuario_nivel` solo para algunas de las
+  paradas del camino
 - **THEN** las posiciones sin fila de progreso aparecen igualmente, con
   `superado = false` y `estrellas_obtenidas = 0`, junto a las que sí tienen
   progreso
@@ -38,7 +39,7 @@ nivel de esa posición, mostrando `superado = false` y
 ### Requirement: Desbloqueo recalculado sobre estrellas acumuladas del camino
 El sistema SHALL marcar `desbloqueado = true` en `camino_jugador` para toda
 posición cuyo `estrellas_requeridas` sea menor o igual que la suma de
-`mejores_estrellas` del jugador sobre todos los niveles del camino, sin
+`mejores_estrellas` del jugador sobre todas las paradas del camino, sin
 importar si esa posición ya tiene una fila en `progreso_usuario_nivel` con
 `desbloqueado` grabado.
 
@@ -61,7 +62,7 @@ importar si esa posición ya tiene una fila en `progreso_usuario_nivel` con
 
 ### Requirement: Estrellas acumuladas del jugador expuestas por fila
 El sistema SHALL incluir en cada fila de `camino_jugador` el total de
-`mejores_estrellas` del jugador sumado sobre todos los niveles del camino,
+`mejores_estrellas` del jugador sumado sobre todas las paradas del camino,
 como `estrellas_acumuladas_usuario`.
 
 #### Scenario: Se consulta el camino con progreso parcial

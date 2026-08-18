@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import { render, screen, within, waitFor, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { Tematicas } from './Tematicas'
@@ -17,6 +17,7 @@ const fetchTematicas = vi.fn()
 const guardarTematica = vi.fn()
 const eliminarTematica = vi.fn()
 const reordenarTematicas = vi.fn()
+const actualizarActivoTematica = vi.fn()
 
 vi.mock('../lib/tematicas', async () => {
   const actual = await vi.importActual<typeof import('../lib/tematicas')>('../lib/tematicas')
@@ -26,6 +27,7 @@ vi.mock('../lib/tematicas', async () => {
     guardarTematica: (...args: unknown[]) => guardarTematica(...args),
     eliminarTematica: (...args: unknown[]) => eliminarTematica(...args),
     reordenarTematicas: (...args: unknown[]) => reordenarTematicas(...args),
+    actualizarActivoTematica: (...args: unknown[]) => actualizarActivoTematica(...args),
   }
 })
 
@@ -35,7 +37,7 @@ function tematica(overrides: Partial<Tematica> & { id: string }): Tematica {
     imagenPortada: 'https://example.test/portada.jpg',
     orden: 1,
     activo: true,
-    cantidadNiveles: 0,
+    cantidadParadas: 0,
     ...overrides,
   }
 }
@@ -44,14 +46,14 @@ const CAPITALES = tematica({
   id: 't-1',
   nombre: 'Capitales del mundo',
   orden: 1,
-  cantidadNiveles: 12,
+  cantidadParadas: 12,
 })
 
 const PAISAJES = tematica({
   id: 't-2',
   nombre: 'Paisajes de Europa',
   orden: 2,
-  cantidadNiveles: 9,
+  cantidadParadas: 9,
 })
 
 function archivo(nombre: string, tipo: string, bytes = 1024) {
@@ -63,28 +65,21 @@ beforeEach(() => {
   guardarTematica.mockReset()
   eliminarTematica.mockReset()
   reordenarTematicas.mockReset()
+  actualizarActivoTematica.mockReset()
   vi.spyOn(window, 'confirm').mockReturnValue(true)
 })
 
 describe('Tematicas — listado', () => {
-  it('muestra una fila por temática con nombre, niveles y estado', async () => {
+  it('muestra una fila por temática con nombre, paradas del camino y estado', async () => {
     fetchTematicas.mockResolvedValue([CAPITALES, PAISAJES])
 
     renderTematicas()
 
     expect(await screen.findByText('Capitales del mundo')).toBeInTheDocument()
-    expect(screen.getByText('12 niveles')).toBeInTheDocument()
+    expect(screen.getByText('12 paradas')).toBeInTheDocument()
     expect(screen.getByText('Paisajes de Europa')).toBeInTheDocument()
-    expect(screen.getByText('9 niveles')).toBeInTheDocument()
+    expect(screen.getByText('9 paradas')).toBeInTheDocument()
     expect(screen.getAllByText('Activa')).toHaveLength(2)
-  })
-
-  it('el nombre de la temática enlaza al listado de niveles de esa temática', async () => {
-    fetchTematicas.mockResolvedValue([CAPITALES])
-    renderTematicas()
-
-    const nombre = await screen.findByText('Capitales del mundo')
-    expect(nombre.closest('a')).toHaveAttribute('href', '/tematicas/t-1/niveles')
   })
 
   it('muestra el estado vacío cuando no hay ninguna temática', async () => {
@@ -140,7 +135,7 @@ describe('Tematicas — eliminación', () => {
     await screen.findByText('Capitales del mundo')
     await user.click(screen.getByLabelText('Eliminar temática'))
 
-    expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining('12 niveles'))
+    expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining('12 paradas'))
     await waitFor(() => expect(eliminarTematica).toHaveBeenCalledWith('t-1'))
     await waitFor(() => expect(screen.queryByText('Capitales del mundo')).not.toBeInTheDocument())
   })
@@ -160,15 +155,44 @@ describe('Tematicas — eliminación', () => {
 
   it('muestra un error de fila si la eliminación falla', async () => {
     fetchTematicas.mockResolvedValue([CAPITALES])
-    eliminarTematica.mockRejectedValue(new Error('en uso por niveles activos'))
+    eliminarTematica.mockRejectedValue(new Error('todavía tiene preguntas propias'))
     const user = userEvent.setup()
     renderTematicas()
 
     await screen.findByText('Capitales del mundo')
     await user.click(screen.getByLabelText('Eliminar temática'))
 
-    expect(await screen.findByText('en uso por niveles activos')).toBeInTheDocument()
+    expect(await screen.findByText('todavía tiene preguntas propias')).toBeInTheDocument()
     expect(screen.getByText('Capitales del mundo')).toBeInTheDocument()
+  })
+})
+
+describe('Tematicas — edición inline de estado', () => {
+  it('desactiva una temática desde el listado sin abrir el panel', async () => {
+    fetchTematicas.mockResolvedValue([CAPITALES])
+    actualizarActivoTematica.mockResolvedValue(undefined)
+    const user = userEvent.setup()
+    renderTematicas()
+
+    const fila = (await screen.findByText('Capitales del mundo')).closest('tr') as HTMLElement
+    await user.click(within(fila).getByLabelText('Cambiar estado de "Capitales del mundo"'))
+
+    expect(actualizarActivoTematica).toHaveBeenCalledWith('t-1', false)
+    expect(within(fila).getByText('Inactiva')).toBeInTheDocument()
+    expect(screen.queryByText('Nombre')).not.toBeInTheDocument()
+  })
+
+  it('revierte el cambio y muestra un error si el guardado inline falla', async () => {
+    fetchTematicas.mockResolvedValue([CAPITALES])
+    actualizarActivoTematica.mockRejectedValue(new Error('No se ha podido guardar.'))
+    const user = userEvent.setup()
+    renderTematicas()
+
+    const fila = (await screen.findByText('Capitales del mundo')).closest('tr') as HTMLElement
+    await user.click(within(fila).getByLabelText('Cambiar estado de "Capitales del mundo"'))
+
+    expect(await within(fila).findByText('No se ha podido guardar.')).toBeInTheDocument()
+    expect(within(fila).getByText('Activa')).toBeInTheDocument()
   })
 })
 
@@ -242,7 +266,7 @@ describe('Tematicas — panel de alta/edición', () => {
     await screen.findByText('Paisajes de Europa')
     await user.click(screen.getAllByLabelText('Editar temática')[1])
 
-    await user.click(screen.getByRole('checkbox'))
+    await user.click(screen.getByRole('checkbox', { name: 'Cambiar estado de la temática' }))
     await user.click(screen.getByRole('button', { name: /^guardar$/i }))
 
     await waitFor(() =>

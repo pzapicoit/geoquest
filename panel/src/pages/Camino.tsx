@@ -1,14 +1,20 @@
-import { useEffect, useState, type DragEvent } from 'react'
+import { Fragment, useEffect, useState, type DragEvent } from 'react'
 import {
   actualizarEstrellasRequeridas,
-  agregarNivelAlCamino,
+  actualizarOverridesParada,
+  agregarParadaAlCamino,
   fetchCamino,
-  fetchNivelesNoAsignados,
+  fetchTematicasParaCamino,
+  nombreParada,
   quitarDelCamino,
   reordenarCamino,
-  type NivelDisponible,
+  validarOverrides,
+  type OverridesParada,
   type PosicionCamino,
+  type TematicaOpcion,
 } from '../lib/camino'
+import { fetchDificultadDefaults, type DificultadDefault } from '../lib/dificultadDefaults'
+import { DIFICULTADES, DIFICULTAD_LABEL, type Dificultad } from '../lib/dificultad'
 
 const BOTON_FONDO = {
   background: 'linear-gradient(140deg, #2BC0A8, #1B6FA8)',
@@ -16,6 +22,33 @@ const BOTON_FONDO = {
 
 const CAMPO_BASE =
   'h-10 rounded-lg border-[1.5px] border-brand-border bg-white px-3 text-sm text-brand-night outline-none focus:border-brand-teal focus:ring-4 focus:ring-brand-teal/15'
+
+type OverridesFormTexto = Record<keyof OverridesParada, string>
+
+function overridesAForm(posicion: PosicionCamino): OverridesFormTexto {
+  return {
+    preguntasPorPartida:
+      posicion.preguntasPorPartida === null ? '' : String(posicion.preguntasPorPartida),
+    segundosPorDesafio:
+      posicion.segundosPorDesafio === null ? '' : String(posicion.segundosPorDesafio),
+    puntajeMinimoSuperar:
+      posicion.puntajeMinimoSuperar === null ? '' : String(posicion.puntajeMinimoSuperar),
+    umbralEstrella2: posicion.umbralEstrella2 === null ? '' : String(posicion.umbralEstrella2),
+    umbralEstrella3: posicion.umbralEstrella3 === null ? '' : String(posicion.umbralEstrella3),
+  }
+}
+
+function formAOverrides(form: OverridesFormTexto): OverridesParada {
+  const aNumeroONull = (valor: string): number | null =>
+    valor.trim() === '' ? null : Number(valor)
+  return {
+    preguntasPorPartida: aNumeroONull(form.preguntasPorPartida),
+    segundosPorDesafio: aNumeroONull(form.segundosPorDesafio),
+    puntajeMinimoSuperar: aNumeroONull(form.puntajeMinimoSuperar),
+    umbralEstrella2: aNumeroONull(form.umbralEstrella2),
+    umbralEstrella3: aNumeroONull(form.umbralEstrella3),
+  }
+}
 
 function IconoAsa() {
   return (
@@ -58,8 +91,9 @@ function EstadoVacio({ onAnadir }: { onAnadir: () => void }) {
       </div>
       <h4 className="font-display text-xl font-extrabold text-brand-night">El camino está vacío</h4>
       <p className="max-w-md text-sm text-brand-night/55">
-        El camino define en qué orden juega el jugador los niveles, pudiendo intercalar temáticas
-        libremente. Añade el primer nivel para empezar.
+        El camino define en qué orden juega el jugador cada parada de temática y dificultad,
+        pudiendo intercalar temáticas y repetir combinaciones libremente. Añade la primera parada
+        para empezar.
       </p>
       <button
         type="button"
@@ -67,200 +101,162 @@ function EstadoVacio({ onAnadir }: { onAnadir: () => void }) {
         className="mt-3 flex items-center gap-2 rounded-xl px-4 py-2.5 font-display text-sm font-extrabold text-white"
         style={BOTON_FONDO}
       >
-        <span className="text-base leading-none">+</span>Añadir nivel al camino
+        <span className="text-base leading-none">+</span>Añadir parada al camino
       </button>
     </div>
   )
 }
 
-function SelectorNiveles({
-  niveles,
+function SelectorParada({
+  tematicas,
   error,
-  agregandoId,
-  bloqueado,
-  query,
-  onQueryChange,
+  agregando,
   onAgregar,
 }: {
-  niveles: NivelDisponible[] | null
+  tematicas: TematicaOpcion[] | null
   error: string
-  agregandoId: string | null
-  bloqueado: boolean
-  query: string
-  onQueryChange: (query: string) => void
-  onAgregar: (nivel: NivelDisponible) => void
+  agregando: boolean
+  onAgregar: (tematicaId: string, dificultad: Dificultad) => void
 }) {
-  const q = query.trim().toLowerCase()
-  const filtrados = (niveles ?? []).filter(
-    (n) => !q || n.nombre.toLowerCase().includes(q) || n.tematicaNombre.toLowerCase().includes(q),
-  )
+  const [tematicaId, setTematicaId] = useState('')
+  const [dificultad, setDificultad] = useState<Dificultad | ''>('')
 
   return (
     <div className="flex flex-col gap-3.5 rounded-2xl border-[1.5px] border-dashed border-[#CFDDE3] bg-brand-teal/5 p-6">
       <h2 className="font-display text-lg font-extrabold text-brand-night">
-        Añadir nivel al camino
+        Añadir parada al camino
       </h2>
-      <div className="overflow-hidden rounded-xl border border-brand-border bg-white">
-        <label className="flex h-[42px] items-center gap-2 border-b border-brand-base px-3.5">
-          <svg
-            width="15"
-            height="15"
-            viewBox="0 0 20 20"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            className="text-brand-night/40"
+      {error && <p className="text-sm text-[#B3282D]">{error}</p>}
+      <div className="flex flex-wrap items-end gap-3">
+        <label className="flex flex-col gap-1.5">
+          <span className="text-xs font-medium text-brand-night/60">Temática</span>
+          <select
+            value={tematicaId}
+            onChange={(e) => setTematicaId(e.target.value)}
+            disabled={tematicas === null}
+            className={`${CAMPO_BASE} min-w-[220px]`}
           >
-            <circle cx="8.5" cy="8.5" r="5.5" />
-            <path d="M12.5 12.5 17 17" />
-          </svg>
-          <input
-            type="search"
-            value={query}
-            onChange={(e) => onQueryChange(e.target.value)}
-            placeholder="Buscar por nivel o temática"
-            className="min-w-0 flex-1 border-0 bg-transparent text-sm text-brand-night outline-none placeholder:text-brand-night/40"
-          />
+            <option value="">{tematicas === null ? 'Cargando…' : 'Selecciona una temática'}</option>
+            {(tematicas ?? []).map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.nombre}
+              </option>
+            ))}
+          </select>
         </label>
-        <div className="max-h-[260px] overflow-auto">
-          {niveles === null && !error && (
-            <div className="p-6 text-center text-sm text-brand-night/45">Cargando niveles…</div>
-          )}
-          {error && <div className="p-6 text-center text-sm text-[#B3282D]">{error}</div>}
-          {niveles !== null && filtrados.length === 0 && (
-            <div className="p-6 text-center text-sm text-brand-night/45">
-              {niveles.length === 0
-                ? 'Todos los niveles ya están en el camino.'
-                : `Ningún nivel coincide con «${query}».`}
-            </div>
-          )}
-          {filtrados.map((nivel) => (
-            <button
-              key={nivel.id}
-              type="button"
-              onClick={() => onAgregar(nivel)}
-              disabled={agregandoId === nivel.id || bloqueado}
-              className="flex w-full items-center gap-3 border-b border-brand-base px-3.5 py-2.5 text-left last:border-0 hover:bg-[#F8FBFC] disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <span className="min-w-0 flex-1 truncate text-sm font-semibold text-brand-night">
-                {nivel.nombre}
-              </span>
-              <span className="truncate text-xs text-brand-night/50">{nivel.tematicaNombre}</span>
-              <span className="flex-none text-xs font-semibold text-brand-blue">
-                {agregandoId === nivel.id ? 'Añadiendo…' : 'Añadir'}
-              </span>
-            </button>
-          ))}
-        </div>
+        <label className="flex flex-col gap-1.5">
+          <span className="text-xs font-medium text-brand-night/60">Dificultad</span>
+          <select
+            value={dificultad}
+            onChange={(e) => setDificultad(e.target.value as Dificultad)}
+            className={`${CAMPO_BASE} min-w-[160px]`}
+          >
+            <option value="">Selecciona una dificultad</option>
+            {DIFICULTADES.map((d) => (
+              <option key={d.valor} value={d.valor}>
+                {d.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button
+          type="button"
+          disabled={!tematicaId || !dificultad || agregando}
+          onClick={() => {
+            if (tematicaId && dificultad) onAgregar(tematicaId, dificultad)
+          }}
+          className="h-10 rounded-lg px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+          style={BOTON_FONDO}
+        >
+          {agregando ? 'Añadiendo…' : 'Añadir'}
+        </button>
       </div>
     </div>
   )
 }
 
-function FilaCamino({
-  posicion,
-  index,
-  total,
-  estrellasValor,
+function PanelOverrides({
+  form,
+  defaults,
   error,
-  guardandoEstrellas,
-  quitando,
-  bloqueado,
-  arrastrando,
-  onDragStart,
-  onDragOver,
-  onDrop,
-  onMover,
-  onEstrellasChange,
-  onEstrellasBlur,
-  onQuitar,
+  guardando,
+  onChange,
+  onGuardar,
+  onCancelar,
 }: {
-  posicion: PosicionCamino
-  index: number
-  total: number
-  estrellasValor: string
+  form: OverridesFormTexto
+  defaults: DificultadDefault
   error?: string
-  guardandoEstrellas: boolean
-  quitando: boolean
-  bloqueado: boolean
-  arrastrando: boolean
-  onDragStart: () => void
-  onDragOver: (e: DragEvent<HTMLTableRowElement>) => void
-  onDrop: () => void
-  onMover: (delta: number) => void
-  onEstrellasChange: (valor: string) => void
-  onEstrellasBlur: () => void
-  onQuitar: () => void
+  guardando: boolean
+  onChange: (form: OverridesFormTexto) => void
+  onGuardar: () => void
+  onCancelar: () => void
 }) {
+  const campos: { clave: keyof OverridesFormTexto; label: string; defecto: number }[] = [
+    {
+      clave: 'preguntasPorPartida',
+      label: 'Preguntas/partida',
+      defecto: defaults.preguntasPorPartida,
+    },
+    {
+      clave: 'segundosPorDesafio',
+      label: 'Segundos/pregunta',
+      defecto: defaults.segundosPorDesafio,
+    },
+    {
+      clave: 'puntajeMinimoSuperar',
+      label: 'Mínimo para superar',
+      defecto: defaults.puntajeMinimoSuperar,
+    },
+    { clave: 'umbralEstrella2', label: 'Umbral 2 estrellas', defecto: defaults.umbralEstrella2 },
+    { clave: 'umbralEstrella3', label: 'Umbral 3 estrellas', defecto: defaults.umbralEstrella3 },
+  ]
+
   return (
-    <tr
-      draggable={!bloqueado}
-      onDragStart={onDragStart}
-      onDragOver={onDragOver}
-      onDrop={onDrop}
-      className={`border-b border-brand-base last:border-0 hover:bg-brand-base/40 ${arrastrando ? 'opacity-40' : ''}`}
-    >
-      <td className="w-10 px-3 py-3 text-center text-brand-night/30" aria-hidden="true">
-        <IconoAsa />
-      </td>
-      <td className="px-2 py-3 text-sm font-semibold text-brand-night/50 tabular-nums">
-        {index + 1}
-      </td>
-      <td className="px-3 py-3">
-        <div className="min-w-0">
-          <div className="truncate text-sm font-semibold text-brand-night">
-            {posicion.nivelNombre}
+    <tr>
+      <td colSpan={5} className="bg-brand-base/40 px-4 py-4">
+        <div className="flex flex-col gap-3">
+          <p className="text-xs text-brand-night/55">
+            Deja un campo vacío para usar el valor por defecto de esta dificultad (mostrado entre
+            paréntesis).
+          </p>
+          <div className="flex flex-wrap gap-3">
+            {campos.map((campo) => (
+              <label key={campo.clave} className="flex flex-col gap-1">
+                <span className="text-[11px] font-semibold text-brand-night/50">
+                  {campo.label} <span className="text-brand-night/35">({campo.defecto})</span>
+                </span>
+                <input
+                  type="number"
+                  min={1}
+                  step={1}
+                  placeholder={String(campo.defecto)}
+                  value={form[campo.clave]}
+                  onChange={(e) => onChange({ ...form, [campo.clave]: e.target.value })}
+                  className={`${CAMPO_BASE} w-36 tabular-nums`}
+                />
+              </label>
+            ))}
           </div>
-          <div className="truncate text-xs text-brand-night/50">{posicion.tematicaNombre}</div>
-        </div>
-      </td>
-      <td className="px-3 py-3">
-        <div className="flex items-center gap-1.5">
-          <span className="text-brand-gold">★</span>
-          <input
-            type="number"
-            min={0}
-            step={1}
-            value={estrellasValor}
-            disabled={guardandoEstrellas}
-            onChange={(e) => onEstrellasChange(e.target.value)}
-            onBlur={onEstrellasBlur}
-            className={`${CAMPO_BASE} w-20 tabular-nums`}
-          />
-        </div>
-        {error && <p className="mt-1.5 text-[11px] text-[#B3282D]">{error}</p>}
-      </td>
-      <td className="px-3 py-3">
-        <div className="flex items-center justify-end gap-1.5">
-          <button
-            type="button"
-            onClick={() => onMover(-1)}
-            disabled={index === 0 || bloqueado}
-            aria-label="Subir posición"
-            title="Subir posición"
-            className="flex h-8 w-8 items-center justify-center rounded-lg border-[1.5px] border-brand-border text-brand-night/60 hover:border-brand-blue hover:text-brand-blue disabled:cursor-not-allowed disabled:opacity-30"
-          >
-            ↑
-          </button>
-          <button
-            type="button"
-            onClick={() => onMover(1)}
-            disabled={index === total - 1 || bloqueado}
-            aria-label="Bajar posición"
-            title="Bajar posición"
-            className="flex h-8 w-8 items-center justify-center rounded-lg border-[1.5px] border-brand-border text-brand-night/60 hover:border-brand-blue hover:text-brand-blue disabled:cursor-not-allowed disabled:opacity-30"
-          >
-            ↓
-          </button>
-          <button
-            type="button"
-            onClick={onQuitar}
-            disabled={quitando || bloqueado}
-            title="Quitar del camino"
-            className="rounded-lg border-[1.5px] border-brand-border px-3 py-2 text-xs font-semibold text-brand-night/60 hover:border-brand-error hover:text-brand-error disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            Quitar del camino
-          </button>
+          {error && <p className="text-xs font-medium text-[#B3282D]">{error}</p>}
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={onGuardar}
+              disabled={guardando}
+              className="rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+              style={BOTON_FONDO}
+            >
+              {guardando ? 'Guardando…' : 'Guardar overrides'}
+            </button>
+            <button
+              type="button"
+              onClick={onCancelar}
+              className="rounded-lg border-[1.5px] border-brand-border px-4 py-2 text-sm font-semibold text-brand-night/70 hover:border-brand-error hover:text-brand-error"
+            >
+              Cancelar
+            </button>
+          </div>
         </div>
       </td>
     </tr>
@@ -277,13 +273,19 @@ export function Camino() {
   const [operandoCamino, setOperandoCamino] = useState(false)
 
   const [mostrarSelector, setMostrarSelector] = useState(false)
-  const [nivelesDisponibles, setNivelesDisponibles] = useState<NivelDisponible[] | null>(null)
+  const [tematicas, setTematicas] = useState<TematicaOpcion[] | null>(null)
   const [errorSelector, setErrorSelector] = useState('')
-  const [agregandoId, setAgregandoId] = useState<string | null>(null)
-  const [querySelector, setQuerySelector] = useState('')
+  const [agregando, setAgregando] = useState(false)
+
+  const [defaults, setDefaults] = useState<Record<Dificultad, DificultadDefault> | null>(null)
 
   const [estrellasEditando, setEstrellasEditando] = useState<Record<string, string>>({})
   const [guardandoEstrellasIds, setGuardandoEstrellasIds] = useState<Set<string>>(new Set())
+
+  const [overridesAbiertoId, setOverridesAbiertoId] = useState<string | null>(null)
+  const [overridesForm, setOverridesForm] = useState<OverridesFormTexto | null>(null)
+  const [overridesError, setOverridesError] = useState('')
+  const [guardandoOverrides, setGuardandoOverrides] = useState(false)
 
   function cargar() {
     fetchCamino()
@@ -296,6 +298,18 @@ export function Camino() {
 
   useEffect(() => {
     cargar()
+    fetchDificultadDefaults()
+      .then((resultado) => {
+        setDefaults(
+          Object.fromEntries(resultado.map((f) => [f.dificultad, f])) as Record<
+            Dificultad,
+            DificultadDefault
+          >,
+        )
+      })
+      .catch((cargaError: unknown) => {
+        console.error('Error cargando los valores por defecto de dificultad:', cargaError)
+      })
   }, [])
 
   if (error) {
@@ -311,41 +325,47 @@ export function Camino() {
 
   function abrirSelector() {
     setMostrarSelector(true)
-    if (nivelesDisponibles !== null) return
+    if (tematicas !== null) return
 
-    fetchNivelesNoAsignados()
-      .then((resultado) => setNivelesDisponibles(resultado))
-      .catch((nivelesError: unknown) => {
-        console.error('Error cargando los niveles disponibles:', nivelesError)
-        setErrorSelector('No se han podido cargar los niveles disponibles.')
+    fetchTematicasParaCamino()
+      .then((resultado) => setTematicas(resultado))
+      .catch((tematicasError: unknown) => {
+        console.error('Error cargando las temáticas:', tematicasError)
+        setErrorSelector('No se han podido cargar las temáticas.')
       })
   }
 
-  async function handleAgregar(nivel: NivelDisponible) {
-    if (agregandoId || operandoCamino) return
+  async function handleAgregar(tematicaId: string, dificultad: Dificultad) {
+    if (agregando || operandoCamino) return
 
-    setAgregandoId(nivel.id)
+    setAgregando(true)
     setOperandoCamino(true)
     try {
-      const { id } = await agregarNivelAlCamino(nivel.id)
+      const { id } = await agregarParadaAlCamino(tematicaId, dificultad)
+      const tematicaNombre = tematicas?.find((t) => t.id === tematicaId)?.nombre ?? '—'
       setCamino((actual) => [
         ...(actual ?? []),
         {
           id,
           orden: (actual?.length ?? 0) + 1,
-          nivelId: nivel.id,
-          nivelNombre: nivel.nombre,
-          tematicaNombre: nivel.tematicaNombre,
+          tematicaId,
+          tematicaNombre,
+          dificultad,
+          nombre: null,
           estrellasRequeridas: 0,
+          preguntasPorPartida: null,
+          segundosPorDesafio: null,
+          puntajeMinimoSuperar: null,
+          umbralEstrella2: null,
+          umbralEstrella3: null,
         },
       ])
-      setNivelesDisponibles((actual) => actual?.filter((n) => n.id !== nivel.id) ?? actual)
     } catch (agregarError) {
       setErrorSelector(
-        agregarError instanceof Error ? agregarError.message : 'No se ha podido añadir el nivel.',
+        agregarError instanceof Error ? agregarError.message : 'No se ha podido añadir la parada.',
       )
     } finally {
-      setAgregandoId(null)
+      setAgregando(false)
       setOperandoCamino(false)
     }
   }
@@ -440,7 +460,7 @@ export function Camino() {
     if (quitandoIds.has(posicion.id) || operandoCamino) return
 
     const confirmado = window.confirm(
-      `¿Quitar "${posicion.nivelNombre}" del camino? El nivel seguirá existiendo en su temática.`,
+      `¿Quitar "${nombreParada(posicion)}" del camino? La temática y sus preguntas seguirán intactas.`,
     )
     if (!confirmado) return
 
@@ -450,18 +470,6 @@ export function Camino() {
       await quitarDelCamino(posicion.id)
       setCamino((actual) =>
         (actual ?? []).filter((p) => p.id !== posicion.id).map((p, i) => ({ ...p, orden: i + 1 })),
-      )
-      setNivelesDisponibles((actual) =>
-        actual
-          ? [
-              ...actual,
-              {
-                id: posicion.nivelId,
-                nombre: posicion.nivelNombre,
-                tematicaNombre: posicion.tematicaNombre,
-              },
-            ]
-          : actual,
       )
       setRowErrors((actual) => {
         if (!(posicion.id in actual)) return actual
@@ -485,6 +493,53 @@ export function Camino() {
     }
   }
 
+  function abrirOverrides(posicion: PosicionCamino) {
+    setOverridesAbiertoId(posicion.id)
+    setOverridesForm(overridesAForm(posicion))
+    setOverridesError('')
+  }
+
+  function cerrarOverrides() {
+    setOverridesAbiertoId(null)
+    setOverridesForm(null)
+    setOverridesError('')
+  }
+
+  async function handleGuardarOverrides(posicion: PosicionCamino) {
+    if (!overridesForm || !defaults) return
+
+    const overrides = formAOverrides(overridesForm)
+    const erroresConversion = Object.values(overridesForm).some(
+      (v) => v.trim() !== '' && Number.isNaN(Number(v)),
+    )
+    if (erroresConversion) {
+      setOverridesError('Cada override debe ser un número.')
+      return
+    }
+
+    const errorValidacion = validarOverrides(overrides, defaults[posicion.dificultad])
+    if (errorValidacion) {
+      setOverridesError(errorValidacion)
+      return
+    }
+
+    setGuardandoOverrides(true)
+    try {
+      await actualizarOverridesParada(posicion.id, overrides)
+      setCamino(
+        (actual) =>
+          actual?.map((p) => (p.id === posicion.id ? { ...p, ...overrides } : p)) ?? actual,
+      )
+      cerrarOverrides()
+    } catch (guardarError) {
+      setOverridesError(
+        guardarError instanceof Error ? guardarError.message : 'No se ha podido guardar.',
+      )
+    } finally {
+      setGuardandoOverrides(false)
+    }
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -505,19 +560,16 @@ export function Camino() {
             className="flex items-center gap-2 rounded-xl px-6 py-4 font-display text-base font-extrabold text-white"
             style={BOTON_FONDO}
           >
-            <span className="text-xl leading-none">+</span>Añadir nivel al camino
+            <span className="text-xl leading-none">+</span>Añadir parada al camino
           </button>
         )}
       </div>
 
       {mostrarSelector && (
-        <SelectorNiveles
-          niveles={nivelesDisponibles}
+        <SelectorParada
+          tematicas={tematicas}
           error={errorSelector}
-          agregandoId={agregandoId}
-          bloqueado={operandoCamino}
-          query={querySelector}
-          onQueryChange={setQuerySelector}
+          agregando={agregando}
           onAgregar={handleAgregar}
         />
       )}
@@ -537,36 +589,129 @@ export function Camino() {
                 <tr className="border-b border-brand-border bg-brand-base/60 text-[11px] font-semibold tracking-wider text-brand-night/45 uppercase">
                   <th className="w-10 px-3 py-3" aria-hidden="true" />
                   <th className="px-2 py-3 font-semibold">#</th>
-                  <th className="px-3 py-3 font-semibold">Nivel</th>
+                  <th className="px-3 py-3 font-semibold">Parada</th>
                   <th className="px-3 py-3 font-semibold">Estrellas para desbloquear</th>
                   <th className="px-3 py-3 text-right font-semibold">Acciones</th>
                 </tr>
               </thead>
               <tbody>
                 {lista.map((posicion, index) => (
-                  <FilaCamino
-                    key={posicion.id}
-                    posicion={posicion}
-                    index={index}
-                    total={lista.length}
-                    estrellasValor={
-                      estrellasEditando[posicion.id] ?? String(posicion.estrellasRequeridas)
-                    }
-                    error={rowErrors[posicion.id]}
-                    guardandoEstrellas={guardandoEstrellasIds.has(posicion.id)}
-                    quitando={quitandoIds.has(posicion.id)}
-                    bloqueado={operandoCamino}
-                    arrastrando={dragIndex === index}
-                    onDragStart={() => setDragIndex(index)}
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={() => handleDrop(index)}
-                    onMover={(delta) => handleMover(index, delta)}
-                    onEstrellasChange={(valor) =>
-                      setEstrellasEditando((actual) => ({ ...actual, [posicion.id]: valor }))
-                    }
-                    onEstrellasBlur={() => handleEstrellasBlur(posicion)}
-                    onQuitar={() => handleQuitar(posicion)}
-                  />
+                  <Fragment key={posicion.id}>
+                    <tr
+                      draggable={!operandoCamino}
+                      onDragStart={() => setDragIndex(index)}
+                      onDragOver={(e: DragEvent<HTMLTableRowElement>) => e.preventDefault()}
+                      onDrop={() => handleDrop(index)}
+                      className={`border-b border-brand-base last:border-0 hover:bg-brand-base/40 ${
+                        dragIndex === index ? 'opacity-40' : ''
+                      }`}
+                    >
+                      <td
+                        className="w-10 px-3 py-3 text-center text-brand-night/30"
+                        aria-hidden="true"
+                      >
+                        <IconoAsa />
+                      </td>
+                      <td className="px-2 py-3 text-sm font-semibold text-brand-night/50 tabular-nums">
+                        {index + 1}
+                      </td>
+                      <td className="px-3 py-3">
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-semibold text-brand-night">
+                            {nombreParada(posicion)}
+                          </div>
+                          {posicion.nombre?.trim() && (
+                            <div className="truncate text-xs text-brand-night/50">
+                              {posicion.tematicaNombre} · {DIFICULTAD_LABEL[posicion.dificultad]}
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-3 py-3">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-brand-gold">★</span>
+                          <input
+                            type="number"
+                            min={0}
+                            step={1}
+                            value={
+                              estrellasEditando[posicion.id] ?? String(posicion.estrellasRequeridas)
+                            }
+                            disabled={guardandoEstrellasIds.has(posicion.id)}
+                            onChange={(e) =>
+                              setEstrellasEditando((actual) => ({
+                                ...actual,
+                                [posicion.id]: e.target.value,
+                              }))
+                            }
+                            onBlur={() => handleEstrellasBlur(posicion)}
+                            className={`${CAMPO_BASE} w-20 tabular-nums`}
+                          />
+                        </div>
+                        {rowErrors[posicion.id] && (
+                          <p className="mt-1.5 text-[11px] text-[#B3282D]">
+                            {rowErrors[posicion.id]}
+                          </p>
+                        )}
+                      </td>
+                      <td className="px-3 py-3">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleMover(index, -1)}
+                            disabled={index === 0 || operandoCamino}
+                            aria-label="Subir posición"
+                            title="Subir posición"
+                            className="flex h-8 w-8 items-center justify-center rounded-lg border-[1.5px] border-brand-border text-brand-night/60 hover:border-brand-blue hover:text-brand-blue disabled:cursor-not-allowed disabled:opacity-30"
+                          >
+                            ↑
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleMover(index, 1)}
+                            disabled={index === lista.length - 1 || operandoCamino}
+                            aria-label="Bajar posición"
+                            title="Bajar posición"
+                            className="flex h-8 w-8 items-center justify-center rounded-lg border-[1.5px] border-brand-border text-brand-night/60 hover:border-brand-blue hover:text-brand-blue disabled:cursor-not-allowed disabled:opacity-30"
+                          >
+                            ↓
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              overridesAbiertoId === posicion.id
+                                ? cerrarOverrides()
+                                : abrirOverrides(posicion)
+                            }
+                            className="rounded-lg border-[1.5px] border-brand-border px-3 py-2 text-xs font-semibold text-brand-night/60 hover:border-brand-blue hover:text-brand-blue"
+                          >
+                            {overridesAbiertoId === posicion.id ? 'Cerrar overrides' : 'Overrides'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleQuitar(posicion)}
+                            disabled={quitandoIds.has(posicion.id) || operandoCamino}
+                            title="Quitar del camino"
+                            className="rounded-lg border-[1.5px] border-brand-border px-3 py-2 text-xs font-semibold text-brand-night/60 hover:border-brand-error hover:text-brand-error disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            Quitar
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                    {overridesAbiertoId === posicion.id && overridesForm && defaults && (
+                      <PanelOverrides
+                        key={`${posicion.id}-overrides`}
+                        form={overridesForm}
+                        defaults={defaults[posicion.dificultad]}
+                        error={overridesError}
+                        guardando={guardandoOverrides}
+                        onChange={setOverridesForm}
+                        onGuardar={() => handleGuardarOverrides(posicion)}
+                        onCancelar={cerrarOverrides}
+                      />
+                    )}
+                  </Fragment>
                 ))}
               </tbody>
             </table>
