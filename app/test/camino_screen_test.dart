@@ -67,16 +67,8 @@ const _banderas = ParadaCamino(
   esActual: false,
 );
 
-final _frontera = ParadaFrontera(
-  tematicaAnteriorNombre: _monumentos2.tematicaNombre,
-  tematicaSiguienteNombre: _banderas.tematicaNombre,
-  desbloqueada: _banderas.desbloqueado,
-  estrellasFaltantes:
-      _banderas.estrellasRequeridas - _banderas.estrellasAcumuladasUsuario,
-);
-
 final _caminoDePrueba = CaminoJugador(
-  entradas: [_monumentos, _monumentos2, _frontera, _banderas],
+  entradas: [_monumentos, _monumentos2, _banderas],
   puntosTotales: 240,
 );
 
@@ -123,17 +115,6 @@ void main() {
     await _pump(tester, FakeCaminoGateway(_caminoDePrueba));
 
     expect(find.text('Bloqueado · mín. 500 ★'), findsOneWidget);
-  });
-
-  testWidgets('la frontera bloqueada muestra cuántas estrellas faltan', (
-    tester,
-  ) async {
-    await _pump(tester, FakeCaminoGateway(_caminoDePrueba));
-
-    expect(
-      find.text('Necesitas 20 ★ más para cruzar a Banderas'),
-      findsOneWidget,
-    );
   });
 
   testWidgets('los puntos totales del jugador aparecen en la barra superior', (
@@ -475,6 +456,104 @@ void main() {
       // inferior, justo encima del botón.
       expect(rect.bottom, greaterThan(844 * 0.75));
       expect(rect.center.dy, greaterThan(844 * 0.5));
+    },
+  );
+
+  testWidgets(
+    'sin frontera, el nivel 1 sigue abajo del todo y el de mayor orden arriba '
+    '(INT-105)',
+    (tester) async {
+      await _pump(tester, FakeCaminoGateway(_caminoDePrueba));
+
+      final rectNivel1 = tester.getRect(
+        find.byKey(const Key('parada-nivel-superado')),
+      );
+      final rectNivel2 = tester.getRect(
+        find.byKey(const Key('parada-nivel-actual')),
+      );
+      final rectNivel3 = tester.getRect(
+        find.byKey(const Key('parada-nivel-bloqueado')),
+      );
+
+      expect(rectNivel1.center.dy, greaterThan(rectNivel2.center.dy));
+      expect(rectNivel2.center.dy, greaterThan(rectNivel3.center.dy));
+    },
+  );
+
+  testWidgets(
+    'una parada bloqueada muestra su número y título atenuados, no a color '
+    'pleno (INT-105)',
+    (tester) async {
+      await _pump(tester, FakeCaminoGateway(_caminoDePrueba));
+
+      final numeroTexto = tester.widget<Text>(
+        find.descendant(
+          of: find.byKey(const Key('parada-nivel-bloqueado')),
+          matching: find.text('3'),
+        ),
+      );
+      final tituloTexto = tester.widget<Text>(
+        find.descendant(
+          of: find.byKey(const Key('parada-nivel-bloqueado')),
+          matching: find.text('Banderas'),
+        ),
+      );
+
+      expect(numeroTexto.style?.color, Colors.white.withValues(alpha: 0.4));
+      expect(tituloTexto.style?.color, Colors.white.withValues(alpha: 0.62));
+    },
+  );
+
+  testWidgets(
+    'el riel de progreso cubre desde la parada actual hasta el final del '
+    'camino (INT-105)',
+    (tester) async {
+      await _pump(tester, FakeCaminoGateway(_caminoDePrueba));
+
+      final pista = tester.getRect(find.byKey(const Key('camino-riel-pista')));
+      final relleno = tester.getRect(
+        find.byKey(const Key('camino-riel-relleno')),
+      );
+
+      // Progreso parcial (hay una parada `esActual`): el relleno no cubre
+      // desde el principio del riel, pero sí hasta el mismo final.
+      expect(relleno.top, greaterThan(pista.top));
+      expect(relleno.bottom, closeTo(pista.bottom, 0.5));
+    },
+  );
+
+  testWidgets(
+    'con el camino completo (sin parada actual), el riel de progreso se '
+    'rellena entero (INT-105)',
+    (tester) async {
+      const completa = ParadaCamino(
+        caminoId: 'c1',
+        orden: 1,
+        nivelId: 'nivel-1',
+        tematicaId: 'monumentos',
+        tematicaNombre: 'Monumentos',
+        superado: true,
+        estrellasObtenidas: 3,
+        estrellasRequeridas: 0,
+        estrellasAcumuladasUsuario: 3,
+        desbloqueado: true,
+        esActual: false,
+      );
+
+      await _pump(
+        tester,
+        FakeCaminoGateway(
+          const CaminoJugador(entradas: [completa], puntosTotales: 0),
+        ),
+      );
+
+      final pista = tester.getRect(find.byKey(const Key('camino-riel-pista')));
+      final relleno = tester.getRect(
+        find.byKey(const Key('camino-riel-relleno')),
+      );
+
+      expect(relleno.top, closeTo(pista.top, 0.5));
+      expect(relleno.bottom, closeTo(pista.bottom, 0.5));
     },
   );
 }
