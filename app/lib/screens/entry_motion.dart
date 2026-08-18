@@ -216,12 +216,14 @@ class HaloPulse extends StatefulWidget {
     required this.color,
     this.inset = -9,
     this.borderRadius = const BorderRadius.all(Radius.circular(30)),
+    this.delay = Duration.zero,
   });
 
   final Widget child;
   final Color color;
   final double inset;
   final BorderRadius borderRadius;
+  final Duration delay;
 
   @override
   State<HaloPulse> createState() => _HaloPulseState();
@@ -249,7 +251,14 @@ class _HaloPulseState extends State<HaloPulse>
   @override
   void initState() {
     super.initState();
-    if (!_reduceMotion) _controller.repeat();
+    if (_reduceMotion) return;
+    if (widget.delay == Duration.zero) {
+      _controller.repeat();
+    } else {
+      Future.delayed(widget.delay, () {
+        if (mounted) _controller.repeat();
+      });
+    }
   }
 
   @override
