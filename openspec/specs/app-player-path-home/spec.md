@@ -53,38 +53,74 @@ visualmente destacada respecto al resto (superadas y bloqueadas).
 
 ### Requirement: Estado visual de parada bloqueada y no interactiva
 Toda parada cuya posición traiga `desbloqueado = false` SHALL mostrarse
-en gris/atenuada, sin estrellas visibles, y no SHALL responder a toques.
+íntegramente en gris/atenuada —portada en escala de grises, número de
+nivel, título de la temática y borde de la tarjeta con tratamiento
+atenuado, y su marca en el riel de progreso también atenuada—, sin
+estrellas visibles, y no SHALL responder a toques.
 
 #### Scenario: El jugador toca una parada bloqueada
 - **WHEN** un jugador toca una parada cuya posición trae
   `desbloqueado = false`
 - **THEN** la app no navega a ninguna pantalla de juego
 
-### Requirement: Parada frontera entre temáticas consecutivas distintas
-La Home SHALL insertar una parada "frontera" entre cada par de
-posiciones consecutivas de `camino_jugador` cuyo `tematica_id` difiera,
-mostrando un candado y, si la posición siguiente trae
-`desbloqueado = false`, un mensaje con cuántas estrellas faltan para
-desbloquearla (`estrellas_requeridas` de esa posición menos
-`estrellas_acumuladas_usuario`, con un mínimo de 1).
+#### Scenario: Una parada bloqueada se renderiza completa
+- **WHEN** la Home renderiza una parada cuya posición trae
+  `desbloqueado = false`
+- **THEN** tanto su portada como su número de nivel, título, borde de
+  tarjeta y marca en el riel se muestran con tratamiento atenuado, no solo
+  la portada
 
-#### Scenario: Frontera bloqueada entre dos temáticas
-- **WHEN** dos posiciones consecutivas del camino tienen distinto
-  `tematica_id` y la segunda trae `desbloqueado = false` con
-  `estrellas_requeridas = 500` y `estrellas_acumuladas_usuario = 480`
-- **THEN** aparece una parada frontera entre ambas con candado y el
-  mensaje indica que faltan 20 estrellas
+### Requirement: Riel de progreso vertical junto a las paradas
+La Home SHALL mostrar, junto a los indicadores de cada parada, un riel
+vertical compuesto por una pista de fondo que recorre todo el camino y un
+segmento relleno que marca el progreso ya recorrido: desde la marca de la
+parada `es_actual` hasta el nivel de `orden` 1.
 
-#### Scenario: Frontera ya desbloqueada
-- **WHEN** dos posiciones consecutivas del camino tienen distinto
-  `tematica_id` y la segunda trae `desbloqueado = true`
-- **THEN** aparece una parada frontera entre ambas sin candado ni
-  mensaje de estrellas faltantes
+#### Scenario: Progreso parcial
+- **WHEN** una posición del camino trae `es_actual = true` en un punto
+  intermedio
+- **THEN** el segmento relleno del riel cubre desde esa parada hasta el
+  nivel 1, y el resto del camino muestra solo la pista de fondo
 
-#### Scenario: Dos posiciones consecutivas de la misma temática
-- **WHEN** dos posiciones consecutivas del camino comparten
-  `tematica_id`
-- **THEN** no aparece ninguna parada frontera entre ellas
+#### Scenario: Camino completo sin parada actual
+- **WHEN** ninguna posición del camino trae `es_actual = true`
+- **THEN** el segmento relleno del riel cubre el camino completo
+
+### Requirement: Aparición animada de las paradas al hacer scroll
+Cada parada SHALL animarse (opacidad, escala y desplazamiento vertical) en
+función de su posición respecto al área visible del camino, mostrándose a
+tamaño y opacidad completos dentro de una zona central segura, y
+atenuándose/encogiéndose gradualmente cerca de los bordes superior e
+inferior del camino visible.
+
+#### Scenario: Parada dentro de la zona central visible
+- **WHEN** una parada está completamente dentro de la zona segura del área
+  visible, lejos de la cabecera y del botón de jugar
+- **THEN** se muestra a opacidad y escala completas, sin desplazamiento
+  adicional
+
+#### Scenario: Parada cerca del borde superior o inferior
+- **WHEN** el jugador hace scroll y una parada se acerca al borde ocupado
+  por la cabecera o por el botón de jugar
+- **THEN** su opacidad y escala se reducen gradualmente a medida que se
+  acerca a ese borde
+
+### Requirement: Contenido del camino se desvanece bajo la cabecera y el botón de jugar
+Las tarjetas de parada SHALL desvanecerse gradualmente, sin cortarse en un
+borde duro, al desplazarse bajo la cabecera fija o bajo el botón fijo de
+jugar.
+
+#### Scenario: Una parada se desplaza bajo la cabecera
+- **WHEN** el jugador hace scroll y una parada pasa a quedar bajo la
+  cabecera fija
+- **THEN** la tarjeta se desvanece gradualmente hasta quedar invisible, en
+  vez de cortarse en un límite visible
+
+#### Scenario: Una parada se desplaza bajo el botón de jugar
+- **WHEN** el jugador hace scroll y una parada pasa a quedar bajo el botón
+  fijo de jugar
+- **THEN** la tarjeta se desvanece gradualmente hasta quedar invisible, en
+  vez de cortarse en un límite visible
 
 ### Requirement: Auto-centrado en la parada actual al cargar
 Al montar la Home, la app SHALL desplazar automáticamente el scroll del
@@ -120,7 +156,7 @@ nivel, identificándolo por su `nivel_id`.
   esa posición, permitiendo rejugarla
 
 ### Requirement: Arte de cada parada desde la portada de su temática
-Cada parada (salvo la frontera) SHALL mostrar como ilustración la
+Cada parada SHALL mostrar como ilustración la
 imagen de portada (`imagen_portada`) de la temática de su nivel,
 resuelta a URL pública del bucket `challenge-media`, en vez de un icono
 genérico.
@@ -132,7 +168,7 @@ genérico.
   temática
 
 ### Requirement: Ambientación por temática mediante color de acento
-Cada parada (salvo la frontera) SHALL aplicar un color de acento
+Cada parada SHALL aplicar un color de acento
 derivado de su `tematica_id` a los elementos de progreso de esa parada
 (marca del riel y detalles de la tarjeta), variando sutilmente la
 ambientación entre temáticas distintas sin depender de un asset nuevo.
@@ -158,7 +194,7 @@ completo), el botón no SHALL mostrarse.
 - **THEN** la Home no muestra el botón fijo de jugar
 
 ### Requirement: Camino corto queda apoyado sobre el botón, no pegado al fondo
-Cuando el conjunto de paradas y fronteras no llene el espacio visible
+Cuando el conjunto de paradas no llene el espacio visible
 entre la barra superior y el botón fijo de jugar, la Home SHALL
 mantenerlo apoyado justo encima del botón (con un margen pequeño y
 fijo), dejando el hueco sobrante hacia la barra superior, en vez de
@@ -172,7 +208,7 @@ hueco arriba y abajo.
   jugar, no pegada al borde inferior de la pantalla
 
 #### Scenario: Camino largo que ya llena la pantalla
-- **WHEN** el conjunto de paradas y fronteras ocupa más espacio que el
+- **WHEN** el conjunto de paradas ocupa más espacio que el
   disponible entre la barra superior y el botón de jugar
 - **THEN** el camino se comporta igual que antes de este cambio:
   desplazable, sin centrado adicional
@@ -183,7 +219,7 @@ de referencia (`[App] - Camino vertical.dc.html`, `ROW_H = 208`), no
 una altura reducida.
 
 #### Scenario: Se renderiza una tarjeta de parada
-- **WHEN** la Home renderiza una tarjeta de parada (no una frontera)
+- **WHEN** la Home renderiza una tarjeta de parada
 - **THEN** su altura es de 208 puntos lógicos, igual que en el diseño
   de referencia
 
