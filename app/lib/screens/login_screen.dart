@@ -1,0 +1,559 @@
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../services/camino_gateway.dart';
+import '../services/profile_gateway.dart';
+import '../services/username_storage.dart';
+import 'camino_screen.dart';
+import 'entry_backdrop.dart';
+import 'entry_motion.dart';
+import 'entry_widgets.dart';
+import 'username_screen.dart';
+
+/// Pantalla de entrada (INT-108): decide entre el estado "primera vez"
+/// ([UsernameScreen]) y el estado "regreso" ([_ReturningWelcome]) según si
+/// el dispositivo ya tiene un apodo guardado. Sustituye al salto directo
+/// que hacía el splash (INT-88) a `CaminoScreen` cuando ya había apodo.
+class LoginScreen extends StatefulWidget {
+  const LoginScreen({
+    super.key,
+    this.usernameStorage,
+    this.profileGateway,
+    this.caminoGateway,
+  });
+
+  /// Inyectables para poder probar la pantalla sin salir a la red ni al disco.
+  final UsernameStorage? usernameStorage;
+  final ProfileGateway? profileGateway;
+  final CaminoGateway? caminoGateway;
+
+  @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
+  late final UsernameStorage _usernameStorage =
+      widget.usernameStorage ?? UsernameStorage();
+  // `late` para no tocar `Supabase.instance` (y así no exigir que esté
+  // inicializado) salvo que de verdad se llegue al estado "regreso".
+  late final CaminoGateway _caminoGateway =
+      widget.caminoGateway ?? SupabaseCaminoGateway(Supabase.instance.client);
+
+  late Future<String?> _savedNameFuture = _usernameStorage.read();
+
+  /// "Cambiar de jugador": borra el apodo local y vuelve a mostrar el
+  /// estado "primera vez" sin pasar de nuevo por el splash.
+  Future<void> _onSwitchPlayer() async {
+    await _usernameStorage.clear();
+    if (!mounted) return;
+    setState(() {
+      _savedNameFuture = Future.value(null);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: entryBg,
+      body: FutureBuilder<String?>(
+        future: _savedNameFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState != ConnectionState.done) {
+            return const SizedBox.shrink();
+          }
+          final savedName = snapshot.data;
+          if (savedName == null) {
+            // Se reenvía `widget.profileGateway` tal cual (no un valor ya
+            // resuelto): así, si es null, `UsernameScreen` solo construye su
+            // `SupabaseProfileGateway` por defecto al guardar el apodo, no
+            // al renderizar — igual que antes de existir `LoginScreen`.
+            return UsernameScreen(
+              key: const ValueKey('first-time'),
+              usernameStorage: _usernameStorage,
+              profileGateway: widget.profileGateway,
+            );
+          }
+          return _ReturningWelcome(
+            key: const ValueKey('returning'),
+            savedName: savedName,
+            caminoGateway: _caminoGateway,
+            onSwitchPlayer: _onSwitchPlayer,
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// Estado "regreso" (12b del mock): saludo al jugador reconocido, resumen
+/// de progreso con datos reales de [CaminoGateway], y las acciones
+/// "Seguir jugando" / "Cambiar de jugador".
+class _ReturningWelcome extends StatefulWidget {
+  const _ReturningWelcome({
+    super.key,
+    required this.savedName,
+    required this.caminoGateway,
+    required this.onSwitchPlayer,
+  });
+
+  final String savedName;
+  final CaminoGateway caminoGateway;
+  final Future<void> Function() onSwitchPlayer;
+
+  @override
+  State<_ReturningWelcome> createState() => _ReturningWelcomeState();
+}
+
+class _ReturningWelcomeState extends State<_ReturningWelcome> {
+  late Future<CaminoJugador> _camino = widget.caminoGateway.fetchCamino();
+
+  void _reloadCamino() {
+    setState(() {
+      _camino = widget.caminoGateway.fetchCamino();
+    });
+  }
+
+  void _onContinue() {
+    Navigator.of(
+      context,
+    ).pushReplacement(MaterialPageRoute(builder: (_) => const CaminoScreen()));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return EntryBackdrop(
+      child: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(24, 40, 24, 26),
+          child: Column(
+            children: [
+              PopIn(
+                duration: const Duration(milliseconds: 800),
+                child: Container(
+                  width: 62,
+                  height: 62,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(17),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF040C12).withValues(alpha: 0.6),
+                        blurRadius: 28,
+                        offset: const Offset(0, 12),
+                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(17),
+                    child: Image.asset(
+                      'assets/branding/geoquest-logo.png',
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 11),
+              RiseIn(
+                delay: const Duration(milliseconds: 100),
+                child: Text(
+                  'GeoQuest',
+                  style: GoogleFonts.baloo2(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 22,
+                    letterSpacing: -0.2,
+                    color: Colors.white.withValues(alpha: 0.9),
+                    shadows: const [
+                      Shadow(color: Color(0x99040C12), offset: Offset(0, 2)),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 30),
+              RiseIn(
+                delay: const Duration(milliseconds: 180),
+                child: Column(
+                  children: [
+                    Text(
+                      'BIENVENIDO DE VUELTA',
+                      style: GoogleFonts.outfit(
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 2,
+                        color: entryTeal.withValues(alpha: 0.85),
+                      ),
+                    ),
+                    const SizedBox(height: 9),
+                    Text(
+                      '¡Hola, ${widget.savedName}!',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.baloo2(
+                        fontSize: 30,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                        shadows: const [
+                          Shadow(
+                            color: Color(0xB2040C12),
+                            offset: Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+              RiseIn(
+                delay: const Duration(milliseconds: 260),
+                child: FutureBuilder<CaminoJugador>(
+                  future: _camino,
+                  builder: (context, snapshot) {
+                    if (snapshot.hasError) {
+                      return _ProgressCardError(onRetry: _reloadCamino);
+                    }
+                    if (!snapshot.hasData) {
+                      return const _ProgressCardSkeleton();
+                    }
+                    return _ProgressCard(
+                      savedName: widget.savedName,
+                      camino: snapshot.data!,
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 22),
+              RiseIn(
+                delay: const Duration(milliseconds: 340),
+                child: Column(
+                  children: [
+                    PrimaryPillButton(
+                      key: const Key('continue-button'),
+                      label: 'Seguir jugando',
+                      onPressed: _onContinue,
+                    ),
+                    const SizedBox(height: 12),
+                    OutlinePillButton(
+                      key: const Key('switch-player-button'),
+                      label: 'Cambiar de jugador',
+                      onPressed: () => widget.onSwitchPlayer(),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 22),
+              RiseIn(
+                delay: const Duration(milliseconds: 420),
+                child: const GhostLink(
+                  key: Key('link-account'),
+                  label: 'Vincular una cuenta para no perder el progreso',
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ProgressCard extends StatelessWidget {
+  const _ProgressCard({required this.savedName, required this.camino});
+
+  final String savedName;
+  final CaminoJugador camino;
+
+  @override
+  Widget build(BuildContext context) {
+    final nivelesSuperados = camino.entradas.where((e) => e.superado).length;
+    final estrellas = camino.entradas.fold<int>(
+      0,
+      (total, e) => total + e.estrellasObtenidas,
+    );
+
+    ParadaCamino? siguienteBloqueado;
+    for (final entrada in camino.entradas) {
+      if (!entrada.desbloqueado) {
+        siguienteBloqueado = entrada;
+        break;
+      }
+    }
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
+      decoration: BoxDecoration(
+        color: entryCard,
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(color: entryTeal.withValues(alpha: 0.4), width: 2.5),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0C584C).withValues(alpha: 0.6),
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              HaloPulse(
+                color: entryTeal.withValues(alpha: 0.45),
+                inset: -6,
+                borderRadius: BorderRadius.circular(18),
+                child: Container(
+                  width: 58,
+                  height: 58,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(18),
+                    gradient: const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [entryTeal, entryBlue],
+                    ),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.2),
+                      width: 2.5,
+                    ),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    initialOf(savedName),
+                    style: GoogleFonts.baloo2(
+                      fontSize: 26,
+                      fontWeight: FontWeight.w800,
+                      color: const Color(0xFF04202A),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Text(
+                  savedName,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.baloo2(
+                    fontSize: 21,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: _StatTile(
+                  value: '${camino.puntosTotales}',
+                  label: 'PUNTOS',
+                  color: const Color(0xFFFFD98A),
+                ),
+              ),
+              const SizedBox(width: 9),
+              Expanded(
+                child: _StatTile(
+                  value: '$nivelesSuperados',
+                  label: 'NIVELES',
+                  color: const Color(0xFF8FE7D6),
+                ),
+              ),
+              const SizedBox(width: 9),
+              Expanded(
+                child: _StatTile(
+                  value: '$estrellas',
+                  label: 'ESTRELLAS',
+                  color: Colors.white,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          if (siguienteBloqueado != null)
+            _NextLevelProgress(parada: siguienteBloqueado)
+          else
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Has desbloqueado todos los niveles disponibles',
+                style: GoogleFonts.outfit(
+                  fontSize: 11.5,
+                  color: Colors.white.withValues(alpha: 0.55),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NextLevelProgress extends StatelessWidget {
+  const _NextLevelProgress({required this.parada});
+
+  final ParadaCamino parada;
+
+  @override
+  Widget build(BuildContext context) {
+    final requeridas = parada.estrellasRequeridas;
+    final progreso = requeridas <= 0
+        ? 1.0
+        : clampProgress(parada.estrellasAcumuladasUsuario / requeridas);
+    final nombreNivel = parada.nivelNombre ?? parada.tematicaNombre;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Siguiente: $nombreNivel · ${parada.tematicaNombre}',
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.outfit(
+                  fontSize: 11,
+                  color: Colors.white.withValues(alpha: 0.6),
+                ),
+              ),
+            ),
+            Text(
+              '${parada.estrellasAcumuladasUsuario}/$requeridas ★',
+              style: GoogleFonts.outfit(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFFFFD98A),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(99),
+          child: LinearProgressIndicator(
+            value: progreso,
+            minHeight: 9,
+            backgroundColor: Colors.white.withValues(alpha: 0.09),
+            color: entryTeal,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _StatTile extends StatelessWidget {
+  const _StatTile({
+    required this.value,
+    required this.label,
+    required this.color,
+  });
+
+  final String value;
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 6),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+      ),
+      child: Column(
+        children: [
+          Text(
+            value,
+            style: GoogleFonts.baloo2(
+              fontSize: 19,
+              fontWeight: FontWeight.w800,
+              color: color,
+            ),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            label,
+            style: GoogleFonts.outfit(
+              fontSize: 8.5,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 1,
+              color: Colors.white.withValues(alpha: 0.42),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProgressCardSkeleton extends StatelessWidget {
+  const _ProgressCardSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 176,
+      decoration: BoxDecoration(
+        color: entryCard,
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.08),
+          width: 2,
+        ),
+      ),
+      alignment: Alignment.center,
+      child: const SizedBox(
+        width: 26,
+        height: 26,
+        child: CircularProgressIndicator(strokeWidth: 2.4, color: entryTeal),
+      ),
+    );
+  }
+}
+
+/// Se muestra si falla la carga del progreso (p. ej. sin conectividad) —
+/// evita que la tarjeta quede en el spinner de carga indefinidamente.
+class _ProgressCardError extends StatelessWidget {
+  const _ProgressCardError({required this.onRetry});
+
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 18),
+      decoration: BoxDecoration(
+        color: entryCard,
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.08),
+          width: 2,
+        ),
+      ),
+      child: Column(
+        children: [
+          Text(
+            'No se pudo cargar tu progreso',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.outfit(
+              fontSize: 13,
+              color: Colors.white.withValues(alpha: 0.7),
+            ),
+          ),
+          const SizedBox(height: 12),
+          GestureDetector(
+            key: const Key('retry-progress'),
+            onTap: onRetry,
+            child: Text(
+              'Reintentar',
+              style: GoogleFonts.outfit(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: entryTeal,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

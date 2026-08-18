@@ -4,31 +4,37 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../config/app_config.dart';
 import '../services/anonymous_session_service.dart';
 import '../services/auth_gateway.dart';
+import '../services/camino_gateway.dart';
 import '../services/device_id_service.dart';
+import '../services/profile_gateway.dart';
 import '../services/username_storage.dart';
-import 'camino_screen.dart';
-import 'username_screen.dart';
+import 'login_screen.dart';
 
 /// Pantalla de carga inicial (INT-88).
 ///
-/// Crea o recupera la sesión anónima en segundo plano (INT-75) y encamina al
-/// jugador sin que tenga que hacer nada: a "Nombre de usuario" si el
-/// dispositivo no tiene uno guardado, o directo al camino (INT-90) si ya lo
-/// tiene. Sustituye a `ConnectivityScreen`, que era un destino provisional.
+/// Crea o recupera la sesión anónima en segundo plano (INT-75) y encamina
+/// siempre a la pantalla de entrada (INT-108), que decide internamente si
+/// muestra la captura de apodo (primera vez) o la bienvenida de regreso.
+/// Sustituye a `ConnectivityScreen`, que era un destino provisional.
 class SplashScreen extends StatefulWidget {
   const SplashScreen({
     super.key,
     required this.config,
     this.sessionService,
     this.usernameStorage,
+    this.profileGateway,
+    this.caminoGateway,
     this.minDuration = const Duration(milliseconds: 1200),
   });
 
   final AppConfig config;
 
-  /// Inyectables para poder probar la pantalla sin salir a la red ni al disco.
+  /// Inyectables para poder probar la pantalla sin salir a la red ni al
+  /// disco — se reenvían a [LoginScreen] al navegar.
   final AnonymousSessionService? sessionService;
   final UsernameStorage? usernameStorage;
+  final ProfileGateway? profileGateway;
+  final CaminoGateway? caminoGateway;
 
   /// Tiempo mínimo que el splash permanece visible, aunque la sesión se
   /// resuelva al instante, para evitar un parpadeo.
@@ -45,8 +51,6 @@ class _SplashScreenState extends State<SplashScreen> {
         SupabaseAuthGateway(Supabase.instance.client.auth),
         DeviceIdService(),
       );
-  late final UsernameStorage _usernameStorage =
-      widget.usernameStorage ?? UsernameStorage();
 
   Future<AnonymousSessionResult>? _resolution;
 
@@ -78,13 +82,15 @@ class _SplashScreenState extends State<SplashScreen> {
     return result;
   }
 
-  Future<void> _navigateNext() async {
-    final username = await _usernameStorage.read();
+  void _navigateNext() {
     if (!mounted) return;
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
-        builder: (_) =>
-            username == null ? const UsernameScreen() : const CaminoScreen(),
+        builder: (_) => LoginScreen(
+          usernameStorage: widget.usernameStorage,
+          profileGateway: widget.profileGateway,
+          caminoGateway: widget.caminoGateway,
+        ),
       ),
     );
   }

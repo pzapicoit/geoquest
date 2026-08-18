@@ -34,7 +34,7 @@ Si crear o recuperar la sesión falla (por ejemplo, sin conectividad), el splash
 - **THEN** el splash muestra el motivo del error y un botón "Reintentar" que vuelve a intentar la resolución de la sesión
 
 ### Requirement: Enrutamiento según nombre de usuario guardado
-Una vez resuelta la sesión con éxito, el splash SHALL navegar a la pantalla "Nombre de usuario" si el dispositivo no tiene un nombre de usuario guardado todavía, o directamente al Mapa de temáticas si ya lo tiene.
+Una vez resuelta la sesión con éxito, el splash SHALL navegar a la pantalla "Nombre de usuario" si el dispositivo no tiene un nombre de usuario guardado todavía, o a la pantalla de bienvenida de regreso (capability `app-login`) si ya lo tiene.
 
 #### Scenario: Primera vez, sin nombre de usuario guardado
 - **WHEN** la sesión se resuelve con éxito y no hay nombre de usuario guardado en el dispositivo
@@ -42,7 +42,8 @@ Una vez resuelta la sesión con éxito, el splash SHALL navegar a la pantalla "N
 
 #### Scenario: Ya tiene nombre de usuario guardado
 - **WHEN** la sesión se resuelve con éxito y ya existe un nombre de usuario guardado en el dispositivo
-- **THEN** la app navega directamente al Mapa de temáticas
+- **THEN** la app navega a la pantalla de bienvenida de regreso
+- **AND** no navega directamente al Mapa de temáticas sin mostrar esa pantalla intermedia
 
 ### Requirement: Tiempo mínimo de splash
 El splash SHALL permanecer visible al menos un tiempo mínimo razonable antes de navegar a la siguiente pantalla, incluso si la sesión se resuelve al instante, para evitar un parpadeo.

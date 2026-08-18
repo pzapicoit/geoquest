@@ -155,29 +155,25 @@ void main() {
     expect(field.controller!.text, isNotEmpty);
   });
 
-  testWidgets('una chip de sugerencia rellena el campo con su apodo', (
-    tester,
-  ) async {
-    await _pump(tester, profileGateway: FakeProfileGateway());
-
-    await tester.tap(find.widgetWithText(OutlinedButton, 'GeoLince'));
-    await tester.pump();
-
-    final field = tester.widget<TextField>(find.byType(TextField));
-    expect(field.controller!.text, 'GeoLince');
-  });
-
   testWidgets(
-    'el enlace de iniciar sesión está presente y no hace nada al pulsarlo',
+    'entrar como invitado sin escribir apodo lo asigna, guarda y navega',
     (tester) async {
-      await _pump(tester, profileGateway: FakeProfileGateway());
+      final profileGateway = FakeProfileGateway();
+      final usernameStorage = UsernameStorage();
 
-      expect(find.textContaining('Iniciar sesión'), findsOneWidget);
+      await _pump(
+        tester,
+        profileGateway: profileGateway,
+        usernameStorage: usernameStorage,
+      );
 
-      await tester.tap(find.byKey(const Key('login-link')));
+      await tester.tap(find.byKey(const Key('guest-link')));
       await tester.pumpAndSettle();
 
-      expect(find.byType(UsernameScreen), findsOneWidget);
+      expect(profileGateway.updateNicknameCalls, 1);
+      expect(profileGateway.lastNickname, isNotEmpty);
+      expect(await usernameStorage.read(), isNotEmpty);
+      expect(find.byType(CaminoScreen), findsOneWidget);
     },
   );
 
