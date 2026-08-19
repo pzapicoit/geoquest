@@ -8,6 +8,7 @@ import 'package:video_player/video_player.dart';
 import '../mapa/mapa_mundi.dart';
 import '../mapa/mapa_mundi_controller.dart';
 import '../services/nivel_juego_gateway.dart';
+import 'cuenta_atras_de_desafio.dart';
 import 'resumen_nivel_screen.dart';
 
 const _ink = Color(0xFF0E1620);
@@ -36,6 +37,7 @@ class NivelJuegoScreen extends StatefulWidget {
     this.tematicaNombre,
     this.gateway,
     this.cargadorDeMundo,
+    this.ahora,
   });
 
   final String caminoId;
@@ -56,6 +58,11 @@ class NivelJuegoScreen extends StatefulWidget {
 
   /// Inyectable para poder probar la pantalla sin leer el asset del mundo.
   final CargadorDeMundo? cargadorDeMundo;
+
+  /// Reloj de pared del que cuelga la cuenta atrás del desafío. Inyectable
+  /// porque `flutter_test` no falsea el reloj global (D2 de `design.md`): sin
+  /// esto no hay forma de provocar que se agote el tiempo en un test.
+  final DateTime Function()? ahora;
 
   @override
   State<NivelJuegoScreen> createState() => _NivelJuegoScreenState();
@@ -92,7 +99,7 @@ class _Revelado {
 }
 
 class _NivelJuegoScreenState extends State<NivelJuegoScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   /// Coreografía del revelado, con los tiempos del diseño (D4 de
   /// `design.md`): una sola fuente de tiempo para los cinco tramos.
   static const Duration _duracionDelRevelado = Duration(milliseconds: 5440);
@@ -129,13 +136,20 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
   Timer? _temporizadorDelMensaje;
   _Revelado? _revelado;
 
-  /// Cuenta atrás del desafío actual, en segundos (INT-99). Arranca al
-  /// recibir el intento (primer desafío) y en [_avanzarDesdeElRevelado]
-  /// (los siguientes), mismos instantes en que se llama a
-  /// `marcarDesafioMostrado` (D11 de `design.md`). Se ignora —el HUD no
-  /// enseña la barra— mientras hay un revelado en pantalla.
-  int _segundosRestantes = 0;
-  Timer? _temporizadorDeCuentaAtras;
+  /// Cuenta atrás del desafío actual (INT-99, continua desde INT-114).
+  /// Arranca al recibir el intento (primer desafío) y en
+  /// [_avanzarDesdeElRevelado] (los siguientes), mismos instantes en que se
+  /// llama a `marcarDesafioMostrado` (D11 de `design.md`). Se ignora —el HUD
+  /// no enseña la barra— mientras hay un revelado en pantalla.
+  late final CuentaAtrasDeDesafio _cuentaAtras = CuentaAtrasDeDesafio(
+    vsync: this,
+    ahora: widget.ahora,
+    alAgotarse: _alAgotarseElTiempo,
+  );
+
+  /// El intento en curso, para saber a qué desafío responder cuando la cuenta
+  /// atrás se agota sola.
+  IntentoNivel? _intento;
 
   /// Encuadre desde el que arranca la animación de cámara: el que tenía el
   /// jugador al confirmar. Se guarda para poder repetir la animación.
@@ -155,7 +169,7 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
   @override
   void dispose() {
     _temporizadorDelMensaje?.cancel();
-    _temporizadorDeCuentaAtras?.cancel();
+    _cuentaAtras.dispose();
     _coreografia.dispose();
     _mapa.dispose();
     super.dispose();
@@ -196,12 +210,8 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
   /// `design.md`). Idempotente en el propio timer: llamarla de nuevo
   /// cancela cualquier cuenta atrás anterior antes de empezar la nueva.
   void _arrancarCuentaAtras(IntentoNivel intento, String desafioId) {
-    _temporizadorDeCuentaAtras?.cancel();
-    setState(() => _segundosRestantes = intento.segundosPorDesafio);
-    _temporizadorDeCuentaAtras = Timer.periodic(
-      const Duration(seconds: 1),
-      (_) => _tick(intento),
-    );
+    _intento = intento;
+    _cuentaAtras.arrancar(Duration(seconds: intento.segundosPorDesafio));
 
     // Si esta llamada falla (red, o una app que no la conoce), el servidor
     // trata el desafío como agotado y no da bonus (D6 de `design.md`), pero
@@ -215,23 +225,12 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
         .catchError((Object _) {});
   }
 
-  void _tick(IntentoNivel intento) {
-    if (!mounted) return;
-
-    if (_segundosRestantes <= 1) {
-      _temporizadorDeCuentaAtras?.cancel();
-      setState(() => _segundosRestantes = 0);
-      _alAgotarseElTiempo(intento);
-      return;
-    }
-    setState(() => _segundosRestantes--);
-  }
-
   /// Al llegar la cuenta atrás a 0: con un pin colocado, la misma acción que
   /// "Confirmar"; sin él, una respuesta sin coordenadas (D8/D13 de
   /// `design.md`, requirement "Comportamiento al agotar el tiempo").
-  void _alAgotarseElTiempo(IntentoNivel intento) {
-    if (_revelado != null) return;
+  void _alAgotarseElTiempo() {
+    final intento = _intento;
+    if (!mounted || intento == null || _revelado != null) return;
 
     if (_mapa.pin != null) {
       _confirmar(intento);
@@ -254,7 +253,7 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
       );
       if (!mounted) return;
 
-      _temporizadorDeCuentaAtras?.cancel();
+      _cuentaAtras.parar();
       setState(() {
         _enviando = false;
         _revelado = _Revelado(
@@ -292,7 +291,7 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
       );
       if (!mounted) return;
 
-      _temporizadorDeCuentaAtras?.cancel();
+      _cuentaAtras.parar();
       setState(() {
         _enviando = false;
         _revelado = _Revelado(
@@ -537,6 +536,23 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
                 height: 150,
                 child: IgnorePointer(child: _DegradadoSuperior()),
               ),
+              // Aviso periférico de que se acaba el tiempo: por encima del
+              // mapa, por debajo del HUD y sin recibir toques (D7).
+              if (!revelando)
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: AnimatedBuilder(
+                      animation: _cuentaAtras,
+                      builder: (context, _) => _MarcoDeTiempoCritico(
+                        opacidad: opacidadDelMarcoCritico(
+                          restante: _cuentaAtras.restante,
+                          umbral: _cuentaAtras.umbralCritico,
+                          conLatido: !MediaQuery.of(context).disableAnimations,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               if (!revelando && !_pistaVisible)
                 Positioned(
                   left: 0,
@@ -596,8 +612,7 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
                     nombreDelNivel: widget.nivelNombre,
                     onSalir: _pedirSalir,
                     // La barra no corre durante el revelado (D11).
-                    segundosRestantes: revelando ? null : _segundosRestantes,
-                    segundosPorDesafio: intento.segundosPorDesafio,
+                    cuentaAtras: revelando ? null : _cuentaAtras,
                   ),
                 ),
               ),
@@ -611,6 +626,78 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+/// Borde rojo fino en el canto de la pantalla mientras el desafío está en zona
+/// crítica de tiempo (INT-114, D7 de `design.md`).
+///
+/// Es un aviso para la visión periférica: el jugador tiene la vista en el mapa
+/// y la barra del HUD pasándose a rojo se le escapa. La opacidad llega ya
+/// calculada por [opacidadDelMarcoCritico] —fundido de entrada y latido salen
+/// del propio tiempo restante— y se hornea en los colores en vez de envolver
+/// todo en un `Opacity`, que en una capa a pantalla completa costaría un
+/// `saveLayer` por fotograma.
+class _MarcoDeTiempoCritico extends StatelessWidget {
+  const _MarcoDeTiempoCritico({required this.opacidad});
+
+  /// Cuánto se mete el marco hacia dentro del área visible, y radio de sus
+  /// esquinas (DD1 del delta 1).
+  ///
+  /// Flutter no dice en ninguna parte el radio de las esquinas del dispositivo,
+  /// así que el marco no puede copiarlo: tiene que caber dentro de cualquiera.
+  /// Con este margen y este radio, el contorno entra en una pantalla de
+  /// esquinas de hasta 76 px de radio —un iPhone reciente ronda los 55—, y en
+  /// una pantalla de cantos rectos se ve redondeado, que es igual de bueno. Un
+  /// rectángulo recto pegado a los cuatro cantos, en cambio, pierde las cuatro
+  /// esquinas en cualquier móvil actual.
+  static const double margen = 6;
+  static const double radio = 56;
+
+  /// Fino, pero lo justo para verse con el mapa a pantalla completa (DD2).
+  static const double grosor = 4;
+  static const double grosorDelHalo = 8;
+
+  final double opacidad;
+
+  @override
+  Widget build(BuildContext context) {
+    if (opacidad <= 0) return const SizedBox.shrink();
+
+    final visible = opacidad.clamp(0.0, 1.0);
+    return Padding(
+      padding: const EdgeInsets.all(margen),
+      child: DecoratedBox(
+        key: const Key('nivel-juego-marco-critico'),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(radio),
+          border: Border.all(
+            color: _rojo.withValues(alpha: visible),
+            width: grosor,
+          ),
+        ),
+        // Segundo trazo, más ancho y muy tenue: deja el canto como un halo en
+        // vez de una línea dura, sin pintar un degradado.
+        //
+        // Mismo radio que el de fuera, no uno menor: `DecoratedBox` no mete a
+        // su hijo dentro del borde —eso solo lo hace `Container`—, así que los
+        // dos trazos comparten rectángulo. Con un radio menor, el halo pasa a
+        // ser el contorno más exterior en las esquinas, y entonces es él —y no
+        // el borde— quien decide hasta qué redondeo de pantalla cabe el marco:
+        // con radio 40 sobre margen 4 se cortaba ya en 53, por debajo de un
+        // iPhone. Compartiendo radio los dos contornos coinciden y no hay dos
+        // holguras distintas que vigilar.
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(radio),
+            border: Border.all(
+              color: _rojo.withValues(alpha: visible * 0.22),
+              width: grosorDelHalo,
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -681,8 +768,7 @@ class _HudJuego extends StatelessWidget {
     required this.resueltos,
     required this.nombreDelNivel,
     required this.onSalir,
-    required this.segundosRestantes,
-    required this.segundosPorDesafio,
+    required this.cuentaAtras,
   });
 
   final int posicion;
@@ -698,8 +784,7 @@ class _HudJuego extends StatelessWidget {
 
   /// `null` mientras se enseña el revelado: la cuenta atrás (INT-99) no
   /// corre en esa fase, así que la barra no se pinta (D11 de `design.md`).
-  final int? segundosRestantes;
-  final int segundosPorDesafio;
+  final CuentaAtrasDeDesafio? cuentaAtras;
 
   @override
   Widget build(BuildContext context) {
@@ -735,12 +820,9 @@ class _HudJuego extends StatelessWidget {
                 _PildoraDePuntaje(puntaje: puntaje),
               ],
             ),
-            if (segundosRestantes != null) ...[
+            if (cuentaAtras != null) ...[
               const SizedBox(height: 8),
-              _CuentaAtras(
-                segundosRestantes: segundosRestantes!,
-                segundosPorDesafio: segundosPorDesafio,
-              ),
+              _CuentaAtras(cuentaAtras: cuentaAtras!),
             ],
           ],
         ),
@@ -898,36 +980,31 @@ String formatearCuentaAtras(int segundos) {
   return '$minutos:${resto.toString().padLeft(2, '0')}';
 }
 
-/// Color de la barra de cuenta atrás según la fracción de tiempo que queda
-/// (D10 de `design.md`): teal por encima de la mitad, ámbar entre la mitad y
-/// una quinta parte, rojo por debajo de una quinta parte.
-Color _colorDeLaCuentaAtras(int segundosRestantes, int segundosPorDesafio) {
-  if (segundosPorDesafio <= 0) return _teal;
-  final fraccion = segundosRestantes / segundosPorDesafio;
-  if (fraccion > 0.5) return _teal;
-  if (fraccion >= 0.2) return _gold;
-  return _rojo;
+/// Color de la barra de cuenta atrás según el tiempo que queda (D10 de
+/// `design.md` de INT-99, afinado en D6 de INT-114): teal por encima de la
+/// mitad, ámbar entre la mitad y la zona crítica, rojo dentro de ella. El
+/// umbral rojo no se recalcula aquí — lo decide la propia cuenta atrás, para
+/// que barra y marco no puedan desincronizarse.
+Color _colorDeLaCuentaAtras(CuentaAtrasDeDesafio cuenta) {
+  if (cuenta.total <= Duration.zero) return _teal;
+  if (cuenta.enZonaCritica) return _rojo;
+  return cuenta.fraccion > 0.5 ? _teal : _gold;
 }
 
 /// Barra de cuenta atrás del desafío actual (INT-99): vive en el HUD, por
 /// encima del toast de pista, para que el jugador sepa siempre cuánto tiempo
 /// le queda sin tener que cerrar nada.
+///
+/// El `AnimatedBuilder` va por dentro a propósito (D4 de INT-114): el relleno
+/// se repinta en cada fotograma, así que lo que se reconstruye tiene que ser
+/// solo esta fila y no el `Stack` de la pantalla, que lleva el mapa.
 class _CuentaAtras extends StatelessWidget {
-  const _CuentaAtras({
-    required this.segundosRestantes,
-    required this.segundosPorDesafio,
-  });
+  const _CuentaAtras({required this.cuentaAtras});
 
-  final int segundosRestantes;
-  final int segundosPorDesafio;
+  final CuentaAtrasDeDesafio cuentaAtras;
 
   @override
   Widget build(BuildContext context) {
-    final color = _colorDeLaCuentaAtras(segundosRestantes, segundosPorDesafio);
-    final fraccion = segundosPorDesafio <= 0
-        ? 0.0
-        : (segundosRestantes / segundosPorDesafio).clamp(0.0, 1.0);
-
     return Container(
       key: const Key('nivel-juego-cuenta-atras'),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -936,30 +1013,39 @@ class _CuentaAtras extends StatelessWidget {
         border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
         borderRadius: BorderRadius.circular(16),
       ),
-      child: Row(
-        children: [
-          Expanded(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(99),
-              child: LinearProgressIndicator(
-                value: fraccion,
-                minHeight: 6,
-                backgroundColor: Colors.white.withValues(alpha: 0.16),
-                valueColor: AlwaysStoppedAnimation<Color>(color),
+      child: AnimatedBuilder(
+        animation: cuentaAtras,
+        builder: (context, _) {
+          final color = _colorDeLaCuentaAtras(cuentaAtras);
+
+          return Row(
+            children: [
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(99),
+                  child: LinearProgressIndicator(
+                    value: cuentaAtras.fraccion,
+                    minHeight: 6,
+                    backgroundColor: Colors.white.withValues(alpha: 0.16),
+                    valueColor: AlwaysStoppedAnimation<Color>(color),
+                  ),
+                ),
               ),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Text(
-            formatearCuentaAtras(segundosRestantes),
-            key: const Key('nivel-juego-cuenta-atras-etiqueta'),
-            style: GoogleFonts.baloo2(
-              color: color,
-              fontSize: 13,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-        ],
+              const SizedBox(width: 10),
+              Text(
+                // La etiqueta se queda en segundos enteros: continua sería un
+                // número ilegible cambiando 60 veces por segundo (D5).
+                formatearCuentaAtras(cuentaAtras.segundosParaLaEtiqueta),
+                key: const Key('nivel-juego-cuenta-atras-etiqueta'),
+                style: GoogleFonts.baloo2(
+                  color: color,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

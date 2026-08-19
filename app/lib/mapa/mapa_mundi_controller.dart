@@ -101,6 +101,12 @@ class MapaMundiController extends ChangeNotifier {
   /// `zoomBy(1.7)` del mockup.
   static const double factorBotonZoom = 1.7;
 
+  /// Cuánto acerca un doble toque (INT-114, D10). Más que un botón a propósito:
+  /// un botón se pulsa varias veces sin esfuerzo, mientras que el doble toque
+  /// es un gesto deliberado de "acércame", y con 1,7 harían falta nueve para
+  /// recorrer el rango hasta [factorZoomMaximo].
+  static const double factorDobleToque = 2;
+
   /// Área útil mínima que se le concede a un encuadre. Con márgenes más
   /// grandes que la pantalla el encuadre sigue siendo un número, en vez de un
   /// `NaN` por dividir entre cero.
@@ -374,17 +380,34 @@ class MapaMundiController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Cambia el zoom manteniendo quieto el punto de pantalla [foco].
-  void zoomEn(double factor, Offset foco) {
-    if (!listo || factor <= 0) return;
+  /// Encuadre al que lleva cambiar el zoom por [factor] manteniendo quieto el
+  /// punto de pantalla [foco], ya con los topes de zoom y el recorte de
+  /// desplazamiento aplicados. `null` cuando no hay nada que cambiar: sin
+  /// tamaño todavía, con un factor absurdo o ya en el tope.
+  ///
+  /// D11 de `design.md` de INT-114: tener el destino como valor es lo que
+  /// permite animar hacia él desde el widget —que sí tiene `vsync`— sin
+  /// duplicar allí esta aritmética ni los límites.
+  CamaraMapa? camaraDeZoomEn(double factor, Offset foco) {
+    if (!listo || factor <= 0) return null;
 
     final nueva = (_escala * factor).clamp(escalaMinima, escalaMaxima);
-    if (nueva == _escala) return;
+    if (nueva == _escala) return null;
 
-    _desplazamiento = foco - (foco - _desplazamiento) * (nueva / _escala);
-    _escala = nueva;
-    _recortarDesplazamiento();
-    notifyListeners();
+    final desplazamiento = foco - (foco - _desplazamiento) * (nueva / _escala);
+    return CamaraMapa(
+      escala: nueva,
+      desplazamiento: Offset(
+        _recortarEje(desplazamiento.dx, _tamano.width, nueva),
+        _recortarEje(desplazamiento.dy, _tamano.height, nueva),
+      ),
+    );
+  }
+
+  /// Cambia el zoom manteniendo quieto el punto de pantalla [foco].
+  void zoomEn(double factor, Offset foco) {
+    final destino = camaraDeZoomEn(factor, foco);
+    if (destino != null) aplicarCamara(destino);
   }
 
   void acercar() => zoomEn(factorBotonZoom, _centroDePantalla());

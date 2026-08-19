@@ -118,6 +118,94 @@ void main() {
     });
   });
 
+  group('cámara destino del zoom', () {
+    test('devuelve a dónde llevaría el zoom, sin mover el mapa', () {
+      final controlador = _controlador();
+      const foco = Offset(195, 500);
+
+      final destino = controlador.camaraDeZoomEn(2, foco)!;
+
+      expect(destino.escala, 844 * 2);
+      // El controlador se queda donde estaba: el destino es un valor, no un
+      // efecto (D11 de INT-114).
+      expect(controlador.escala, 844);
+      expect(controlador.desplazamiento, const Offset((390 - 844) / 2, 0));
+    });
+
+    test('el destino mantiene quieto el punto enfocado', () {
+      final controlador = _controlador();
+      const foco = Offset(195, 500);
+      final coordenada = controlador.pantallaACoordenadas(foco)!;
+
+      final destino = controlador.camaraDeZoomEn(2, foco)!;
+
+      final punto = destino.puntoDe(coordenada);
+      expect(punto.dx, closeTo(foco.dx, 1e-9));
+      expect(punto.dy, closeTo(foco.dy, 1e-9));
+    });
+
+    test('el destino respeta los topes de zoom', () {
+      final controlador = _controlador();
+
+      expect(
+        controlador.camaraDeZoomEn(1000, const Offset(195, 400))!.escala,
+        controlador.escalaMaxima,
+      );
+
+      // Desde un encuadre ya acercado, porque en el de partida alejar no tiene
+      // a dónde ir: un factor absurdo tampoco se pasa del tope de abajo.
+      controlador.acercar();
+      expect(
+        controlador.camaraDeZoomEn(0.0001, const Offset(195, 400))!.escala,
+        controlador.escalaMinima,
+      );
+    });
+
+    test('el destino tampoco deja hueco en el borde del mundo', () {
+      final controlador = _controlador();
+
+      // Un foco en la esquina de arriba pide un encuadre que destaparía el
+      // canto norte; el destino ya viene recortado.
+      final destino = controlador.camaraDeZoomEn(4, const Offset(0, 0))!;
+
+      expect(destino.desplazamiento.dx, lessThanOrEqualTo(0));
+      expect(destino.desplazamiento.dy, lessThanOrEqualTo(0));
+      expect(
+        destino.desplazamiento.dy,
+        greaterThanOrEqualTo(844 - destino.escala),
+      );
+    });
+
+    test('sin nada que cambiar no hay destino', () {
+      final controlador = _controlador();
+
+      expect(controlador.camaraDeZoomEn(-1, const Offset(195, 400)), isNull);
+      expect(controlador.camaraDeZoomEn(1, const Offset(195, 400)), isNull);
+      expect(
+        MapaMundiController().camaraDeZoomEn(2, const Offset(195, 400)),
+        isNull,
+      );
+
+      for (var i = 0; i < 12; i++) {
+        controlador.acercar();
+      }
+      expect(controlador.escala, controlador.escalaMaxima);
+      expect(controlador.camaraDeZoomEn(2, const Offset(195, 400)), isNull);
+    });
+
+    test('aplicar el destino es exactamente lo que hace zoomEn', () {
+      final conZoom = _controlador();
+      final conCamara = _controlador();
+      const foco = Offset(120, 700);
+
+      conZoom.zoomEn(3.5, foco);
+      conCamara.aplicarCamara(conCamara.camaraDeZoomEn(3.5, foco)!);
+
+      expect(conCamara.escala, conZoom.escala);
+      expect(conCamara.desplazamiento, conZoom.desplazamiento);
+    });
+  });
+
   group('desplazamiento', () {
     test('arrastrar más allá del borde deja el mundo pegado al borde', () {
       final controlador = _controlador();
