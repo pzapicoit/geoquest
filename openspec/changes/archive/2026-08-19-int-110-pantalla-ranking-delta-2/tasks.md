@@ -28,4 +28,4 @@
 - [x] 4.4 Test: cambiar de pestaña con una tarjeta abierta, al volver se ve la rejilla, no la clasificación anterior.
 - [x] 4.5 Test: adelanto de posición — una tarjeta con posición real muestra "Tú #N"; una sin puntuación agregable muestra "Sin jugar".
 - [x] 4.6 Ejecutar `flutter test`, `flutter analyze` y `dart format --set-exit-if-changed` en `app/` y confirmar que todo pasa sin regresiones.
-- [ ] 4.7 Sincronizar `openspec/specs/app-ranking/spec.md` con los requisitos `MODIFIED` de este delta al archivar.
+- [x] 4.7 Sincronizar `openspec/specs/app-ranking/spec.md` con los requisitos `MODIFIED` de este delta al archivar.
