@@ -1,5 +1,14 @@
-import { useEffect, useState } from 'react'
-import { fetchJugadores, reiniciarProgresoJugador, type Jugador } from '../lib/jugadores'
+import { useEffect, useState, type ReactElement } from 'react'
+import {
+  eliminarJugador,
+  fetchJugadores,
+  reiniciarProgresoJugador,
+  type Jugador,
+} from '../lib/jugadores'
+
+type AccionJugador = 'reiniciar' | 'eliminar'
+
+type ModalState = { jugadorId: string; accion: AccionJugador }
 
 const PAGE_SIZE = 8
 
@@ -82,6 +91,23 @@ function IconoReiniciar() {
   )
 }
 
+function IconoEliminar() {
+  return (
+    <svg
+      width="13"
+      height="13"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M5 7h14M9.5 7V5h5v2M7 7l.9 12.1A1.5 1.5 0 0 0 9.4 20h5.2a1.5 1.5 0 0 0 1.5-.9L17 7" />
+    </svg>
+  )
+}
+
 function EstadoVacioFiltros({ onLimpiar }: { onLimpiar: () => void }) {
   return (
     <div className="flex flex-col items-center gap-2 px-6 py-16 text-center">
@@ -159,49 +185,79 @@ function Paginacion({
   )
 }
 
-function ModalReinicio({
+const MODAL_COPY: Record<
+  AccionJugador,
+  {
+    titulo: (alias: string) => string
+    cuerpo: (alias: string) => string
+    iconoBg: string
+    iconoColor: string
+    icono: () => ReactElement
+    botonLabel: string
+    botonLabelProcesando: string
+    botonGradiente: string
+  }
+> = {
+  reiniciar: {
+    titulo: (alias) => `Reiniciar a ${alias}`,
+    cuerpo: () =>
+      'Este jugador volverá al nivel 1 con 0 puntos. Su cuenta, alias y acceso se mantienen. Esta acción no se puede deshacer.',
+    iconoBg: 'bg-brand-gold/20',
+    iconoColor: 'text-[#8A5B00]',
+    icono: IconoReiniciar,
+    botonLabel: 'Reiniciar progreso',
+    botonLabelProcesando: 'Reiniciando…',
+    botonGradiente: 'linear-gradient(140deg, #FF7A3D, #E0454A)',
+  },
+  eliminar: {
+    titulo: (alias) => `Eliminar a ${alias}`,
+    cuerpo: (alias) =>
+      `Se borra la cuenta de ${alias} por completo: perfil, progreso y todo su historial de partidas. No podrá volver a entrar con este acceso. Esta acción no se puede deshacer.`,
+    iconoBg: 'bg-brand-error/15',
+    iconoColor: 'text-[#B3282D]',
+    icono: IconoEliminar,
+    botonLabel: 'Eliminar jugador',
+    botonLabelProcesando: 'Eliminando…',
+    botonGradiente: 'linear-gradient(140deg, #FF5A5F, #B3282D)',
+  },
+}
+
+function ModalAccionJugador({
   jugador,
-  reiniciando,
+  accion,
+  procesando,
   error,
   onCancelar,
   onConfirmar,
 }: {
   jugador: Jugador
-  reiniciando: boolean
+  accion: AccionJugador
+  procesando: boolean
   error: string
   onCancelar: () => void
   onConfirmar: () => void
 }) {
   const [textoConfirmacion, setTextoConfirmacion] = useState('')
   const coincide = textoConfirmacion === jugador.alias
+  const copy = MODAL_COPY[accion]
+  const Icono = copy.icono
 
   return (
     <div className="fixed inset-0 z-20 flex items-center justify-center bg-brand-night/50 p-6 backdrop-blur-sm">
       <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl">
         <div className="flex gap-3.5 px-6 pt-6">
-          <span className="flex h-10 w-10 flex-none items-center justify-center rounded-xl bg-brand-gold/20 text-[#8A5B00]">
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M20 12a8 8 0 1 1-2.4-5.7" />
-              <path d="M20 4v4h-4" />
-            </svg>
+          <span
+            className={`flex h-10 w-10 flex-none items-center justify-center rounded-xl ${copy.iconoBg} ${copy.iconoColor}`}
+          >
+            <span className="[&>svg]:h-5 [&>svg]:w-5">
+              <Icono />
+            </span>
           </span>
           <div className="min-w-0">
             <h3 className="font-display text-xl font-extrabold text-brand-night">
-              Reiniciar a {jugador.alias}
+              {copy.titulo(jugador.alias)}
             </h3>
-            <p className="mt-1.5 text-sm text-brand-night/58">
-              Este jugador volverá al nivel 1 con 0 puntos. Su cuenta, alias y acceso se mantienen.
-              Esta acción no se puede deshacer.
-            </p>
+            <p className="mt-1.5 text-sm text-brand-night/58">{copy.cuerpo(jugador.alias)}</p>
           </div>
         </div>
 
@@ -218,7 +274,7 @@ function ModalReinicio({
             type="text"
             value={textoConfirmacion}
             onChange={(e) => setTextoConfirmacion(e.target.value)}
-            disabled={reiniciando}
+            disabled={procesando}
             autoFocus
             className="mt-2 h-11 w-full rounded-xl border-[1.5px] border-brand-border px-3.5 text-sm text-brand-night outline-none focus:border-brand-teal disabled:opacity-60"
           />
@@ -229,21 +285,19 @@ function ModalReinicio({
           <button
             type="button"
             onClick={onCancelar}
-            disabled={reiniciando}
+            disabled={procesando}
             className="rounded-xl border-[1.5px] border-brand-border px-4 py-2.5 text-sm font-semibold text-brand-night/70 hover:border-brand-night hover:text-brand-night disabled:cursor-not-allowed disabled:opacity-60"
           >
             Cancelar
           </button>
           <button
             type="button"
-            disabled={!coincide || reiniciando}
+            disabled={!coincide || procesando}
             onClick={onConfirmar}
-            style={
-              coincide ? { background: 'linear-gradient(140deg, #FF7A3D, #E0454A)' } : undefined
-            }
+            style={coincide ? { background: copy.botonGradiente } : undefined}
             className="rounded-xl px-5 py-2.5 font-display text-sm font-extrabold text-white disabled:cursor-not-allowed disabled:bg-brand-base disabled:text-brand-night/35"
           >
-            {reiniciando ? 'Reiniciando…' : 'Reiniciar progreso'}
+            {procesando ? copy.botonLabelProcesando : copy.botonLabel}
           </button>
         </div>
       </div>
@@ -257,9 +311,9 @@ export function Jugadores() {
   const [query, setQuery] = useState('')
   const [orden, setOrden] = useState<OrdenJugadores>('puntos')
   const [page, setPage] = useState(1)
-  const [modalJugadorId, setModalJugadorId] = useState<string | null>(null)
-  const [reiniciando, setReiniciando] = useState(false)
-  const [errorReinicio, setErrorReinicio] = useState('')
+  const [modal, setModal] = useState<ModalState | null>(null)
+  const [procesando, setProcesando] = useState(false)
+  const [errorAccion, setErrorAccion] = useState('')
   const [toast, setToast] = useState('')
 
   useEffect(() => {
@@ -331,53 +385,59 @@ export function Jugadores() {
     },
   ]
 
-  const jugadorModal = modalJugadorId
-    ? (jugadores ?? []).find((j) => j.id === modalJugadorId)
-    : undefined
+  const jugadorModal = modal ? (jugadores ?? []).find((j) => j.id === modal.jugadorId) : undefined
 
-  function abrirModal(jugadorId: string) {
-    setModalJugadorId(jugadorId)
-    setErrorReinicio('')
+  function abrirModal(jugadorId: string, accion: AccionJugador) {
+    setModal({ jugadorId, accion })
+    setErrorAccion('')
   }
 
   function cerrarModal() {
-    if (reiniciando) return
-    setModalJugadorId(null)
-    setErrorReinicio('')
+    if (procesando) return
+    setModal(null)
+    setErrorAccion('')
   }
 
-  async function confirmarReinicio() {
-    if (!jugadorModal) return
-    setReiniciando(true)
-    setErrorReinicio('')
+  async function confirmarAccion() {
+    if (!jugadorModal || !modal) return
+    setProcesando(true)
+    setErrorAccion('')
 
     try {
-      await reiniciarProgresoJugador(jugadorModal.id)
-      setJugadores(
-        (actual) =>
-          actual?.map((j) =>
-            j.id === jugadorModal.id
-              ? {
-                  ...j,
-                  nivelesSuperados: 0,
-                  paradaMaxima: null,
-                  puntosTotales: 0,
-                  tasaSuperacion: null,
-                  ultimaPartida: null,
-                }
-              : j,
-          ) ?? actual,
-      )
-      setToast(`Progreso de ${jugadorModal.alias} reiniciado.`)
-      setModalJugadorId(null)
-    } catch (reinicioError) {
-      setErrorReinicio(
-        reinicioError instanceof Error
-          ? reinicioError.message
-          : 'No se ha podido reiniciar el progreso.',
+      if (modal.accion === 'reiniciar') {
+        await reiniciarProgresoJugador(jugadorModal.id)
+        setJugadores(
+          (actual) =>
+            actual?.map((j) =>
+              j.id === jugadorModal.id
+                ? {
+                    ...j,
+                    nivelesSuperados: 0,
+                    paradaMaxima: null,
+                    puntosTotales: 0,
+                    tasaSuperacion: null,
+                    ultimaPartida: null,
+                  }
+                : j,
+            ) ?? actual,
+        )
+        setToast(`Progreso de ${jugadorModal.alias} reiniciado.`)
+      } else {
+        await eliminarJugador(jugadorModal.id)
+        setJugadores((actual) => actual?.filter((j) => j.id !== jugadorModal.id) ?? actual)
+        setToast(`${jugadorModal.alias} eliminado.`)
+      }
+      setModal(null)
+    } catch (accionError) {
+      setErrorAccion(
+        accionError instanceof Error
+          ? accionError.message
+          : modal.accion === 'reiniciar'
+            ? 'No se ha podido reiniciar el progreso.'
+            : 'No se ha podido eliminar al jugador.',
       )
     } finally {
-      setReiniciando(false)
+      setProcesando(false)
     }
   }
 
@@ -500,17 +560,29 @@ export function Jugadores() {
                     <td className="px-5 py-3 text-sm text-brand-night/55">
                       {formatFecha(jugador.ultimaPartida)}
                     </td>
-                    <td className="px-5 py-3 text-right">
-                      <button
-                        type="button"
-                        onClick={() => abrirModal(jugador.id)}
-                        aria-label={`Reiniciar progreso de ${jugador.alias}`}
-                        title="Reiniciar progreso"
-                        className="inline-flex h-8 items-center gap-1.5 rounded-lg border-[1.5px] border-brand-border px-3 text-xs font-semibold text-brand-night/60 hover:border-brand-gold hover:text-[#8A5B00]"
-                      >
-                        <IconoReiniciar />
-                        Reiniciar progreso
-                      </button>
+                    <td className="px-5 py-3">
+                      <div className="flex justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => abrirModal(jugador.id, 'reiniciar')}
+                          aria-label={`Reiniciar progreso de ${jugador.alias}`}
+                          title="Reiniciar progreso"
+                          className="inline-flex h-8 items-center gap-1.5 rounded-lg border-[1.5px] border-brand-border px-3 text-xs font-semibold text-brand-night/60 hover:border-brand-gold hover:text-[#8A5B00]"
+                        >
+                          <IconoReiniciar />
+                          Reiniciar progreso
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => abrirModal(jugador.id, 'eliminar')}
+                          aria-label={`Eliminar a ${jugador.alias}`}
+                          title="Eliminar jugador"
+                          className="inline-flex h-8 items-center gap-1.5 rounded-lg border-[1.5px] border-brand-border px-3 text-xs font-semibold text-brand-night/60 hover:border-brand-error hover:text-brand-error"
+                        >
+                          <IconoEliminar />
+                          Eliminar
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -529,13 +601,14 @@ export function Jugadores() {
         )}
       </div>
 
-      {jugadorModal && (
-        <ModalReinicio
+      {jugadorModal && modal && (
+        <ModalAccionJugador
           jugador={jugadorModal}
-          reiniciando={reiniciando}
-          error={errorReinicio}
+          accion={modal.accion}
+          procesando={procesando}
+          error={errorAccion}
           onCancelar={cerrarModal}
-          onConfirmar={confirmarReinicio}
+          onConfirmar={confirmarAccion}
         />
       )}
 

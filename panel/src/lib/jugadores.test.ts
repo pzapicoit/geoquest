@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { fetchJugadores, reiniciarProgresoJugador } from './jugadores'
+import { eliminarJugador, fetchJugadores, reiniciarProgresoJugador } from './jugadores'
 
 const rpc = vi.fn()
 
@@ -92,5 +92,21 @@ describe('reiniciarProgresoJugador', () => {
     await expect(reiniciarProgresoJugador('jugador-1')).rejects.toThrow(
       'Solo un admin puede reiniciar',
     )
+  })
+})
+
+describe('eliminarJugador', () => {
+  it('invoca eliminar_jugador con el id del jugador', async () => {
+    rpc.mockResolvedValue({ data: null, error: null })
+
+    await eliminarJugador('jugador-1')
+
+    expect(rpc).toHaveBeenCalledWith('eliminar_jugador', { p_jugador_id: 'jugador-1' })
+  })
+
+  it('propaga el error si la RPC falla', async () => {
+    rpc.mockResolvedValue({ data: null, error: new Error('Solo un admin puede eliminar') })
+
+    await expect(eliminarJugador('jugador-1')).rejects.toThrow('Solo un admin puede eliminar')
   })
 })

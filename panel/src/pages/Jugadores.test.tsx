@@ -6,6 +6,7 @@ import type { Jugador } from '../lib/jugadores'
 
 const fetchJugadores = vi.fn()
 const reiniciarProgresoJugador = vi.fn()
+const eliminarJugador = vi.fn()
 
 vi.mock('../lib/jugadores', async () => {
   const actual = await vi.importActual<typeof import('../lib/jugadores')>('../lib/jugadores')
@@ -13,6 +14,7 @@ vi.mock('../lib/jugadores', async () => {
     ...actual,
     fetchJugadores: (...args: unknown[]) => fetchJugadores(...args),
     reiniciarProgresoJugador: (...args: unknown[]) => reiniciarProgresoJugador(...args),
+    eliminarJugador: (...args: unknown[]) => eliminarJugador(...args),
   }
 })
 
@@ -42,6 +44,7 @@ const SIN_PARTIDAS = jugador({ id: 'j-nuevo', alias: 'reciennacido' })
 beforeEach(() => {
   fetchJugadores.mockReset()
   reiniciarProgresoJugador.mockReset()
+  eliminarJugador.mockReset()
 })
 
 describe('Jugadores', () => {
@@ -186,6 +189,72 @@ describe('Jugadores', () => {
 
       expect(reiniciarProgresoJugador).not.toHaveBeenCalled()
       expect(screen.queryByText('Reiniciar a mapachedeluxe')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('eliminación de jugador', () => {
+    async function abrirModal() {
+      const user = userEvent.setup()
+      fetchJugadores.mockResolvedValue([MAPACHE])
+
+      render(<Jugadores />)
+      await screen.findByText('mapachedeluxe')
+
+      await user.click(screen.getByRole('button', { name: 'Eliminar a mapachedeluxe' }))
+      await screen.findByText('Eliminar a mapachedeluxe')
+
+      return user
+    }
+
+    it('mantiene el botón de confirmar deshabilitado hasta que el alias coincide exactamente', async () => {
+      const user = await abrirModal()
+      const input = screen.getByLabelText(/escribe/i)
+      const confirmar = screen.getByRole('button', { name: 'Eliminar jugador' })
+
+      expect(confirmar).toBeDisabled()
+
+      await user.type(input, 'mapache')
+      expect(confirmar).toBeDisabled()
+
+      await user.type(input, 'deluxe')
+      expect(confirmar).toBeEnabled()
+    })
+
+    it('elimina al jugador, lo quita de la tabla y muestra confirmación', async () => {
+      const user = await abrirModal()
+      eliminarJugador.mockResolvedValue(undefined)
+
+      await user.type(screen.getByLabelText(/escribe/i), 'mapachedeluxe')
+      await user.click(screen.getByRole('button', { name: 'Eliminar jugador' }))
+
+      expect(eliminarJugador).toHaveBeenCalledWith('j-mapache')
+      await waitFor(() =>
+        expect(screen.queryByText('Eliminar a mapachedeluxe')).not.toBeInTheDocument(),
+      )
+
+      expect(await screen.findByText('mapachedeluxe eliminado.')).toBeInTheDocument()
+      expect(screen.queryByText('mapachedeluxe')).not.toBeInTheDocument()
+    })
+
+    it('muestra el error de la RPC y mantiene el modal abierto', async () => {
+      const user = await abrirModal()
+      eliminarJugador.mockRejectedValue(new Error('Solo un admin puede eliminar un jugador'))
+
+      await user.type(screen.getByLabelText(/escribe/i), 'mapachedeluxe')
+      await user.click(screen.getByRole('button', { name: 'Eliminar jugador' }))
+
+      expect(await screen.findByText('Solo un admin puede eliminar un jugador')).toBeInTheDocument()
+      expect(screen.getByText('Eliminar a mapachedeluxe')).toBeInTheDocument()
+      expect(within(screen.getByRole('table')).getByText('mapachedeluxe')).toBeInTheDocument()
+    })
+
+    it('cancelar cierra el modal sin llamar a la RPC', async () => {
+      const user = await abrirModal()
+
+      await user.click(screen.getByRole('button', { name: 'Cancelar' }))
+
+      expect(eliminarJugador).not.toHaveBeenCalled()
+      expect(screen.queryByText('Eliminar a mapachedeluxe')).not.toBeInTheDocument()
     })
   })
 })

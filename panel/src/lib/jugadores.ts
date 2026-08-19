@@ -41,3 +41,10 @@ export async function reiniciarProgresoJugador(jugadorId: string): Promise<void>
   })
   if (error) throw error
 }
+
+export async function eliminarJugador(jugadorId: string): Promise<void> {
+  const { error } = await supabase.rpc('eliminar_jugador', {
+    p_jugador_id: jugadorId,
+  })
+  if (error) throw error
+}

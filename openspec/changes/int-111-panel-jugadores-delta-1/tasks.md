@@ -21,9 +21,9 @@
 
 ## 4. Panel: acción de eliminar jugador
 
-- [ ] 4.1 Añadir `eliminarJugador(jugadorId)` a `panel/src/lib/jugadores.ts` (llama a `eliminar_jugador`).
-- [ ] 4.2 Test de `eliminarJugador` en `jugadores.test.ts` (invocación correcta, propagación de error).
-- [ ] 4.3 Añadir la acción "Eliminar jugador" por fila en `Jugadores.tsx` y su modal de confirmación (mismo patrón de escritura de alias exacto que el de reinicio, texto propio que deja claro que se borra la cuenta entera).
-- [ ] 4.4 Al confirmar, invocar `eliminarJugador`, quitar al jugador de la lista local (no solo poner sus datos a cero) y mostrar confirmación visual del resultado, incluyendo el caso de error.
-- [ ] 4.5 Tests en `Jugadores.test.tsx`: botón deshabilitado hasta que el alias coincide, invocación de la RPC, jugador desaparece de la tabla tras eliminar con éxito, manejo de error.
-- [ ] 4.6 Correr la suite completa del panel (`vitest run`, `--coverage`, `eslint`, `tsc --noEmit`, `prettier --check`) y verificar que sigue en línea con el resto del panel.
+- [x] 4.1 Añadir `eliminarJugador(jugadorId)` a `panel/src/lib/jugadores.ts` (llama a `eliminar_jugador`).
+- [x] 4.2 Test de `eliminarJugador` en `jugadores.test.ts` (invocación correcta, propagación de error).
+- [x] 4.3 Añadir la acción "Eliminar jugador" por fila en `Jugadores.tsx` y su modal de confirmación (mismo patrón de escritura de alias exacto que el de reinicio, texto propio que deja claro que se borra la cuenta entera).
+- [x] 4.4 Al confirmar, invocar `eliminarJugador`, quitar al jugador de la lista local (no solo poner sus datos a cero) y mostrar confirmación visual del resultado, incluyendo el caso de error.
+- [x] 4.5 Tests en `Jugadores.test.tsx`: botón deshabilitado hasta que el alias coincide, invocación de la RPC, jugador desaparece de la tabla tras eliminar con éxito, manejo de error.
+- [x] 4.6 Correr la suite completa del panel (`vitest run`, `--coverage`, `eslint`, `tsc --noEmit`, `prettier --check`) y verificar que sigue en línea con el resto del panel.
