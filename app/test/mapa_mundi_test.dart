@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart' show kDoubleTapTimeout;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:geoquest/mapa/mapa_mundi.dart';
@@ -37,6 +38,16 @@ Future<MapaMundiController> _montar(
   return controlador;
 }
 
+/// Dos toques seguidos en el mismo punto, con la animación del acercamiento ya
+/// terminada al volver.
+Future<void> _dobleToque(WidgetTester tester, Offset punto) async {
+  await tester.tapAt(punto);
+  await tester.pump(const Duration(milliseconds: 60));
+  await tester.tapAt(punto);
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 400));
+}
+
 void main() {
   testWidgets('mientras carga la geometría enseña un indicador', (
     tester,
@@ -71,6 +82,30 @@ void main() {
     await tester.pump();
 
     expect(find.byKey(const Key('mapa-error')), findsOneWidget);
+  });
+
+  testWidgets('desmontar el mapa sin ningún gesto no revienta', (tester) async {
+    // La animación del doble toque es `late final`, así que si el mapa se va
+    // sin que nadie la haya tocado se construye dentro del propio `dispose`.
+    final controlador = MapaMundiController();
+    addTearDown(controlador.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: MapaMundi(
+            controller: controlador,
+            cargador: cargarMundoDePrueba,
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+    await tester.pump();
+
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('un toque coloca el pin donde se ha tocado', (tester) async {
@@ -290,6 +325,241 @@ void main() {
 
       expect(find.byKey(const Key('mapa-acercar')), findsNothing);
       expect(find.byKey(const Key('mapa-alejar')), findsNothing);
+    });
+
+    testWidgets('en modo no interactivo el doble toque no hace nada', (
+      tester,
+    ) async {
+      final controlador = await _montar(tester, interactivo: false);
+      final encuadre = controlador.camara;
+
+      await _dobleToque(tester, const Offset(195, 500));
+
+      expect(controlador.camara, encuadre);
+      expect(controlador.pin, isNull);
+    });
+  });
+
+  group('doble toque para acercar', () {
+    const punto = Offset(195, 500);
+
+    testWidgets('acerca sobre el punto tocado y lo deja quieto', (
+      tester,
+    ) async {
+      final controlador = await _montar(tester);
+      final escalaInicial = controlador.escala;
+      final coordenada = controlador.pantallaACoordenadas(punto)!;
+
+      await _dobleToque(tester, punto);
+
+      expect(
+        controlador.escala,
+        closeTo(escalaInicial * MapaMundiController.factorDobleToque, 1e-9),
+      );
+      final despues = controlador.pantallaACoordenadas(punto)!;
+      expect(despues.latitud, closeTo(coordenada.latitud, 1e-6));
+      expect(despues.longitud, closeTo(coordenada.longitud, 1e-6));
+    });
+
+    testWidgets('el acercamiento va animado, no de un salto', (tester) async {
+      final controlador = await _montar(tester);
+      final escalaInicial = controlador.escala;
+
+      await tester.tapAt(punto);
+      await tester.pump(const Duration(milliseconds: 60));
+      await tester.tapAt(punto);
+      await tester.pump();
+
+      expect(controlador.escala, escalaInicial);
+
+      await tester.pump(const Duration(milliseconds: 100));
+      final aMedias = controlador.escala;
+
+      await tester.pump(const Duration(milliseconds: 200));
+
+      expect(aMedias, greaterThan(escalaInicial));
+      expect(aMedias, lessThan(escalaInicial * 2));
+      expect(controlador.escala, closeTo(escalaInicial * 2, 1e-9));
+    });
+
+    testWidgets('un doble toque no deja pin', (tester) async {
+      final controlador = await _montar(tester);
+      final escalaInicial = controlador.escala;
+
+      await _dobleToque(tester, punto);
+
+      // El primer toque de la pareja sí colocó pin —no puede esperar a saber si
+      // viene un segundo—, pero al confirmarse el doble toque se deshace: el
+      // gesto era "acércame aquí", no "mi respuesta es aquí" (DD3 del delta 1).
+      expect(controlador.pin, isNull);
+      expect(controlador.escala, greaterThan(escalaInicial));
+    });
+
+    testWidgets('un doble toque no se lleva el pin que ya había', (
+      tester,
+    ) async {
+      final controlador = await _montar(tester);
+      final escalaInicial = controlador.escala;
+
+      // La respuesta del jugador, ya colocada y lejos de donde va a mirar.
+      await tester.tapAt(const Offset(120, 300));
+      await tester.pump(kDoubleTapTimeout + const Duration(milliseconds: 20));
+      final respuesta = controlador.pin!;
+
+      await _dobleToque(tester, punto);
+
+      expect(controlador.pin, respuesta);
+      expect(controlador.escala, greaterThan(escalaInicial));
+    });
+
+    testWidgets('dos toques lejanos son dos toques, no un doble toque', (
+      tester,
+    ) async {
+      final controlador = await _montar(tester);
+      final escalaInicial = controlador.escala;
+      const segundo = Offset(300, 700);
+      final esperada = controlador.pantallaACoordenadas(segundo)!;
+
+      await tester.tapAt(const Offset(100, 300));
+      await tester.pump(const Duration(milliseconds: 60));
+      await tester.tapAt(segundo);
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(controlador.escala, escalaInicial);
+      expect(controlador.pin, esperada);
+    });
+
+    testWidgets('dos toques separados en el tiempo no acercan', (tester) async {
+      final controlador = await _montar(tester);
+      final escalaInicial = controlador.escala;
+
+      final esperada = controlador.pantallaACoordenadas(punto)!;
+
+      await tester.tapAt(punto);
+      await tester.pump(kDoubleTapTimeout + const Duration(milliseconds: 20));
+      await tester.tapAt(punto);
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(controlador.escala, escalaInicial);
+      // Son dos toques simples, así que el segundo deja su pin y nadie lo
+      // deshace.
+      expect(controlador.pin, esperada);
+    });
+
+    testWidgets('en el tope de acercar el doble toque no mueve nada', (
+      tester,
+    ) async {
+      final controlador = await _montar(tester);
+      for (var i = 0; i < 12; i++) {
+        controlador.acercar();
+      }
+      await tester.pump();
+      expect(controlador.escala, controlador.escalaMaxima);
+      final encuadre = controlador.camara;
+
+      await _dobleToque(tester, punto);
+
+      expect(controlador.camara, encuadre);
+    });
+
+    testWidgets('el mundo sigue cubriendo la pantalla al acercar en un canto', (
+      tester,
+    ) async {
+      final controlador = await _montar(tester);
+
+      await _dobleToque(tester, const Offset(2, 2));
+
+      expect(controlador.desplazamiento.dx, lessThanOrEqualTo(0));
+      expect(controlador.desplazamiento.dy, lessThanOrEqualTo(0));
+      expect(
+        controlador.desplazamiento.dy,
+        greaterThanOrEqualTo(844 - controlador.escala),
+      );
+    });
+
+    testWidgets('un tercer toque seguido es un toque normal, no otro zoom', (
+      tester,
+    ) async {
+      final controlador = await _montar(tester);
+
+      await _dobleToque(tester, punto);
+      final trasElDobleToque = controlador.escala;
+      expect(controlador.pin, isNull);
+
+      await tester.tapAt(punto);
+      await tester.pump(const Duration(milliseconds: 400));
+
+      // El doble toque no encadena: el tercer toque abre pareja nueva, así que
+      // coloca pin y no vuelve a acercar.
+      expect(controlador.escala, trasElDobleToque);
+      expect(controlador.pin, isNotNull);
+    });
+
+    testWidgets('el pin del toque simple no espera el plazo del doble toque', (
+      tester,
+    ) async {
+      final controlador = await _montar(tester);
+      final esperada = controlador.pantallaACoordenadas(punto)!;
+
+      await tester.tapAt(punto);
+      // Un fotograma sin avanzar el reloj: si el pin dependiera de descartar un
+      // segundo toque, aquí todavía no habría pin.
+      await tester.pump();
+
+      expect(controlador.pin, esperada);
+    });
+
+    testWidgets('dejar de ser interactivo corta la animación', (tester) async {
+      final controlador = await _montar(tester);
+
+      await tester.tapAt(punto);
+      await tester.pump(const Duration(milliseconds: 60));
+      await tester.tapAt(punto);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 60));
+      final aMedias = controlador.escala;
+
+      // La jugada se cierra a media animación: de aquí en adelante el encuadre
+      // lo lleva la coreografía del revelado (D12).
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: MapaMundi(
+              controller: controlador,
+              cargador: cargarMundoDePrueba,
+              interactivo: false,
+            ),
+          ),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(controlador.escala, aMedias);
+    });
+
+    testWidgets('un arrastre corta la animación del doble toque', (
+      tester,
+    ) async {
+      final controlador = await _montar(tester);
+
+      await tester.tapAt(punto);
+      await tester.pump(const Duration(milliseconds: 60));
+      await tester.tapAt(punto);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 60));
+      final aMedias = controlador.escala;
+
+      final gesto = await tester.startGesture(const Offset(195, 400));
+      for (var i = 0; i < 3; i++) {
+        await gesto.moveBy(const Offset(0, -20));
+        await tester.pump();
+      }
+      await gesto.up();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      // El zoom se queda donde lo dejó el dedo: la animación no ha seguido
+      // sola hasta su destino.
+      expect(controlador.escala, aMedias);
     });
   });
 }

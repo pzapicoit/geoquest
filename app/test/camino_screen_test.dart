@@ -79,6 +79,19 @@ Widget _pantalla(CaminoGateway gateway) => MaterialApp(
   ),
 );
 
+/// Entra en la pantalla de juego tocando algo que navega a ella.
+///
+/// Sin `pumpAndSettle` a propósito: desde INT-114 la cuenta atrás del desafío
+/// repinta la barra en cada fotograma, así que la pantalla de juego no deja de
+/// programar fotogramas mientras corre el tiempo. Los pumps sueltos dan de
+/// sobra para la transición de ruta y para que el intento cargue.
+Future<void> _entrarEnElNivel(WidgetTester tester, Finder gatillo) async {
+  await tester.tap(gatillo);
+  await tester.pump();
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 600));
+}
+
 Future<void> _pump(WidgetTester tester, CaminoGateway gateway) async {
   tester.view.physicalSize = const Size(390, 2000);
   tester.view.devicePixelRatio = 1.0;
@@ -240,8 +253,10 @@ void main() {
     (tester) async {
       await _pump(tester, FakeCaminoGateway(_caminoDePrueba));
 
-      await tester.tap(find.byKey(const Key('parada-nivel-actual')));
-      await tester.pumpAndSettle();
+      await _entrarEnElNivel(
+        tester,
+        find.byKey(const Key('parada-nivel-actual')),
+      );
 
       expect(find.byType(NivelJuegoScreen), findsOneWidget);
       expect(_nivelJuegoGatewayDePrueba.ultimoCaminoId, 'nivel-actual');
@@ -253,8 +268,10 @@ void main() {
     (tester) async {
       await _pump(tester, FakeCaminoGateway(_caminoDePrueba));
 
-      await tester.tap(find.byKey(const Key('parada-nivel-superado')));
-      await tester.pumpAndSettle();
+      await _entrarEnElNivel(
+        tester,
+        find.byKey(const Key('parada-nivel-superado')),
+      );
 
       expect(find.byType(NivelJuegoScreen), findsOneWidget);
     },
@@ -268,8 +285,10 @@ void main() {
 
     expect(caminoGateway.fetchCaminoCalls, 1);
 
-    await tester.tap(find.byKey(const Key('parada-nivel-actual')));
-    await tester.pumpAndSettle();
+    await _entrarEnElNivel(
+      tester,
+      find.byKey(const Key('parada-nivel-actual')),
+    );
     expect(find.byType(NivelJuegoScreen), findsOneWidget);
 
     Navigator.of(tester.element(find.byType(NivelJuegoScreen))).pop();
@@ -323,8 +342,10 @@ void main() {
       await tester.pumpAndSettle();
       expect(caminoGateway.fetchCaminoCalls, 1);
 
-      await tester.tap(find.byKey(const Key('parada-nivel-actual')));
-      await tester.pumpAndSettle();
+      await _entrarEnElNivel(
+        tester,
+        find.byKey(const Key('parada-nivel-actual')),
+      );
       expect(find.byType(NivelJuegoScreen), findsOneWidget);
 
       // Juega el único desafío del intento hasta llegar al resumen: cierra
@@ -471,8 +492,10 @@ void main() {
 
       expect(find.text('Jugar nivel 1 · Monumentos'), findsOneWidget);
 
-      await tester.tap(find.byKey(const Key('camino-boton-jugar')));
-      await tester.pumpAndSettle();
+      await _entrarEnElNivel(
+        tester,
+        find.byKey(const Key('camino-boton-jugar')),
+      );
 
       expect(find.byType(NivelJuegoScreen), findsOneWidget);
     },

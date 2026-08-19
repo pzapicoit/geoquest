@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' show PointMode;
 
+import 'package:flutter/gestures.dart' show kDoubleTapTimeout;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show OverflowBoxFit;
 import 'package:google_fonts/google_fonts.dart';
@@ -55,9 +57,40 @@ class MapaMundi extends StatefulWidget {
   State<MapaMundi> createState() => _MapaMundiState();
 }
 
-class _MapaMundiState extends State<MapaMundi> {
+class _MapaMundiState extends State<MapaMundi>
+    with SingleTickerProviderStateMixin {
+  /// Distancia máxima entre los dos toques para que cuenten como doble toque.
+  ///
+  /// Más ajustada que el `kDoubleTapSlop` (100) del framework a propósito
+  /// (D9 de `design.md` de INT-114): el segundo toque también mueve el pin, y
+  /// con esa holgura el pin daría un salto visible antes de acercar.
+  static const double _slopDelDobleToque = 40;
+
   late Future<MundoGeometria> _mundo;
   double _escalaDelGesto = 1;
+
+  /// Acercamiento del doble toque (D12): animado y corto, para que se lea como
+  /// un movimiento de cámara y no como un salto.
+  late final AnimationController _acercamiento = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 200),
+  )..addListener(_alAvanzarElAcercamiento);
+
+  CamaraMapa? _camaraAntesDelAcercamiento;
+  CamaraMapa? _camaraDelAcercamiento;
+
+  /// Dónde cayó el toque anterior, mientras su plazo siga vivo. Es lo que
+  /// convierte dos toques en un doble toque sin registrar un
+  /// `DoubleTapGestureRecognizer`, que retrasaría el pin (D9).
+  Offset? _ultimoToque;
+
+  /// El pin que había **antes** de ese toque anterior. Un doble toque solo
+  /// acerca, así que al confirmarse hay que devolver el mapa aquí (DD3 del
+  /// delta 1): el primer toque de la pareja ya había colocado pin, porque no
+  /// puede esperar a saber si viene un segundo.
+  Coordenada? _pinAntesDelUltimoToque;
+
+  Timer? _plazoDelDobleToque;
 
   @override
   void initState() {
@@ -65,11 +98,102 @@ class _MapaMundiState extends State<MapaMundi> {
     _mundo = (widget.cargador ?? cargarMundo)();
   }
 
-  void _alTocar(TapUpDetails detalles) {
-    widget.controller.colocarPinEn(detalles.localPosition);
+  @override
+  void didUpdateWidget(MapaMundi anterior) {
+    super.didUpdateWidget(anterior);
+    // La jugada se acaba de cerrar: de aquí en adelante el encuadre lo lleva la
+    // coreografía del revelado, y una animación viva se pelearía con ella.
+    if (anterior.interactivo && !widget.interactivo) {
+      _pararElAcercamiento();
+      _olvidarElToque();
+    }
   }
 
-  void _alEmpezarGesto(ScaleStartDetails detalles) => _escalaDelGesto = 1;
+  @override
+  void dispose() {
+    _plazoDelDobleToque?.cancel();
+    _acercamiento.dispose();
+    super.dispose();
+  }
+
+  void _alTocar(TapUpDetails detalles) {
+    final punto = detalles.localPosition;
+    final anterior = _ultimoToque;
+    final pinAntes = _pinAntesDelUltimoToque;
+    _olvidarElToque();
+
+    if (anterior != null && (punto - anterior).distance <= _slopDelDobleToque) {
+      // Doble toque: solo acerca. Acercarse a mirar y responder son dos
+      // intenciones distintas (DD3 del delta 1), así que el pin que colocó el
+      // primer toque se deshace y el mapa vuelve al que hubiera antes del
+      // gesto —si había uno, sobrevive—.
+      if (pinAntes == null) {
+        widget.controller.limpiarPin();
+      } else {
+        widget.controller.colocarPin(pinAntes);
+      }
+      _acercarSobre(punto);
+      return;
+    }
+
+    // Un toque suelto coloca el pin en cuanto se levanta el dedo, sin esperar a
+    // descartar que venga un segundo (D9): es la acción principal de la
+    // pantalla de juego.
+    _pinAntesDelUltimoToque = widget.controller.pin;
+    widget.controller.colocarPinEn(punto);
+    _ultimoToque = punto;
+    _plazoDelDobleToque = Timer(kDoubleTapTimeout, _olvidarElToque);
+  }
+
+  void _olvidarElToque() {
+    _plazoDelDobleToque?.cancel();
+    _plazoDelDobleToque = null;
+    _ultimoToque = null;
+    // El pin recordado muere con el toque recordado (DD4): si no, un
+    // `limpiarPin` de la pantalla al avanzar de desafío podría revivirse.
+    _pinAntesDelUltimoToque = null;
+  }
+
+  void _acercarSobre(Offset foco) {
+    final destino = widget.controller.camaraDeZoomEn(
+      MapaMundiController.factorDobleToque,
+      foco,
+    );
+    // Ya en el tope de acercar: no hay a dónde ir, y animar hacia el mismo
+    // encuadre solo daría un tirón.
+    if (destino == null) return;
+
+    _camaraAntesDelAcercamiento = widget.controller.camara;
+    _camaraDelAcercamiento = destino;
+    _acercamiento.forward(from: 0);
+  }
+
+  void _alAvanzarElAcercamiento() {
+    final desde = _camaraAntesDelAcercamiento;
+    final hasta = _camaraDelAcercamiento;
+    if (desde == null || hasta == null) return;
+
+    widget.controller.aplicarCamara(
+      CamaraMapa.interpolar(
+        desde,
+        hasta,
+        Curves.easeOutCubic.transform(_acercamiento.value),
+      ),
+    );
+  }
+
+  void _pararElAcercamiento() {
+    if (!_acercamiento.isAnimating) return;
+    _acercamiento.stop();
+    _camaraAntesDelAcercamiento = null;
+    _camaraDelAcercamiento = null;
+  }
+
+  void _alEmpezarGesto(ScaleStartDetails detalles) {
+    // Un pellizco o un arrastre manda sobre la animación en curso.
+    _pararElAcercamiento();
+    _escalaDelGesto = 1;
+  }
 
   void _alActualizarGesto(ScaleUpdateDetails detalles) {
     if (detalles.scale != _escalaDelGesto && _escalaDelGesto > 0) {

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -38,8 +39,19 @@ const _movil = Size(390, 844);
 
 /// La pantalla de juego se abre siempre desde el camino, así que los tests la
 /// montan igual: con una pantalla previa a la que poder volver.
-Widget _appConCamino(NivelJuegoGateway gateway, {String? nivelNombre}) {
+Widget _appConCamino(
+  NivelJuegoGateway gateway, {
+  String? nivelNombre,
+  DateTime Function()? ahora,
+  bool reducirAnimaciones = false,
+}) {
   return MaterialApp(
+    builder: reducirAnimaciones
+        ? (context, child) => MediaQuery(
+            data: MediaQuery.of(context).copyWith(disableAnimations: true),
+            child: child!,
+          )
+        : null,
     home: Scaffold(
       body: Builder(
         builder: (context) => Center(
@@ -51,6 +63,7 @@ Widget _appConCamino(NivelJuegoGateway gateway, {String? nivelNombre}) {
                   nivelNombre: nivelNombre,
                   gateway: gateway,
                   cargadorDeMundo: cargarMundoDePrueba,
+                  ahora: ahora,
                 ),
               ),
             ),
@@ -75,12 +88,23 @@ Future<void> _abrirNivel(
   WidgetTester tester,
   NivelJuegoGateway gateway, {
   String? nivelNombre,
+  bool reducirAnimaciones = false,
 }) async {
   tester.view.physicalSize = _movil;
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
 
-  await tester.pumpWidget(_appConCamino(gateway, nivelNombre: nivelNombre));
+  await tester.pumpWidget(
+    _appConCamino(
+      gateway,
+      nivelNombre: nivelNombre,
+      // La cuenta atrás cuelga de un instante de fin de reloj de pared
+      // (INT-114, D1), así que el reloj del test tiene que ser el del binding:
+      // es el que avanza con `tester.pump`.
+      ahora: () => tester.binding.clock.now(),
+      reducirAnimaciones: reducirAnimaciones,
+    ),
+  );
   await tester.tap(find.text('Ir al nivel'));
   await _asentar(tester);
 }
@@ -135,6 +159,101 @@ String _etiquetaDeLaCuentaAtras(WidgetTester tester) {
       .data!;
 }
 
+/// Relleno de la barra de cuenta atrás en este momento, de 0 a 1. Cambia en
+/// cada fotograma, no una vez por segundo (INT-114).
+double _fraccionDeLaCuentaAtras(WidgetTester tester) {
+  return tester
+      .widget<LinearProgressIndicator>(
+        find.descendant(
+          of: find.byKey(const Key('nivel-juego-cuenta-atras')),
+          matching: find.byType(LinearProgressIndicator),
+        ),
+      )
+      .value!;
+}
+
+/// Opacidad con la que se pinta el marco de tiempo crítico, o `null` si no hay
+/// marco en pantalla.
+double? _opacidadDelMarco(WidgetTester tester) {
+  final marco = find.byKey(const Key('nivel-juego-marco-critico'));
+  if (marco.evaluate().isEmpty) return null;
+
+  final decoracion =
+      tester.widget<DecoratedBox>(marco).decoration as BoxDecoration;
+  return (decoracion.border! as Border).top.color.a;
+}
+
+/// ¿Cae [p] dentro del área visible de una pantalla de tamaño [pantalla] cuyas
+/// cuatro esquinas están redondeadas con radio [radio]?
+bool _dentroDeLaPantalla(Offset p, Size pantalla, double radio) {
+  if (p.dx < -1e-9 ||
+      p.dy < -1e-9 ||
+      p.dx > pantalla.width + 1e-9 ||
+      p.dy > pantalla.height + 1e-9) {
+    return false;
+  }
+  if (radio <= 0) return true;
+
+  final izquierda = p.dx < radio;
+  final derecha = p.dx > pantalla.width - radio;
+  final arriba = p.dy < radio;
+  final abajo = p.dy > pantalla.height - radio;
+  // Fuera de las cuatro esquinas manda el canto recto, que ya se comprobó.
+  if (!(izquierda || derecha) || !(arriba || abajo)) return true;
+
+  final centro = Offset(
+    izquierda ? radio : pantalla.width - radio,
+    arriba ? radio : pantalla.height - radio,
+  );
+  return (p - centro).distance <= radio + 1e-9;
+}
+
+/// Puntos del contorno de un rectángulo de esquinas redondeadas: los cuatro
+/// arcos y los cuatro tramos rectos.
+List<Offset> _contornoRedondeado(Rect caja, double radio, {int pasos = 90}) {
+  final centros = <Offset>[
+    Offset(caja.left + radio, caja.top + radio),
+    Offset(caja.right - radio, caja.top + radio),
+    Offset(caja.right - radio, caja.bottom - radio),
+    Offset(caja.left + radio, caja.bottom - radio),
+  ];
+
+  final puntos = <Offset>[];
+  for (var esquina = 0; esquina < 4; esquina++) {
+    final desde = math.pi + esquina * math.pi / 2;
+    for (var i = 0; i <= pasos; i++) {
+      final angulo = desde + (math.pi / 2) * i / pasos;
+      puntos.add(
+        centros[esquina] + Offset(math.cos(angulo), math.sin(angulo)) * radio,
+      );
+    }
+  }
+  for (var i = 0; i <= pasos; i++) {
+    final t = i / pasos;
+    final y = caja.top + radio + (caja.height - 2 * radio) * t;
+    final x = caja.left + radio + (caja.width - 2 * radio) * t;
+    puntos.addAll([
+      Offset(caja.left, y),
+      Offset(caja.right, y),
+      Offset(x, caja.top),
+      Offset(x, caja.bottom),
+    ]);
+  }
+  return puntos;
+}
+
+/// Deja la cuenta atrás justo al empezar un segundo entero, para que lo que
+/// venga después caiga dentro de ese mismo segundo sin depender de cuánto
+/// tardó el arranque de la pantalla.
+Future<void> _alinearConElSegundo(WidgetTester tester) async {
+  final desde = _etiquetaDeLaCuentaAtras(tester);
+  for (var i = 0; i < 25; i++) {
+    await tester.pump(const Duration(milliseconds: 50));
+    if (_etiquetaDeLaCuentaAtras(tester) != desde) return;
+  }
+  fail('la cuenta atrás no cambió de segundo en 1,25 s');
+}
+
 /// Color con el que se pinta la etiqueta de la cuenta atrás en este momento.
 Color _colorDeLaCuentaAtrasEnPantalla(WidgetTester tester) {
   return tester
@@ -173,6 +292,25 @@ void main() {
       await _asentar(tester);
 
       expect(find.text('¿Dónde está esto?'), findsOneWidget);
+    });
+
+    testWidgets('salir mientras carga el intento no revienta', (tester) async {
+      // La cuenta atrás es `late final` y solo arranca cuando responde la RPC:
+      // si el jugador se va antes, se construye dentro del propio `dispose`.
+      final gateway = _gatewayCon(const [_desafioTexto])
+        ..pausaAlIniciar = Completer<void>();
+
+      await tester.pumpWidget(_appConCamino(gateway));
+      await tester.tap(find.text('Ir al nivel'));
+      await _asentar(tester);
+      expect(find.byType(CircularProgressIndicator), findsWidgets);
+
+      await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+      await tester.pump();
+      gateway.pausaAlIniciar!.complete();
+      await tester.pump();
+
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets('si falla, muestra el estado de error', (tester) async {
@@ -893,15 +1031,34 @@ void main() {
     testWidgets('pasa a ámbar cuando queda la mitad del tiempo o menos', (
       tester,
     ) async {
+      // 60 s por desafío a propósito: con 10 s, la mitad del tiempo y el suelo
+      // de 5 s de la zona crítica caen en el mismo instante (D6), y el test
+      // quedaría midiendo el filo entre ámbar y rojo.
+      final gateway = _gatewayCon(const [
+        _desafioTexto,
+      ], segundosPorDesafio: 60);
+
+      await _abrirNivel(tester, gateway);
+      await tester.pump(const Duration(seconds: 30));
+
+      expect(_etiquetaDeLaCuentaAtras(tester), '0:30');
+      expect(_colorDeLaCuentaAtrasEnPantalla(tester), _goldDeLaCuentaAtras);
+    });
+
+    testWidgets('con pocos segundos por desafío el rojo llega por el suelo', (
+      tester,
+    ) async {
       final gateway = _gatewayCon(const [
         _desafioTexto,
       ], segundosPorDesafio: 10);
 
       await _abrirNivel(tester, gateway);
-      await tester.pump(const Duration(seconds: 5));
+      await tester.pump(const Duration(seconds: 6));
 
-      expect(_etiquetaDeLaCuentaAtras(tester), '0:05');
-      expect(_colorDeLaCuentaAtrasEnPantalla(tester), _goldDeLaCuentaAtras);
+      // Queda algo menos de 4 s: más de una quinta parte, pero por debajo del
+      // suelo de 5 s, así que la barra ya está en rojo (D6).
+      expect(_etiquetaDeLaCuentaAtras(tester), '0:04');
+      expect(_colorDeLaCuentaAtrasEnPantalla(tester), _rojoDeLaCuentaAtras);
     });
 
     testWidgets('pasa a rojo por debajo de una quinta parte del tiempo', (
@@ -963,6 +1120,242 @@ void main() {
         expect(gateway.desafiosMarcadosMostrados, ['d3']);
       },
     );
+
+    testWidgets('la barra avanza entre un segundo y el siguiente', (
+      tester,
+    ) async {
+      await _abrirNivel(
+        tester,
+        _gatewayCon(const [_desafioTexto], segundosPorDesafio: 60),
+      );
+      await _alinearConElSegundo(tester);
+
+      final etiqueta = _etiquetaDeLaCuentaAtras(tester);
+      final alEmpezarElSegundo = _fraccionDeLaCuentaAtras(tester);
+
+      await tester.pump(const Duration(milliseconds: 300));
+
+      // La barra se ha movido dentro del mismo segundo, y el número no: es lo
+      // que quita el tirón sin dejar una etiqueta ilegible (D5 de INT-114).
+      expect(_fraccionDeLaCuentaAtras(tester), lessThan(alEmpezarElSegundo));
+      expect(_etiquetaDeLaCuentaAtras(tester), etiqueta);
+    });
+
+    testWidgets('volver de segundo plano no regala el tiempo perdido', (
+      tester,
+    ) async {
+      await _abrirNivel(
+        tester,
+        _gatewayCon(const [_desafioTexto], segundosPorDesafio: 60),
+      );
+
+      // Ocho segundos de reloj real con un solo fotograma al volver: el tiempo
+      // restante sale del reloj, no de los fotogramas entregados (D1).
+      await tester.pump(const Duration(seconds: 8));
+
+      expect(_etiquetaDeLaCuentaAtras(tester), '0:52');
+    });
+  });
+
+  group('marco de tiempo crítico', () {
+    testWidgets('no hay marco mientras queda tiempo de sobra', (tester) async {
+      await _abrirNivel(
+        tester,
+        _gatewayCon(const [_desafioTexto], segundosPorDesafio: 60),
+      );
+
+      expect(_opacidadDelMarco(tester), isNull);
+
+      await tester.pump(const Duration(seconds: 40));
+
+      expect(_opacidadDelMarco(tester), isNull);
+    });
+
+    testWidgets('aparece al cruzar el umbral, y lo hace con un fundido', (
+      tester,
+    ) async {
+      await _abrirNivel(
+        tester,
+        _gatewayCon(const [_desafioTexto], segundosPorDesafio: 60),
+      );
+
+      // Justo antes del umbral (una quinta parte de 60 s son 12 s) y de ahí a
+      // pasitos, para pillar el primer fotograma dentro de la zona crítica sin
+      // depender de cuánto tardó el arranque.
+      await tester.pump(const Duration(seconds: 47));
+      expect(_opacidadDelMarco(tester), isNull);
+
+      double? alEncenderse;
+      for (var i = 0; i < 20 && alEncenderse == null; i++) {
+        await tester.pump(const Duration(milliseconds: 80));
+        alEncenderse = _opacidadDelMarco(tester);
+      }
+
+      expect(alEncenderse, isNotNull);
+      expect(alEncenderse!, lessThan(0.35));
+      // Marco y barra se encienden con el mismo umbral, no con dos (D6).
+      expect(_colorDeLaCuentaAtrasEnPantalla(tester), _rojoDeLaCuentaAtras);
+
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(_opacidadDelMarco(tester), greaterThan(0.6));
+    });
+
+    testWidgets('cabe dentro de una pantalla con esquinas redondeadas', (
+      tester,
+    ) async {
+      await _abrirNivel(
+        tester,
+        _gatewayCon(const [_desafioTexto], segundosPorDesafio: 60),
+      );
+      await tester.pump(const Duration(seconds: 48));
+
+      final marco = find.byKey(const Key('nivel-juego-marco-critico'));
+      final trazos = <BoxDecoration>[
+        for (final caja in tester.widgetList<DecoratedBox>(
+          find.descendant(
+            of: marco,
+            matching: find.byType(DecoratedBox),
+            matchRoot: true,
+          ),
+        ))
+          caja.decoration as BoxDecoration,
+      ];
+      final radios = [
+        for (final trazo in trazos)
+          (trazo.borderRadius! as BorderRadius).topLeft.x,
+      ];
+
+      expect(trazos, hasLength(2));
+      // Algo más gordo que el trazo de 3 px con el que no se veía.
+      expect((trazos.first.border! as Border).top.width, greaterThan(3));
+
+      // Metido hacia dentro por los cuatro lados.
+      final caja = tester.getRect(marco);
+      final pantalla = tester.getRect(find.byType(MapaMundi).first);
+      expect(caja.left, greaterThan(pantalla.left));
+      expect(caja.top, greaterThan(pantalla.top));
+      expect(caja.right, lessThan(pantalla.right));
+      expect(caja.bottom, lessThan(pantalla.bottom));
+
+      // Y lo que de verdad pide la spec: que quepa entero. No se comprueba
+      // contra las constantes elegidas —eso solo repetiría el código— sino
+      // muestreando el contorno de los DOS trazos, que comparten rectángulo,
+      // contra el área visible de pantallas con distintos redondeos. Un iPhone
+      // reciente ronda los 55.
+      for (final radioDePantalla in const [0.0, 40.0, 55.0, 60.0]) {
+        for (final radio in radios) {
+          final fuera =
+              _contornoRedondeado(caja.shift(-pantalla.topLeft), radio)
+                  .where(
+                    (p) =>
+                        !_dentroDeLaPantalla(p, pantalla.size, radioDePantalla),
+                  )
+                  .toList();
+
+          expect(
+            fuera,
+            isEmpty,
+            reason:
+                'con esquinas de radio $radioDePantalla, el trazo de radio '
+                '$radio se sale por ${fuera.length} puntos '
+                '(p. ej. ${fuera.take(1).join()})',
+          );
+        }
+      }
+    });
+
+    testWidgets('no intercepta el toque que coloca el pin', (tester) async {
+      await _abrirNivel(
+        tester,
+        _gatewayCon(const [_desafioTexto], segundosPorDesafio: 60),
+      );
+      await _cerrarPista(tester);
+      await tester.pump(const Duration(seconds: 48));
+      expect(_opacidadDelMarco(tester), isNotNull);
+
+      // Un toque justo encima del marco, en el canto izquierdo de la pantalla.
+      await tester.tapAt(const Offset(4, 520));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(
+        find.byKey(const Key('nivel-juego-indicacion-con-pin')),
+        findsOneWidget,
+      );
+      expect(_opacidadDelMarco(tester), isNotNull);
+    });
+
+    testWidgets('confirmar lo apaga y el revelado no lo trae de vuelta', (
+      tester,
+    ) async {
+      final gateway = _gatewayCon(const [_desafioTexto], segundosPorDesafio: 60)
+        ..respuesta = respuestaDePrueba(distanciaKm: 12, puntos: 1200);
+
+      await _abrirNivel(tester, gateway);
+      await _cerrarPista(tester);
+      await _colocarPin(tester);
+      await tester.pump(const Duration(seconds: 48));
+      expect(_opacidadDelMarco(tester), isNotNull);
+
+      await _confirmarYRevelar(tester);
+
+      expect(_opacidadDelMarco(tester), isNull);
+    });
+
+    testWidgets('agotarse el tiempo lo apaga junto con la barra', (
+      tester,
+    ) async {
+      final gateway = _gatewayCon(const [_desafioTexto], segundosPorDesafio: 3)
+        ..respuesta = respuestaDePrueba(distanciaKm: 12, puntos: 1200);
+
+      await _abrirNivel(tester, gateway);
+      await _cerrarPista(tester);
+      await _colocarPin(tester);
+
+      // Con 3 s por desafío el suelo de 5 s deja el marco encendido de salida.
+      expect(_opacidadDelMarco(tester), isNotNull);
+
+      await tester.pump(const Duration(seconds: 5));
+      await tester.pump(const Duration(milliseconds: 5600));
+
+      expect(find.byKey(const Key('nivel-juego-cuenta-atras')), findsNothing);
+      expect(_opacidadDelMarco(tester), isNull);
+    });
+
+    testWidgets('el desafío siguiente arranca sin marco', (tester) async {
+      final gateway = _gatewayCon(
+        const [_desafioTexto, _desafioImagen],
+        segundosPorDesafio: 30,
+      )..respuesta = respuestaDePrueba(distanciaKm: 12, puntos: 1200);
+
+      await _abrirNivel(tester, gateway);
+      await _cerrarPista(tester);
+      await _colocarPin(tester);
+      await tester.pump(const Duration(seconds: 25));
+      expect(_opacidadDelMarco(tester), isNotNull);
+
+      await _confirmarYRevelar(tester);
+      await _avanzarDesdeElRevelado(tester);
+
+      expect(_etiquetaDeLaCuentaAtras(tester), '0:30');
+      expect(_opacidadDelMarco(tester), isNull);
+    });
+
+    testWidgets('con animaciones reducidas el marco no late', (tester) async {
+      await _abrirNivel(
+        tester,
+        _gatewayCon(const [_desafioTexto], segundosPorDesafio: 60),
+        reducirAnimaciones: true,
+      );
+      await tester.pump(const Duration(seconds: 48));
+
+      expect(_opacidadDelMarco(tester), 1);
+
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(_opacidadDelMarco(tester), 1);
+    });
   });
 
   group('agotar el tiempo', () {
