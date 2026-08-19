@@ -34,8 +34,9 @@ class DesafioJuego {
 
   final String id;
 
-  /// Nombre corto del sujeto de la pregunta (INT-116), mostrado en el toast
-  /// de pista junto al `objetivoGlobal` de la temática de la parada.
+  /// Nombre corto del sujeto de la pregunta (INT-116), mostrado en la
+  /// tarjeta de revelado junto al lugar real — nunca en el toast de pista,
+  /// que revelaría la respuesta antes de adivinar (delta-1).
   final String nombre;
   final TipoDesafio tipo;
   final bool activo;
@@ -68,10 +69,10 @@ class IntentoNivel {
   final int segundosPorDesafio;
 
   /// Formulación fija de qué se pregunta en la temática de esta parada
-  /// (INT-116), mostrada en el toast de pista junto al `nombre` de cada
-  /// desafío. Con default `''` por el mismo motivo que [segundosPorDesafio]:
-  /// no romper los constructores `const` ya existentes en tests que no
-  /// ejercitan el toast de pista.
+  /// (INT-116), mostrada sola en el toast de pista (sin el `nombre` de cada
+  /// desafío, que se movió al revelado en delta-1). Con default `''` por el
+  /// mismo motivo que [segundosPorDesafio]: no romper los constructores
+  /// `const` ya existentes en tests que no ejercitan el toast de pista.
   final String objetivoGlobal;
 }
 
