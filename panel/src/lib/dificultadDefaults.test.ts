@@ -1,37 +1,34 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import {
   fetchDificultadDefaults,
+  fetchUmbralesParada,
   guardarDificultadDefault,
   validarDificultadDefault,
 } from './dificultadDefaults'
 
 const from = vi.fn()
+const rpc = vi.fn()
 
 vi.mock('./supabaseClient', () => ({
-  supabase: { from: (...args: unknown[]) => from(...args) },
+  supabase: {
+    from: (...args: unknown[]) => from(...args),
+    rpc: (...args: unknown[]) => rpc(...args),
+  },
 }))
 
 beforeEach(() => {
   from.mockReset()
+  rpc.mockReset()
 })
 
 function filaDb(
   dificultad: string,
-  overrides: Partial<{
-    preguntas_por_partida: number
-    segundos_por_desafio: number
-    puntaje_minimo_superar: number
-    umbral_estrella_2: number
-    umbral_estrella_3: number
-  }> = {},
+  overrides: Partial<{ preguntas_por_partida: number; segundos_por_desafio: number }> = {},
 ) {
   return {
     dificultad,
     preguntas_por_partida: 8,
     segundos_por_desafio: 60,
-    puntaje_minimo_superar: 18000,
-    umbral_estrella_2: 29000,
-    umbral_estrella_3: 36700,
     ...overrides,
   }
 }
@@ -65,9 +62,6 @@ describe('fetchDificultadDefaults', () => {
       dificultad: 'facil',
       preguntasPorPartida: 8,
       segundosPorDesafio: 60,
-      puntajeMinimoSuperar: 18000,
-      umbralEstrella2: 29000,
-      umbralEstrella3: 36700,
     })
   })
 
@@ -93,12 +87,9 @@ describe('validarDificultadDefault', () => {
     dificultad: 'facil' as const,
     preguntasPorPartida: 8,
     segundosPorDesafio: 90,
-    puntajeMinimoSuperar: 18000,
-    umbralEstrella2: 29000,
-    umbralEstrella3: 36700,
   }
 
-  it('acepta valores válidos y ascendentes', () => {
+  it('acepta valores válidos', () => {
     expect(validarDificultadDefault(base)).toBeNull()
   })
 
@@ -107,15 +98,6 @@ describe('validarDificultadDefault', () => {
       /preguntas por partida/,
     )
     expect(validarDificultadDefault({ ...base, segundosPorDesafio: 1.5 })).toMatch(/segundos/)
-  })
-
-  it('rechaza umbrales fuera de orden', () => {
-    expect(
-      validarDificultadDefault({ ...base, umbralEstrella2: 10000, umbralEstrella3: 5000 }),
-    ).toMatch(/ascendentes/)
-    expect(validarDificultadDefault({ ...base, puntajeMinimoSuperar: 40000 })).toMatch(
-      /ascendentes/,
-    )
   })
 })
 
@@ -129,18 +111,12 @@ describe('guardarDificultadDefault', () => {
       dificultad: 'dificil',
       preguntasPorPartida: 6,
       segundosPorDesafio: 45,
-      puntajeMinimoSuperar: 21600,
-      umbralEstrella2: 25800,
-      umbralEstrella3: 28740,
     })
 
     expect(from).toHaveBeenCalledWith('dificultad_defaults')
     expect(update).toHaveBeenCalledWith({
       preguntas_por_partida: 6,
       segundos_por_desafio: 45,
-      puntaje_minimo_superar: 21600,
-      umbral_estrella_2: 25800,
-      umbral_estrella_3: 28740,
     })
     expect(eq).toHaveBeenCalledWith('dificultad', 'dificil')
   })
@@ -149,13 +125,10 @@ describe('guardarDificultadDefault', () => {
     await expect(
       guardarDificultadDefault({
         dificultad: 'facil',
-        preguntasPorPartida: 8,
+        preguntasPorPartida: 0,
         segundosPorDesafio: 90,
-        puntajeMinimoSuperar: 30000,
-        umbralEstrella2: 20000,
-        umbralEstrella3: 36700,
       }),
-    ).rejects.toThrow(/ascendentes/)
+    ).rejects.toThrow(/entero positivo/)
     expect(from).not.toHaveBeenCalled()
   })
 
@@ -168,10 +141,37 @@ describe('guardarDificultadDefault', () => {
         dificultad: 'facil',
         preguntasPorPartida: 8,
         segundosPorDesafio: 90,
-        puntajeMinimoSuperar: 18000,
-        umbralEstrella2: 29000,
-        umbralEstrella3: 36700,
       }),
     ).rejects.toThrow('no autorizado')
+  })
+})
+
+describe('fetchUmbralesParada', () => {
+  it('llama a la RPC umbrales_parada y devuelve los umbrales en camelCase', async () => {
+    const single = vi.fn().mockResolvedValue({
+      data: { maximo: 44000, minimo: 19800, umbral_estrella_2: 28600, umbral_estrella_3: 36080 },
+      error: null,
+    })
+    rpc.mockReturnValue({ single })
+
+    const resultado = await fetchUmbralesParada('facil', 8)
+
+    expect(rpc).toHaveBeenCalledWith('umbrales_parada', {
+      p_dificultad: 'facil',
+      p_preguntas_por_partida: 8,
+    })
+    expect(resultado).toEqual({
+      maximo: 44000,
+      minimo: 19800,
+      umbralEstrella2: 28600,
+      umbralEstrella3: 36080,
+    })
+  })
+
+  it('propaga el error de la RPC', async () => {
+    const single = vi.fn().mockResolvedValue({ data: null, error: { message: 'rechazado' } })
+    rpc.mockReturnValue({ single })
+
+    await expect(fetchUmbralesParada('facil', 8)).rejects.toThrow('rechazado')
   })
 })

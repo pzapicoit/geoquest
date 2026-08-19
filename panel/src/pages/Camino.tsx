@@ -1,8 +1,8 @@
 import { Fragment, useEffect, useState, type DragEvent } from 'react'
 import {
-  actualizarEstrellasRequeridas,
   actualizarOverridesParada,
   agregarParadaAlCamino,
+  calcularEstrellasRequeridas,
   fetchCamino,
   fetchTematicasParaCamino,
   nombreParada,
@@ -13,7 +13,12 @@ import {
   type PosicionCamino,
   type TematicaOpcion,
 } from '../lib/camino'
-import { fetchDificultadDefaults, type DificultadDefault } from '../lib/dificultadDefaults'
+import {
+  fetchDificultadDefaults,
+  fetchUmbralesParada,
+  type DificultadDefault,
+  type UmbralesParada,
+} from '../lib/dificultadDefaults'
 import { DIFICULTADES, DIFICULTAD_LABEL, type Dificultad } from '../lib/dificultad'
 
 const BOTON_FONDO = {
@@ -31,10 +36,6 @@ function overridesAForm(posicion: PosicionCamino): OverridesFormTexto {
       posicion.preguntasPorPartida === null ? '' : String(posicion.preguntasPorPartida),
     segundosPorDesafio:
       posicion.segundosPorDesafio === null ? '' : String(posicion.segundosPorDesafio),
-    puntajeMinimoSuperar:
-      posicion.puntajeMinimoSuperar === null ? '' : String(posicion.puntajeMinimoSuperar),
-    umbralEstrella2: posicion.umbralEstrella2 === null ? '' : String(posicion.umbralEstrella2),
-    umbralEstrella3: posicion.umbralEstrella3 === null ? '' : String(posicion.umbralEstrella3),
   }
 }
 
@@ -44,9 +45,6 @@ function formAOverrides(form: OverridesFormTexto): OverridesParada {
   return {
     preguntasPorPartida: aNumeroONull(form.preguntasPorPartida),
     segundosPorDesafio: aNumeroONull(form.segundosPorDesafio),
-    puntajeMinimoSuperar: aNumeroONull(form.puntajeMinimoSuperar),
-    umbralEstrella2: aNumeroONull(form.umbralEstrella2),
-    umbralEstrella3: aNumeroONull(form.umbralEstrella3),
   }
 }
 
@@ -175,7 +173,91 @@ function SelectorParada({
   )
 }
 
+function BloqueUmbralesParada({
+  dificultad,
+  preguntasPorPartidaEfectivo,
+  estrellasRequeridas,
+  posicionEnCamino,
+  totalCamino,
+}: {
+  dificultad: Dificultad
+  preguntasPorPartidaEfectivo: number
+  estrellasRequeridas: number
+  posicionEnCamino: number
+  totalCamino: number
+}) {
+  const [umbrales, setUmbrales] = useState<UmbralesParada | null>(null)
+
+  useEffect(() => {
+    if (!Number.isInteger(preguntasPorPartidaEfectivo) || preguntasPorPartidaEfectivo <= 0) {
+      setUmbrales(null)
+      return
+    }
+
+    let cancelado = false
+    const timeout = setTimeout(() => {
+      fetchUmbralesParada(dificultad, preguntasPorPartidaEfectivo)
+        .then((resultado) => {
+          if (!cancelado) setUmbrales(resultado)
+        })
+        .catch((umbralesError: unknown) => {
+          console.error('Error calculando los umbrales derivados:', umbralesError)
+        })
+    }, 250)
+
+    return () => {
+      cancelado = true
+      clearTimeout(timeout)
+    }
+  }, [dificultad, preguntasPorPartidaEfectivo])
+
+  if (!umbrales) {
+    return <p className="text-xs text-brand-night/40">Calculando umbrales…</p>
+  }
+
+  const pct = (valor: number) => Math.round((valor / umbrales.maximo) * 100)
+
+  return (
+    <div className="flex flex-col gap-1 rounded-xl border border-brand-border/70 bg-white/60 p-3 text-xs tabular-nums text-brand-night/70">
+      <div className="flex justify-between">
+        <span className="text-brand-night/45">Máximo alcanzable</span>
+        <span className="font-semibold">
+          {umbrales.maximo.toLocaleString('es-ES')} pts ({preguntasPorPartidaEfectivo} ×{' '}
+          {Math.round(umbrales.maximo / preguntasPorPartidaEfectivo).toLocaleString('es-ES')})
+        </span>
+      </div>
+      <div className="flex justify-between">
+        <span className="text-brand-night/45">★1 · superar</span>
+        <span>
+          {umbrales.minimo.toLocaleString('es-ES')} · {pct(umbrales.minimo)}%
+        </span>
+      </div>
+      <div className="flex justify-between">
+        <span className="text-brand-night/45">★2</span>
+        <span>
+          {umbrales.umbralEstrella2.toLocaleString('es-ES')} · {pct(umbrales.umbralEstrella2)}%
+        </span>
+      </div>
+      <div className="flex justify-between">
+        <span className="text-brand-night/45">★3</span>
+        <span>
+          {umbrales.umbralEstrella3.toLocaleString('es-ES')} · {pct(umbrales.umbralEstrella3)}%
+        </span>
+      </div>
+      <div className="mt-1 flex justify-between border-t border-brand-border/50 pt-1">
+        <span className="text-brand-night/45">Se desbloquea con</span>
+        <span className="font-semibold">
+          {estrellasRequeridas} ★ · posición {posicionEnCamino} de {totalCamino}
+        </span>
+      </div>
+    </div>
+  )
+}
+
 function PanelOverrides({
+  posicion,
+  index,
+  total,
   form,
   defaults,
   error,
@@ -184,6 +266,9 @@ function PanelOverrides({
   onGuardar,
   onCancelar,
 }: {
+  posicion: PosicionCamino
+  index: number
+  total: number
   form: OverridesFormTexto
   defaults: DificultadDefault
   error?: string
@@ -203,14 +288,12 @@ function PanelOverrides({
       label: 'Segundos/pregunta',
       defecto: defaults.segundosPorDesafio,
     },
-    {
-      clave: 'puntajeMinimoSuperar',
-      label: 'Mínimo para superar',
-      defecto: defaults.puntajeMinimoSuperar,
-    },
-    { clave: 'umbralEstrella2', label: 'Umbral 2 estrellas', defecto: defaults.umbralEstrella2 },
-    { clave: 'umbralEstrella3', label: 'Umbral 3 estrellas', defecto: defaults.umbralEstrella3 },
   ]
+
+  const preguntasEfectivo =
+    form.preguntasPorPartida.trim() === ''
+      ? defaults.preguntasPorPartida
+      : Number(form.preguntasPorPartida)
 
   return (
     <tr>
@@ -220,23 +303,32 @@ function PanelOverrides({
             Deja un campo vacío para usar el valor por defecto de esta dificultad (mostrado entre
             paréntesis).
           </p>
-          <div className="flex flex-wrap gap-3">
-            {campos.map((campo) => (
-              <label key={campo.clave} className="flex flex-col gap-1">
-                <span className="text-[11px] font-semibold text-brand-night/50">
-                  {campo.label} <span className="text-brand-night/35">({campo.defecto})</span>
-                </span>
-                <input
-                  type="number"
-                  min={1}
-                  step={1}
-                  placeholder={String(campo.defecto)}
-                  value={form[campo.clave]}
-                  onChange={(e) => onChange({ ...form, [campo.clave]: e.target.value })}
-                  className={`${CAMPO_BASE} w-36 tabular-nums`}
-                />
-              </label>
-            ))}
+          <div className="flex flex-wrap gap-4">
+            <div className="flex flex-wrap gap-3">
+              {campos.map((campo) => (
+                <label key={campo.clave} className="flex flex-col gap-1">
+                  <span className="text-[11px] font-semibold text-brand-night/50">
+                    {campo.label} <span className="text-brand-night/35">({campo.defecto})</span>
+                  </span>
+                  <input
+                    type="number"
+                    min={1}
+                    step={1}
+                    placeholder={String(campo.defecto)}
+                    value={form[campo.clave]}
+                    onChange={(e) => onChange({ ...form, [campo.clave]: e.target.value })}
+                    className={`${CAMPO_BASE} w-36 tabular-nums`}
+                  />
+                </label>
+              ))}
+            </div>
+            <BloqueUmbralesParada
+              dificultad={posicion.dificultad}
+              preguntasPorPartidaEfectivo={preguntasEfectivo}
+              estrellasRequeridas={calcularEstrellasRequeridas(posicion.orden)}
+              posicionEnCamino={index + 1}
+              totalCamino={total}
+            />
           </div>
           {error && <p className="text-xs font-medium text-[#B3282D]">{error}</p>}
           <div className="flex gap-2">
@@ -266,7 +358,6 @@ function PanelOverrides({
 export function Camino() {
   const [camino, setCamino] = useState<PosicionCamino[] | null>(null)
   const [error, setError] = useState('')
-  const [rowErrors, setRowErrors] = useState<Record<string, string>>({})
   const [quitandoIds, setQuitandoIds] = useState<Set<string>>(new Set())
   const [errorOrden, setErrorOrden] = useState('')
   const [dragIndex, setDragIndex] = useState<number | null>(null)
@@ -278,9 +369,6 @@ export function Camino() {
   const [agregando, setAgregando] = useState(false)
 
   const [defaults, setDefaults] = useState<Record<Dificultad, DificultadDefault> | null>(null)
-
-  const [estrellasEditando, setEstrellasEditando] = useState<Record<string, string>>({})
-  const [guardandoEstrellasIds, setGuardandoEstrellasIds] = useState<Set<string>>(new Set())
 
   const [overridesAbiertoId, setOverridesAbiertoId] = useState<string | null>(null)
   const [overridesForm, setOverridesForm] = useState<OverridesFormTexto | null>(null)
@@ -352,12 +440,8 @@ export function Camino() {
           tematicaNombre,
           dificultad,
           nombre: null,
-          estrellasRequeridas: 0,
           preguntasPorPartida: null,
           segundosPorDesafio: null,
-          puntajeMinimoSuperar: null,
-          umbralEstrella2: null,
-          umbralEstrella3: null,
         },
       ])
     } catch (agregarError) {
@@ -413,49 +497,6 @@ export function Camino() {
     setDragIndex(null)
   }
 
-  async function handleEstrellasBlur(posicion: PosicionCamino) {
-    const valorTexto = estrellasEditando[posicion.id] ?? String(posicion.estrellasRequeridas)
-    const valor = Number(valorTexto)
-
-    if (valorTexto.trim() === '' || !Number.isInteger(valor) || valor < 0) {
-      setRowErrors((actual) => ({
-        ...actual,
-        [posicion.id]: 'Debe ser un número entero igual o mayor a 0.',
-      }))
-      return
-    }
-
-    if (valor === posicion.estrellasRequeridas) return
-
-    setGuardandoEstrellasIds((actual) => new Set(actual).add(posicion.id))
-    try {
-      await actualizarEstrellasRequeridas(posicion.id, valor)
-      setCamino(
-        (actual) =>
-          actual?.map((p) => (p.id === posicion.id ? { ...p, estrellasRequeridas: valor } : p)) ??
-          actual,
-      )
-      setRowErrors((actual) => {
-        if (!(posicion.id in actual)) return actual
-        const resto = { ...actual }
-        delete resto[posicion.id]
-        return resto
-      })
-    } catch (guardarError) {
-      setRowErrors((actual) => ({
-        ...actual,
-        [posicion.id]:
-          guardarError instanceof Error ? guardarError.message : 'No se ha podido guardar.',
-      }))
-    } finally {
-      setGuardandoEstrellasIds((actual) => {
-        const siguiente = new Set(actual)
-        siguiente.delete(posicion.id)
-        return siguiente
-      })
-    }
-  }
-
   async function handleQuitar(posicion: PosicionCamino) {
     if (quitandoIds.has(posicion.id) || operandoCamino) return
 
@@ -471,18 +512,11 @@ export function Camino() {
       setCamino((actual) =>
         (actual ?? []).filter((p) => p.id !== posicion.id).map((p, i) => ({ ...p, orden: i + 1 })),
       )
-      setRowErrors((actual) => {
-        if (!(posicion.id in actual)) return actual
-        const resto = { ...actual }
-        delete resto[posicion.id]
-        return resto
-      })
     } catch (quitarError) {
-      setRowErrors((actual) => ({
-        ...actual,
-        [posicion.id]:
-          quitarError instanceof Error ? quitarError.message : 'No se ha podido quitar del camino.',
-      }))
+      console.error('Error quitando la parada del camino:', quitarError)
+      setErrorOrden(
+        quitarError instanceof Error ? quitarError.message : 'No se ha podido quitar del camino.',
+      )
     } finally {
       setQuitandoIds((actual) => {
         const siguiente = new Set(actual)
@@ -506,7 +540,7 @@ export function Camino() {
   }
 
   async function handleGuardarOverrides(posicion: PosicionCamino) {
-    if (!overridesForm || !defaults) return
+    if (!overridesForm) return
 
     const overrides = formAOverrides(overridesForm)
     const erroresConversion = Object.values(overridesForm).some(
@@ -517,7 +551,7 @@ export function Camino() {
       return
     }
 
-    const errorValidacion = validarOverrides(overrides, defaults[posicion.dificultad])
+    const errorValidacion = validarOverrides(overrides)
     if (errorValidacion) {
       setOverridesError(errorValidacion)
       return
@@ -628,31 +662,12 @@ export function Camino() {
                         </div>
                       </td>
                       <td className="px-3 py-3">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-brand-gold">★</span>
-                          <input
-                            type="number"
-                            min={0}
-                            step={1}
-                            value={
-                              estrellasEditando[posicion.id] ?? String(posicion.estrellasRequeridas)
-                            }
-                            disabled={guardandoEstrellasIds.has(posicion.id)}
-                            onChange={(e) =>
-                              setEstrellasEditando((actual) => ({
-                                ...actual,
-                                [posicion.id]: e.target.value,
-                              }))
-                            }
-                            onBlur={() => handleEstrellasBlur(posicion)}
-                            className={`${CAMPO_BASE} w-20 tabular-nums`}
-                          />
+                        <div className="flex items-center gap-1.5 text-sm font-semibold text-brand-night tabular-nums">
+                          <span className="text-brand-gold" aria-hidden="true">
+                            ★
+                          </span>
+                          <span>{calcularEstrellasRequeridas(posicion.orden)}</span>
                         </div>
-                        {rowErrors[posicion.id] && (
-                          <p className="mt-1.5 text-[11px] text-[#B3282D]">
-                            {rowErrors[posicion.id]}
-                          </p>
-                        )}
                       </td>
                       <td className="px-3 py-3">
                         <div className="flex items-center justify-end gap-1.5">
@@ -702,6 +717,9 @@ export function Camino() {
                     {overridesAbiertoId === posicion.id && overridesForm && defaults && (
                       <PanelOverrides
                         key={`${posicion.id}-overrides`}
+                        posicion={posicion}
+                        index={index}
+                        total={total}
                         form={overridesForm}
                         defaults={defaults[posicion.dificultad]}
                         error={overridesError}

@@ -4,9 +4,6 @@ import { DIFICULTAD_LABEL, type Dificultad } from './dificultad'
 export interface OverridesParada {
   preguntasPorPartida: number | null
   segundosPorDesafio: number | null
-  puntajeMinimoSuperar: number | null
-  umbralEstrella2: number | null
-  umbralEstrella3: number | null
 }
 
 export interface PosicionCamino extends OverridesParada {
@@ -16,7 +13,6 @@ export interface PosicionCamino extends OverridesParada {
   tematicaNombre: string
   dificultad: Dificultad
   nombre: string | null
-  estrellasRequeridas: number
 }
 
 export interface TematicaOpcion {
@@ -24,27 +20,28 @@ export interface TematicaOpcion {
   nombre: string
 }
 
-interface CaminoRow {
+interface CaminoPanelRow {
   id: string
   orden: number
   tematica_id: string
+  tematica_nombre: string
   dificultad: Dificultad
   nombre: string | null
-  estrellas_requeridas: number
   preguntas_por_partida: number | null
   segundos_por_desafio: number | null
-  puntaje_minimo_superar: number | null
-  umbral_estrella_2: number | null
-  umbral_estrella_3: number | null
 }
 
-interface TematicaRow {
-  id: string
-  nombre: string
-}
+const SELECT_CAMINO_PANEL =
+  'id, orden, tematica_id, tematica_nombre, dificultad, nombre, preguntas_por_partida, segundos_por_desafio'
 
-const SELECT_CAMINO =
-  'id, orden, tematica_id, dificultad, nombre, estrellas_requeridas, preguntas_por_partida, segundos_por_desafio, puntaje_minimo_superar, umbral_estrella_2, umbral_estrella_3'
+// estrellas_requeridas se deriva siempre de `orden` en el momento de pintar
+// (ver `estrellas_requeridas_por_orden` en el backend): nunca se guarda en
+// `PosicionCamino`, para que un reorden optimista en el cliente (antes de que
+// el servidor confirme) recalcule el requisito de inmediato en vez de mostrar
+// un valor congelado en el momento de la carga.
+export function calcularEstrellasRequeridas(orden: number): number {
+  return Math.floor((orden - 1) * 3 * 0.6)
+}
 
 export function nombreParada(posicion: {
   nombre: string | null
@@ -56,38 +53,21 @@ export function nombreParada(posicion: {
 }
 
 export async function fetchCamino(): Promise<PosicionCamino[]> {
-  const { data: camino, error: caminoError } = await supabase
-    .from('camino')
-    .select(SELECT_CAMINO)
+  const { data, error } = await supabase
+    .from('camino_panel')
+    .select(SELECT_CAMINO_PANEL)
     .order('orden', { ascending: true })
-  if (caminoError) throw new Error(caminoError.message)
+  if (error) throw new Error(error.message)
 
-  const filas = (camino ?? []) as CaminoRow[]
-  const tematicaIds = [...new Set(filas.map((fila) => fila.tematica_id))]
-
-  const { data: tematicas, error: tematicasError } =
-    tematicaIds.length > 0
-      ? await supabase.from('tematicas').select('id, nombre').in('id', tematicaIds)
-      : { data: [] as TematicaRow[], error: null }
-  if (tematicasError) throw new Error(tematicasError.message)
-
-  const nombrePorTematica = new Map(
-    ((tematicas ?? []) as TematicaRow[]).map((t) => [t.id, t.nombre]),
-  )
-
-  return filas.map((fila) => ({
+  return ((data ?? []) as CaminoPanelRow[]).map((fila) => ({
     id: fila.id,
     orden: fila.orden,
     tematicaId: fila.tematica_id,
-    tematicaNombre: nombrePorTematica.get(fila.tematica_id) ?? 'Temática eliminada',
+    tematicaNombre: fila.tematica_nombre,
     dificultad: fila.dificultad,
     nombre: fila.nombre,
-    estrellasRequeridas: fila.estrellas_requeridas,
     preguntasPorPartida: fila.preguntas_por_partida,
     segundosPorDesafio: fila.segundos_por_desafio,
-    puntajeMinimoSuperar: fila.puntaje_minimo_superar,
-    umbralEstrella2: fila.umbral_estrella_2,
-    umbralEstrella3: fila.umbral_estrella_3,
   }))
 }
 
@@ -111,7 +91,7 @@ export async function agregarParadaAlCamino(
 
   const { data, error } = await supabase
     .from('camino')
-    .insert({ tematica_id: tematicaId, dificultad, orden: maxOrden + 1, estrellas_requeridas: 0 })
+    .insert({ tematica_id: tematicaId, dificultad, orden: maxOrden + 1 })
     .select('id')
     .single()
   if (error) {
@@ -128,21 +108,6 @@ export async function agregarParadaAlCamino(
 
 export async function reordenarCamino(idsEnOrden: string[]): Promise<void> {
   const { error } = await supabase.rpc('reordenar_camino', { ids_en_orden: idsEnOrden })
-  if (error) throw new Error(error.message)
-}
-
-export async function actualizarEstrellasRequeridas(
-  id: string,
-  estrellasRequeridas: number,
-): Promise<void> {
-  if (!Number.isInteger(estrellasRequeridas) || estrellasRequeridas < 0) {
-    throw new Error('Las estrellas requeridas deben ser un número entero igual o mayor a 0.')
-  }
-
-  const { error } = await supabase
-    .from('camino')
-    .update({ estrellas_requeridas: estrellasRequeridas })
-    .eq('id', id)
   if (error) throw new Error(error.message)
 }
 
@@ -166,30 +131,17 @@ function enteroPositivoONull(n: number | null): boolean {
   return n === null || (Number.isInteger(n) && n > 0)
 }
 
-// Valida los overrides de una parada contra sus valores por defecto vigentes
-// (override ?? default), igual que la validación de dificultad_defaults.
-export function validarOverrides(
-  overrides: OverridesParada,
-  defaults: { puntajeMinimoSuperar: number; umbralEstrella2: number; umbralEstrella3: number },
-): string | null {
+// Valida los overrides de una parada: cada campo, o entero positivo, o vacío
+// (usa el valor por defecto de su dificultad). Ya no hay orden ascendente que
+// comprobar entre campos: preguntasPorPartida y segundosPorDesafio son
+// independientes entre sí.
+export function validarOverrides(overrides: OverridesParada): string | null {
   if (
     !enteroPositivoONull(overrides.preguntasPorPartida) ||
-    !enteroPositivoONull(overrides.segundosPorDesafio) ||
-    !enteroPositivoONull(overrides.puntajeMinimoSuperar) ||
-    !enteroPositivoONull(overrides.umbralEstrella2) ||
-    !enteroPositivoONull(overrides.umbralEstrella3)
+    !enteroPositivoONull(overrides.segundosPorDesafio)
   ) {
     return 'Cada override debe ser un entero positivo, o quedar vacío para usar el valor por defecto.'
   }
-
-  const minimoEfectivo = overrides.puntajeMinimoSuperar ?? defaults.puntajeMinimoSuperar
-  const estrella2Efectivo = overrides.umbralEstrella2 ?? defaults.umbralEstrella2
-  const estrella3Efectivo = overrides.umbralEstrella3 ?? defaults.umbralEstrella3
-
-  if (minimoEfectivo > estrella2Efectivo || estrella2Efectivo > estrella3Efectivo) {
-    return 'Los umbrales efectivos deben ser ascendentes: mínimo ≤ 2 estrellas ≤ 3 estrellas.'
-  }
-
   return null
 }
 
@@ -202,9 +154,6 @@ export async function actualizarOverridesParada(
     .update({
       preguntas_por_partida: overrides.preguntasPorPartida,
       segundos_por_desafio: overrides.segundosPorDesafio,
-      puntaje_minimo_superar: overrides.puntajeMinimoSuperar,
-      umbral_estrella_2: overrides.umbralEstrella2,
-      umbral_estrella_3: overrides.umbralEstrella3,
     })
     .eq('id', id)
   if (error) throw new Error(error.message)

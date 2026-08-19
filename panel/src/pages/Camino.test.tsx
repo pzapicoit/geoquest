@@ -1,16 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { Camino } from './Camino'
 import type { PosicionCamino, TematicaOpcion } from '../lib/camino'
-import type { DificultadDefault } from '../lib/dificultadDefaults'
+import type { DificultadDefault, UmbralesParada } from '../lib/dificultadDefaults'
 
 const fetchCamino = vi.fn()
 const fetchTematicasParaCamino = vi.fn()
 const agregarParadaAlCamino = vi.fn()
 const reordenarCamino = vi.fn()
-const actualizarEstrellasRequeridas = vi.fn()
 const quitarDelCamino = vi.fn()
 const actualizarOverridesParada = vi.fn()
 
@@ -22,13 +21,13 @@ vi.mock('../lib/camino', async () => {
     fetchTematicasParaCamino: (...args: unknown[]) => fetchTematicasParaCamino(...args),
     agregarParadaAlCamino: (...args: unknown[]) => agregarParadaAlCamino(...args),
     reordenarCamino: (...args: unknown[]) => reordenarCamino(...args),
-    actualizarEstrellasRequeridas: (...args: unknown[]) => actualizarEstrellasRequeridas(...args),
     quitarDelCamino: (...args: unknown[]) => quitarDelCamino(...args),
     actualizarOverridesParada: (...args: unknown[]) => actualizarOverridesParada(...args),
   }
 })
 
 const fetchDificultadDefaults = vi.fn()
+const fetchUmbralesParada = vi.fn()
 vi.mock('../lib/dificultadDefaults', async () => {
   const actual = await vi.importActual<typeof import('../lib/dificultadDefaults')>(
     '../lib/dificultadDefaults',
@@ -36,6 +35,7 @@ vi.mock('../lib/dificultadDefaults', async () => {
   return {
     ...actual,
     fetchDificultadDefaults: (...args: unknown[]) => fetchDificultadDefaults(...args),
+    fetchUmbralesParada: (...args: unknown[]) => fetchUmbralesParada(...args),
   }
 })
 
@@ -55,12 +55,8 @@ const CAMINO: PosicionCamino[] = [
     tematicaNombre: 'Monumentos',
     dificultad: 'facil',
     nombre: null,
-    estrellasRequeridas: 0,
     preguntasPorPartida: null,
     segundosPorDesafio: null,
-    puntajeMinimoSuperar: null,
-    umbralEstrella2: null,
-    umbralEstrella3: null,
   },
   {
     id: 'c-2',
@@ -69,80 +65,53 @@ const CAMINO: PosicionCamino[] = [
     tematicaNombre: 'Banderas',
     dificultad: 'dificil',
     nombre: null,
-    estrellasRequeridas: 3,
     preguntasPorPartida: null,
     segundosPorDesafio: null,
-    puntajeMinimoSuperar: null,
-    umbralEstrella2: null,
-    umbralEstrella3: null,
   },
 ]
 
 const DEFAULTS: DificultadDefault[] = [
-  {
-    dificultad: 'facil',
-    preguntasPorPartida: 8,
-    segundosPorDesafio: 90,
-    puntajeMinimoSuperar: 18000,
-    umbralEstrella2: 29000,
-    umbralEstrella3: 36700,
-  },
-  {
-    dificultad: 'normal',
-    preguntasPorPartida: 8,
-    segundosPorDesafio: 75,
-    puntajeMinimoSuperar: 21200,
-    umbralEstrella2: 30600,
-    umbralEstrella3: 37180,
-  },
-  {
-    dificultad: 'intermedio',
-    preguntasPorPartida: 6,
-    segundosPorDesafio: 60,
-    puntajeMinimoSuperar: 18600,
-    umbralEstrella2: 24300,
-    umbralEstrella3: 28290,
-  },
-  {
-    dificultad: 'dificil',
-    preguntasPorPartida: 6,
-    segundosPorDesafio: 45,
-    puntajeMinimoSuperar: 21600,
-    umbralEstrella2: 25800,
-    umbralEstrella3: 28740,
-  },
-  {
-    dificultad: 'muy_dificil',
-    preguntasPorPartida: 5,
-    segundosPorDesafio: 30,
-    puntajeMinimoSuperar: 21250,
-    umbralEstrella2: 23125,
-    umbralEstrella3: 24438,
-  },
+  { dificultad: 'facil', preguntasPorPartida: 8, segundosPorDesafio: 90 },
+  { dificultad: 'normal', preguntasPorPartida: 8, segundosPorDesafio: 75 },
+  { dificultad: 'intermedio', preguntasPorPartida: 6, segundosPorDesafio: 60 },
+  { dificultad: 'dificil', preguntasPorPartida: 6, segundosPorDesafio: 45 },
+  { dificultad: 'muy_dificil', preguntasPorPartida: 5, segundosPorDesafio: 30 },
 ]
+
+const UMBRALES_FACIL: UmbralesParada = {
+  maximo: 44000,
+  minimo: 19800,
+  umbralEstrella2: 28600,
+  umbralEstrella3: 36080,
+}
 
 beforeEach(() => {
   fetchCamino.mockReset()
   fetchTematicasParaCamino.mockReset()
   agregarParadaAlCamino.mockReset()
   reordenarCamino.mockReset()
-  actualizarEstrellasRequeridas.mockReset()
   quitarDelCamino.mockReset()
   actualizarOverridesParada.mockReset()
   fetchDificultadDefaults.mockReset()
+  fetchUmbralesParada.mockReset()
   fetchDificultadDefaults.mockResolvedValue(DEFAULTS)
+  fetchUmbralesParada.mockResolvedValue(UMBRALES_FACIL)
   vi.spyOn(window, 'confirm').mockReturnValue(true)
 })
 
 describe('Camino — listado', () => {
-  it('muestra una fila por posición con temática, dificultad y estrellas requeridas', async () => {
+  it('muestra una fila por posición con temática, dificultad y estrellas requeridas derivadas', async () => {
     fetchCamino.mockResolvedValue(CAMINO)
     renderCamino()
 
     await screen.findByText('Monumentos · Fácil')
     expect(screen.getByText('Banderas · Difícil')).toBeInTheDocument()
-    expect(screen.getByDisplayValue('0')).toBeInTheDocument()
-    expect(screen.getByDisplayValue('3')).toBeInTheDocument()
+    // orden 1 -> 0 estrellas, orden 2 -> 1 estrella (floor((2-1) * 1.8)); se
+    // busca dentro de cada fila para no confundirse con la columna "#".
+    const filaMonumentos = screen.getByText('Monumentos · Fácil').closest('tr') as HTMLElement
+    const filaBanderas = screen.getByText('Banderas · Difícil').closest('tr') as HTMLElement
+    expect(within(filaMonumentos).getByText('0')).toBeInTheDocument()
+    expect(within(filaBanderas).getByText('1')).toBeInTheDocument()
   })
 
   it('muestra el estado vacío cuando el camino no tiene posiciones', async () => {
@@ -228,40 +197,6 @@ describe('Camino — reorden', () => {
   })
 })
 
-describe('Camino — editar estrellas requeridas', () => {
-  it('guarda un umbral válido al perder el foco', async () => {
-    fetchCamino.mockResolvedValue(CAMINO)
-    actualizarEstrellasRequeridas.mockResolvedValue(undefined)
-    const user = userEvent.setup()
-    renderCamino()
-
-    await screen.findByText('Monumentos · Fácil')
-    const input = screen.getByDisplayValue('0')
-    await user.clear(input)
-    await user.type(input, '5')
-    await user.tab()
-
-    await waitFor(() => expect(actualizarEstrellasRequeridas).toHaveBeenCalledWith('c-1', 5))
-  })
-
-  it('bloquea un valor negativo sin llamar a supabase', async () => {
-    fetchCamino.mockResolvedValue(CAMINO)
-    const user = userEvent.setup()
-    renderCamino()
-
-    await screen.findByText('Monumentos · Fácil')
-    const input = screen.getByDisplayValue('0')
-    await user.clear(input)
-    await user.type(input, '-1')
-    await user.tab()
-
-    expect(
-      await screen.findByText('Debe ser un número entero igual o mayor a 0.'),
-    ).toBeInTheDocument()
-    expect(actualizarEstrellasRequeridas).not.toHaveBeenCalled()
-  })
-})
-
 describe('Camino — quitar posición', () => {
   it('quita una posición del camino tras confirmar', async () => {
     fetchCamino.mockResolvedValue(CAMINO)
@@ -299,19 +234,19 @@ describe('Camino — overrides por posición', () => {
     await screen.findByText('Monumentos · Fácil')
     await user.click(screen.getAllByRole('button', { name: 'Overrides' })[0])
 
-    const campo = await screen.findByPlaceholderText('18000')
-    await user.type(campo, '25000')
+    const campo = await screen.findByPlaceholderText('8')
+    await user.type(campo, '5')
     await user.click(screen.getByRole('button', { name: 'Guardar overrides' }))
 
     await waitFor(() =>
       expect(actualizarOverridesParada).toHaveBeenCalledWith(
         'c-1',
-        expect.objectContaining({ puntajeMinimoSuperar: 25000 }),
+        expect.objectContaining({ preguntasPorPartida: 5 }),
       ),
     )
   })
 
-  it('bloquea un override que rompe el orden efectivo con los defaults', async () => {
+  it('rechaza un override no entero o no positivo', async () => {
     fetchCamino.mockResolvedValue(CAMINO)
     const user = userEvent.setup()
     renderCamino()
@@ -319,11 +254,36 @@ describe('Camino — overrides por posición', () => {
     await screen.findByText('Monumentos · Fácil')
     await user.click(screen.getAllByRole('button', { name: 'Overrides' })[0])
 
-    const campo = await screen.findByPlaceholderText('18000')
-    await user.type(campo, '40000')
+    const campo = await screen.findByPlaceholderText('8')
+    await user.clear(campo)
+    await user.type(campo, '0')
     await user.click(screen.getByRole('button', { name: 'Guardar overrides' }))
 
-    expect(await screen.findByText(/ascendentes/)).toBeInTheDocument()
+    expect(await screen.findByText(/entero positivo/)).toBeInTheDocument()
     expect(actualizarOverridesParada).not.toHaveBeenCalled()
+  })
+
+  it('muestra el bloque de umbrales derivados y lo recalcula al cambiar preguntas por partida', async () => {
+    fetchCamino.mockResolvedValue(CAMINO)
+    const user = userEvent.setup()
+    renderCamino()
+
+    await screen.findByText('Monumentos · Fácil')
+    await user.click(screen.getAllByRole('button', { name: 'Overrides' })[0])
+
+    await waitFor(() =>
+      expect(fetchUmbralesParada).toHaveBeenCalledWith('facil', 8),
+    )
+    expect(await screen.findByText(/Se desbloquea con/)).toBeInTheDocument()
+    expect(await screen.findByText(/posición 1 de 2/)).toBeInTheDocument()
+
+    fetchUmbralesParada.mockClear()
+    const campo = await screen.findByPlaceholderText('8')
+    await user.clear(campo)
+    await user.type(campo, '5')
+
+    await waitFor(() => expect(fetchUmbralesParada).toHaveBeenCalledWith('facil', 5), {
+      timeout: 1000,
+    })
   })
 })

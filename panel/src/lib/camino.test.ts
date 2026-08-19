@@ -4,10 +4,10 @@ import {
   fetchTematicasParaCamino,
   agregarParadaAlCamino,
   reordenarCamino,
-  actualizarEstrellasRequeridas,
   quitarDelCamino,
   actualizarOverridesParada,
   validarOverrides,
+  calcularEstrellasRequeridas,
   nombreParada,
 } from './camino'
 
@@ -30,49 +30,33 @@ function selectOrder(data: unknown[] | null, error: unknown = null) {
   return { order: () => Promise.resolve({ data, error }) }
 }
 
-function selectIn(data: unknown[] | null, error: unknown = null) {
-  return { in: () => Promise.resolve({ data, error }) }
-}
-
-const CAMINO_ROWS = [
+const CAMINO_PANEL_ROWS = [
   {
     id: 'c-1',
     orden: 1,
     tematica_id: 't-1',
+    tematica_nombre: 'Monumentos',
     dificultad: 'facil',
     nombre: 'Torres',
-    estrellas_requeridas: 0,
     preguntas_por_partida: null,
     segundos_por_desafio: null,
-    puntaje_minimo_superar: null,
-    umbral_estrella_2: null,
-    umbral_estrella_3: null,
   },
   {
     id: 'c-2',
     orden: 2,
     tematica_id: 't-2',
+    tematica_nombre: 'Banderas',
     dificultad: 'dificil',
     nombre: null,
-    estrellas_requeridas: 5,
     preguntas_por_partida: 6,
     segundos_por_desafio: 45,
-    puntaje_minimo_superar: 21600,
-    umbral_estrella_2: 25800,
-    umbral_estrella_3: 28740,
   },
-]
-
-const TEMATICAS = [
-  { id: 't-1', nombre: 'Monumentos' },
-  { id: 't-2', nombre: 'Banderas' },
 ]
 
 describe('fetchCamino', () => {
   it('devuelve las posiciones con temática, dificultad y overrides resueltos, en orden', async () => {
     from.mockImplementation((table: string) => {
-      if (table === 'camino') return { select: () => selectOrder(CAMINO_ROWS) }
-      if (table === 'tematicas') return { select: () => selectIn(TEMATICAS) }
+      if (table === 'camino_panel') return { select: () => selectOrder(CAMINO_PANEL_ROWS) }
       throw new Error(`tabla inesperada: ${table}`)
     })
 
@@ -86,12 +70,8 @@ describe('fetchCamino', () => {
         tematicaNombre: 'Monumentos',
         dificultad: 'facil',
         nombre: 'Torres',
-        estrellasRequeridas: 0,
         preguntasPorPartida: null,
         segundosPorDesafio: null,
-        puntajeMinimoSuperar: null,
-        umbralEstrella2: null,
-        umbralEstrella3: null,
       },
       {
         id: 'c-2',
@@ -100,48 +80,15 @@ describe('fetchCamino', () => {
         tematicaNombre: 'Banderas',
         dificultad: 'dificil',
         nombre: null,
-        estrellasRequeridas: 5,
         preguntasPorPartida: 6,
         segundosPorDesafio: 45,
-        puntajeMinimoSuperar: 21600,
-        umbralEstrella2: 25800,
-        umbralEstrella3: 28740,
       },
     ])
   })
 
-  it('una temática que ya no existe se muestra como "Temática eliminada"', async () => {
-    from.mockImplementation((table: string) => {
-      if (table === 'camino') return { select: () => selectOrder([CAMINO_ROWS[0]]) }
-      if (table === 'tematicas') return { select: () => selectIn([]) }
-      throw new Error(`tabla inesperada: ${table}`)
-    })
-
-    const resultado = await fetchCamino()
-
-    expect(resultado[0]).toMatchObject({ tematicaNombre: 'Temática eliminada' })
-  })
-
-  it('un camino vacío no consulta temáticas', async () => {
-    const fromTematicas = vi.fn()
-    from.mockImplementation((table: string) => {
-      if (table === 'camino') return { select: () => selectOrder([]) }
-      if (table === 'tematicas') {
-        fromTematicas()
-        return { select: () => selectIn([]) }
-      }
-      throw new Error(`tabla inesperada: ${table}`)
-    })
-
-    const resultado = await fetchCamino()
-
-    expect(resultado).toEqual([])
-    expect(fromTematicas).not.toHaveBeenCalled()
-  })
-
   it('propaga el error si falla la consulta del camino', async () => {
     from.mockImplementation((table: string) => {
-      if (table === 'camino') return { select: () => selectOrder(null, { message: 'rechazado' }) }
+      if (table === 'camino_panel') return { select: () => selectOrder(null, { message: 'rechazado' }) }
       throw new Error(`tabla inesperada: ${table}`)
     })
 
@@ -151,16 +98,20 @@ describe('fetchCamino', () => {
 
 describe('fetchTematicasParaCamino', () => {
   it('devuelve las temáticas ordenadas', async () => {
-    from.mockReturnValue({ select: () => selectOrder(TEMATICAS) })
+    const tematicas = [
+      { id: 't-1', nombre: 'Monumentos' },
+      { id: 't-2', nombre: 'Banderas' },
+    ]
+    from.mockReturnValue({ select: () => selectOrder(tematicas) })
 
     const resultado = await fetchTematicasParaCamino()
 
-    expect(resultado).toEqual(TEMATICAS)
+    expect(resultado).toEqual(tematicas)
   })
 })
 
 describe('agregarParadaAlCamino', () => {
-  it('inserta en la última posición con estrellas_requeridas en 0 y devuelve el id', async () => {
+  it('inserta en la última posición sin overrides y devuelve el id', async () => {
     const single = vi.fn().mockResolvedValue({ data: { id: 'c-9' }, error: null })
     const insert = vi.fn().mockReturnValue({ select: () => ({ single }) })
     from.mockImplementation((table: string) => {
@@ -180,7 +131,6 @@ describe('agregarParadaAlCamino', () => {
       tematica_id: 't-9',
       dificultad: 'muy_dificil',
       orden: 3,
-      estrellas_requeridas: 0,
     })
   })
 
@@ -221,21 +171,15 @@ describe('reordenarCamino', () => {
   })
 })
 
-describe('actualizarEstrellasRequeridas', () => {
-  it('actualiza la fila con un valor válido', async () => {
-    const eq = vi.fn().mockResolvedValue({ error: null })
-    const update = vi.fn().mockReturnValue({ eq })
-    from.mockReturnValue({ update })
-
-    await actualizarEstrellasRequeridas('c-1', 5)
-
-    expect(update).toHaveBeenCalledWith({ estrellas_requeridas: 5 })
-    expect(eq).toHaveBeenCalledWith('id', 'c-1')
+describe('calcularEstrellasRequeridas', () => {
+  it('la posición 1 exige 0 estrellas', () => {
+    expect(calcularEstrellasRequeridas(1)).toBe(0)
   })
 
-  it('rechaza un valor negativo sin llamar a supabase', async () => {
-    await expect(actualizarEstrellasRequeridas('c-1', -1)).rejects.toThrow(/igual o mayor a 0/)
-    expect(from).not.toHaveBeenCalled()
+  it('crece con la posición según floor((orden - 1) * 1.8)', () => {
+    expect([1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(calcularEstrellasRequeridas)).toEqual([
+      0, 1, 3, 5, 7, 9, 10, 12, 14, 16,
+    ])
   })
 })
 
@@ -269,56 +213,33 @@ describe('quitarDelCamino', () => {
 })
 
 describe('validarOverrides', () => {
-  const defaults = { puntajeMinimoSuperar: 18000, umbralEstrella2: 29000, umbralEstrella3: 36700 }
-  const vacio = {
-    preguntasPorPartida: null,
-    segundosPorDesafio: null,
-    puntajeMinimoSuperar: null,
-    umbralEstrella2: null,
-    umbralEstrella3: null,
-  }
+  const vacio = { preguntasPorPartida: null, segundosPorDesafio: null }
 
-  it('acepta todos los overrides vacíos (usa los defaults, que ya son ascendentes)', () => {
-    expect(validarOverrides(vacio, defaults)).toBeNull()
+  it('acepta todos los overrides vacíos', () => {
+    expect(validarOverrides(vacio)).toBeNull()
   })
 
-  it('acepta un override parcial que mantiene el orden efectivo', () => {
-    expect(validarOverrides({ ...vacio, puntajeMinimoSuperar: 25000 }, defaults)).toBeNull()
-  })
-
-  it('rechaza un override que rompe el orden efectivo con los defaults', () => {
-    expect(validarOverrides({ ...vacio, puntajeMinimoSuperar: 30000 }, defaults)).toMatch(
-      /ascendentes/,
-    )
+  it('acepta overrides positivos', () => {
+    expect(validarOverrides({ preguntasPorPartida: 6, segundosPorDesafio: 45 })).toBeNull()
   })
 
   it('rechaza un override no entero o no positivo', () => {
-    expect(validarOverrides({ ...vacio, preguntasPorPartida: 0 }, defaults)).toMatch(
-      /entero positivo/,
-    )
+    expect(validarOverrides({ ...vacio, preguntasPorPartida: 0 })).toMatch(/entero positivo/)
+    expect(validarOverrides({ ...vacio, segundosPorDesafio: 1.5 })).toMatch(/entero positivo/)
   })
 })
 
 describe('actualizarOverridesParada', () => {
-  it('actualiza los 5 campos de override de la parada', async () => {
+  it('actualiza los 2 campos de override de la parada', async () => {
     const eq = vi.fn().mockResolvedValue({ error: null })
     const update = vi.fn().mockReturnValue({ eq })
     from.mockReturnValue({ update })
 
-    await actualizarOverridesParada('c-1', {
-      preguntasPorPartida: 5,
-      segundosPorDesafio: null,
-      puntajeMinimoSuperar: 25000,
-      umbralEstrella2: null,
-      umbralEstrella3: null,
-    })
+    await actualizarOverridesParada('c-1', { preguntasPorPartida: 5, segundosPorDesafio: null })
 
     expect(update).toHaveBeenCalledWith({
       preguntas_por_partida: 5,
       segundos_por_desafio: null,
-      puntaje_minimo_superar: 25000,
-      umbral_estrella_2: null,
-      umbral_estrella_3: null,
     })
     expect(eq).toHaveBeenCalledWith('id', 'c-1')
   })
@@ -328,13 +249,7 @@ describe('actualizarOverridesParada', () => {
     from.mockReturnValue({ update: () => ({ eq }) })
 
     await expect(
-      actualizarOverridesParada('c-1', {
-        preguntasPorPartida: null,
-        segundosPorDesafio: null,
-        puntajeMinimoSuperar: null,
-        umbralEstrella2: null,
-        umbralEstrella3: null,
-      }),
+      actualizarOverridesParada('c-1', { preguntasPorPartida: null, segundosPorDesafio: null }),
     ).rejects.toThrow('no autorizado')
   })
 })

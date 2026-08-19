@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react'
 import { DIFICULTAD_LABEL } from '../lib/dificultad'
 import {
   fetchDificultadDefaults,
+  fetchUmbralesParada,
   guardarDificultadDefault,
   type DificultadDefault,
+  type UmbralesParada,
 } from '../lib/dificultadDefaults'
 
 const CAMPO_BASE =
@@ -13,18 +15,12 @@ const CAMPO_ERROR = 'border-[#E0454A] bg-[#FFF8F8] focus:border-[#E0454A] focus:
 interface FormFila {
   preguntasPorPartida: string
   segundosPorDesafio: string
-  puntajeMinimoSuperar: string
-  umbralEstrella2: string
-  umbralEstrella3: string
 }
 
 function aForm(fila: DificultadDefault): FormFila {
   return {
     preguntasPorPartida: String(fila.preguntasPorPartida),
     segundosPorDesafio: String(fila.segundosPorDesafio),
-    puntajeMinimoSuperar: String(fila.puntajeMinimoSuperar),
-    umbralEstrella2: String(fila.umbralEstrella2),
-    umbralEstrella3: String(fila.umbralEstrella3),
   }
 }
 
@@ -56,6 +52,31 @@ function CampoNumero({
   )
 }
 
+function BloqueUmbrales({ umbrales }: { umbrales: UmbralesParada | null }) {
+  if (!umbrales) {
+    return <p className="text-xs text-brand-night/40">Calculando…</p>
+  }
+  const pct = (valor: number) => Math.round((valor / umbrales.maximo) * 100)
+  return (
+    <dl className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs tabular-nums text-brand-night/70">
+      <dt className="text-brand-night/45">Máximo</dt>
+      <dd className="text-right font-semibold">{umbrales.maximo.toLocaleString('es-ES')}</dd>
+      <dt className="text-brand-night/45">★1 · superar</dt>
+      <dd className="text-right">
+        {umbrales.minimo.toLocaleString('es-ES')} · {pct(umbrales.minimo)}%
+      </dd>
+      <dt className="text-brand-night/45">★2</dt>
+      <dd className="text-right">
+        {umbrales.umbralEstrella2.toLocaleString('es-ES')} · {pct(umbrales.umbralEstrella2)}%
+      </dd>
+      <dt className="text-brand-night/45">★3</dt>
+      <dd className="text-right">
+        {umbrales.umbralEstrella3.toLocaleString('es-ES')} · {pct(umbrales.umbralEstrella3)}%
+      </dd>
+    </dl>
+  )
+}
+
 function FilaDificultad({
   fila,
   form,
@@ -71,6 +92,32 @@ function FilaDificultad({
   onChange: (form: FormFila) => void
   onGuardar: () => void
 }) {
+  const [umbrales, setUmbrales] = useState<UmbralesParada | null>(null)
+
+  useEffect(() => {
+    const preguntas = Number(form.preguntasPorPartida)
+    if (!Number.isInteger(preguntas) || preguntas <= 0) {
+      setUmbrales(null)
+      return
+    }
+
+    let cancelado = false
+    const timeout = setTimeout(() => {
+      fetchUmbralesParada(fila.dificultad, preguntas)
+        .then((resultado) => {
+          if (!cancelado) setUmbrales(resultado)
+        })
+        .catch((umbralesError: unknown) => {
+          console.error('Error calculando los umbrales derivados:', umbralesError)
+        })
+    }, 250)
+
+    return () => {
+      cancelado = true
+      clearTimeout(timeout)
+    }
+  }, [fila.dificultad, form.preguntasPorPartida])
+
   return (
     <tr className="border-b border-brand-base last:border-0">
       <td className="px-4 py-3.5 align-top">
@@ -93,25 +140,7 @@ function FilaDificultad({
         />
       </td>
       <td className="px-4 py-3.5 align-top">
-        <CampoNumero
-          label="Mínimo para superar"
-          valor={form.puntajeMinimoSuperar}
-          onChange={(v) => onChange({ ...form, puntajeMinimoSuperar: v })}
-        />
-      </td>
-      <td className="px-4 py-3.5 align-top">
-        <CampoNumero
-          label="Umbral 2 estrellas"
-          valor={form.umbralEstrella2}
-          onChange={(v) => onChange({ ...form, umbralEstrella2: v })}
-        />
-      </td>
-      <td className="px-4 py-3.5 align-top">
-        <CampoNumero
-          label="Umbral 3 estrellas"
-          valor={form.umbralEstrella3}
-          onChange={(v) => onChange({ ...form, umbralEstrella3: v })}
-        />
+        <BloqueUmbrales umbrales={umbrales} />
       </td>
       <td className="px-4 py-3.5 align-top">
         <button
@@ -162,9 +191,6 @@ export function DificultadDefaults() {
     const numeros = {
       preguntasPorPartida: Number(form.preguntasPorPartida),
       segundosPorDesafio: Number(form.segundosPorDesafio),
-      puntajeMinimoSuperar: Number(form.puntajeMinimoSuperar),
-      umbralEstrella2: Number(form.umbralEstrella2),
-      umbralEstrella3: Number(form.umbralEstrella3),
     }
 
     setGuardandoDificultad(fila.dificultad)
@@ -199,7 +225,8 @@ export function DificultadDefaults() {
           Valores por defecto de dificultad
         </h1>
         <p className="mt-1.5 text-sm text-brand-night/55">
-          Se aplican a toda parada del camino que no tenga un override propio en ese campo.
+          Se aplican a toda parada del camino que no tenga un override propio en ese campo. Los
+          umbrales de estrellas se derivan de estos valores y no son editables.
         </p>
       </div>
 
@@ -210,9 +237,7 @@ export function DificultadDefaults() {
               <th className="px-4 py-3 font-semibold">Dificultad</th>
               <th className="px-4 py-3 font-semibold">Preguntas/partida</th>
               <th className="px-4 py-3 font-semibold">Segundos/pregunta</th>
-              <th className="px-4 py-3 font-semibold">Mínimo para superar</th>
-              <th className="px-4 py-3 font-semibold">Umbral 2★</th>
-              <th className="px-4 py-3 font-semibold">Umbral 3★</th>
+              <th className="px-4 py-3 font-semibold">Umbrales derivados</th>
               <th className="px-4 py-3 font-semibold" />
             </tr>
           </thead>
