@@ -6,7 +6,7 @@ import { useAdminProfile } from '../lib/useAdminProfile'
 
 const NAV_ITEMS = [
   { label: 'Home', to: '/', enabled: true },
-  { label: 'Jugadores', to: '/', enabled: false },
+  { label: 'Jugadores', to: '/jugadores', enabled: true },
   { label: 'Ranking', to: '/', enabled: false },
   { label: 'Temáticas', to: '/tematicas', enabled: true },
   { label: 'Camino', to: '/camino', enabled: true },

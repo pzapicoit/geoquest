@@ -56,7 +56,7 @@ beforeEach(() => {
 })
 
 describe('PanelLayout', () => {
-  it('muestra la navegación con los 5 enlaces, solo Home, Temáticas y Preguntas/Desafíos navegables', () => {
+  it('muestra la navegación con los 5 enlaces, solo Home, Jugadores, Temáticas y Preguntas/Desafíos navegables', () => {
     renderLayout()
 
     for (const label of ['Home', 'Jugadores', 'Ranking', 'Temáticas', 'Preguntas/Desafíos']) {
@@ -65,16 +65,15 @@ describe('PanelLayout', () => {
     expect(screen.queryByText('Niveles')).not.toBeInTheDocument()
 
     expect(screen.getByRole('link', { name: 'Home' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Jugadores' })).toHaveAttribute('href', '/jugadores')
     expect(screen.getByRole('link', { name: 'Temáticas' })).toHaveAttribute('href', '/tematicas')
     expect(screen.getByRole('link', { name: 'Preguntas/Desafíos' })).toHaveAttribute(
       'href',
       '/preguntas',
     )
-    for (const label of ['Jugadores', 'Ranking']) {
-      const item = screen.getByText(label)
-      expect(item.tagName).not.toBe('A')
-      expect(item).toHaveAttribute('aria-disabled', 'true')
-    }
+    const ranking = screen.getByText('Ranking')
+    expect(ranking.tagName).not.toBe('A')
+    expect(ranking).toHaveAttribute('aria-disabled', 'true')
   })
 
   it('muestra el nombre del admin en el header', async () => {
