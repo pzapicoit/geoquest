@@ -59,6 +59,7 @@ export async function guardarLoteIA(lote: LoteIA): Promise<ResultadoGuardado[]> 
 
     const { error } = await supabase.from('desafios').insert({
       id,
+      nombre: candidato.nombre,
       tipo: 'imagen',
       imagen_url: imagenUrl,
       video_url: null,

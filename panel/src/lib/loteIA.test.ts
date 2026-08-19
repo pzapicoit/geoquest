@@ -58,6 +58,7 @@ describe('guardarLoteIA', () => {
 
     const fila = insert.mock.calls[0][0]
     expect(fila).toMatchObject({
+      nombre: 'Coliseo, Roma',
       tipo: 'imagen',
       texto_pregunta: null,
       video_url: null,
