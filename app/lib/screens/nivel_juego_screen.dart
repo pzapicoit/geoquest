@@ -1595,6 +1595,18 @@ class _LugarRevelado extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
+          revelado.desafio.nombre,
+          key: const Key('nivel-juego-nombre-desafio'),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: GoogleFonts.baloo2(
+            color: Colors.white,
+            fontSize: 19,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
           'UBICACIÓN REAL',
           style: GoogleFonts.outfit(
             color: _teal.withValues(alpha: 0.95),
@@ -2198,30 +2210,14 @@ class _TarjetaDePista extends StatelessWidget {
           const SizedBox(height: 10),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  objetivoGlobal,
-                  key: const Key('nivel-juego-objetivo-global'),
-                  style: GoogleFonts.outfit(
-                    color: Colors.white.withValues(alpha: 0.6),
-                    fontSize: 13,
-                    height: 1.3,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  desafio.nombre,
-                  key: const Key('nivel-juego-nombre-desafio'),
-                  style: GoogleFonts.baloo2(
-                    color: Colors.white,
-                    fontSize: 19,
-                    fontWeight: FontWeight.w700,
-                    height: 1.2,
-                  ),
-                ),
-              ],
+            child: Text(
+              objetivoGlobal,
+              key: const Key('nivel-juego-objetivo-global'),
+              style: GoogleFonts.outfit(
+                color: Colors.white.withValues(alpha: 0.6),
+                fontSize: 13,
+                height: 1.3,
+              ),
             ),
           ),
           const SizedBox(height: 13),

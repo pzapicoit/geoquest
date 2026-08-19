@@ -384,7 +384,7 @@ void main() {
       expect(find.byKey(const Key('nivel-juego-video-error')), findsOneWidget);
     });
 
-    testWidgets('muestra el objetivo global de la temática junto al nombre del '
+    testWidgets('muestra el objetivo global de la temática sin el nombre del '
         'desafío, para los tres tipos de contenido', (tester) async {
       final gateway = _gatewayCon(const [
         _desafioImagen,
@@ -394,7 +394,7 @@ void main() {
 
       await _abrirNivel(tester, gateway);
       expect(find.text('¿Dónde está este monumento?'), findsOneWidget);
-      expect(find.text('Torre Eiffel'), findsOneWidget);
+      expect(find.text('Torre Eiffel'), findsNothing);
 
       await _cerrarPista(tester);
       await _colocarPin(tester);
@@ -402,7 +402,7 @@ void main() {
       await _avanzarDesdeElRevelado(tester);
 
       expect(find.text('¿Dónde está este monumento?'), findsOneWidget);
-      expect(find.text('Coliseo de Roma'), findsOneWidget);
+      expect(find.text('Coliseo de Roma'), findsNothing);
 
       await _cerrarPista(tester);
       await _colocarPin(tester);
@@ -410,8 +410,33 @@ void main() {
       await _avanzarDesdeElRevelado(tester);
 
       expect(find.text('¿Dónde está este monumento?'), findsOneWidget);
-      expect(find.text('Charles Darwin'), findsOneWidget);
+      expect(find.text('Charles Darwin'), findsNothing);
     });
+
+    testWidgets(
+      'el revelado muestra el nombre del desafío junto al lugar real',
+      (tester) async {
+        final gateway = _gatewayCon(const [_desafioImagen, _desafioVideo])
+          ..respuesta = respuestaDePrueba(nombreLugar: 'París, Francia');
+
+        await _abrirNivel(tester, gateway);
+        await _cerrarPista(tester);
+        await _colocarPin(tester);
+        await _confirmarYRevelar(tester);
+
+        expect(find.text('Torre Eiffel'), findsOneWidget);
+        expect(find.text('París, Francia'), findsOneWidget);
+
+        gateway.respuesta = respuestaDePrueba(nombreLugar: 'Roma, Italia');
+        await _avanzarDesdeElRevelado(tester);
+        await _cerrarPista(tester);
+        await _colocarPin(tester);
+        await _confirmarYRevelar(tester);
+
+        expect(find.text('Coliseo de Roma'), findsOneWidget);
+        expect(find.text('Roma, Italia'), findsOneWidget);
+      },
+    );
 
     testWidgets('la cabecera identifica tipo y número de pista', (
       tester,
