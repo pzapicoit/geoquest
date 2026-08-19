@@ -24,6 +24,7 @@ enum TipoDesafio {
 class DesafioJuego {
   const DesafioJuego({
     required this.id,
+    required this.nombre,
     required this.tipo,
     required this.activo,
     this.imagenUrl,
@@ -32,6 +33,10 @@ class DesafioJuego {
   });
 
   final String id;
+
+  /// Nombre corto del sujeto de la pregunta (INT-116), mostrado en el toast
+  /// de pista junto al `objetivoGlobal` de la temática de la parada.
+  final String nombre;
   final TipoDesafio tipo;
   final bool activo;
   final String? imagenUrl;
@@ -55,11 +60,19 @@ class IntentoNivel {
     required this.intentoId,
     required this.desafios,
     this.segundosPorDesafio = 60,
+    this.objetivoGlobal = '',
   });
 
   final String intentoId;
   final List<DesafioJuego> desafios;
   final int segundosPorDesafio;
+
+  /// Formulación fija de qué se pregunta en la temática de esta parada
+  /// (INT-116), mostrada en el toast de pista junto al `nombre` de cada
+  /// desafío. Con default `''` por el mismo motivo que [segundosPorDesafio]:
+  /// no romper los constructores `const` ya existentes en tests que no
+  /// ejercitan el toast de pista.
+  final String objetivoGlobal;
 }
 
 /// Resultado de responder un desafío, tal como lo devuelve la RPC
@@ -249,6 +262,7 @@ IntentoNivel mapearIntentoNivel(Map<String, dynamic> data) {
       data['segundos_por_desafio'],
       'segundos_por_desafio',
     ),
+    objetivoGlobal: _texto(data['objetivo_global'], 'objetivo_global'),
   );
 }
 
@@ -332,6 +346,7 @@ bool _booleano(Object? valor, String campo) => switch (valor) {
 DesafioJuego _mapearDesafio(Map<String, dynamic> fila) {
   return DesafioJuego(
     id: fila['id'] as String,
+    nombre: _texto(fila['nombre'], 'nombre'),
     tipo: TipoDesafio.fromString(fila['tipo'] as String),
     activo: fila['activo'] as bool,
     imagenUrl: fila['imagen_url'] as String?,

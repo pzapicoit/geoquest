@@ -39,6 +39,7 @@ function tematica(overrides: Partial<Tematica> & { id: string }): Tematica {
     activo: true,
     cantidadParadas: 0,
     promptImagen: null,
+    objetivoGlobal: '¿Dónde está esto?',
     ...overrides,
   }
 }
@@ -275,6 +276,7 @@ describe('Tematicas — panel de alta/edición', () => {
 
     expect(screen.getByText('El nombre es obligatorio.')).toBeInTheDocument()
     expect(screen.getByText('Selecciona una imagen de portada.')).toBeInTheDocument()
+    expect(screen.getByText('El objetivo global es obligatorio.')).toBeInTheDocument()
     expect(guardarTematica).not.toHaveBeenCalled()
   })
 
@@ -288,6 +290,7 @@ describe('Tematicas — panel de alta/edición', () => {
     await user.click(screen.getByRole('button', { name: /crear la primera temática/i }))
 
     await user.type(screen.getByLabelText(/^nombre/i), 'Capitales del mundo')
+    await user.type(screen.getByLabelText(/objetivo global/i), '¿De qué país es esta bandera?')
     await user.upload(screen.getByLabelText(/arrastra o/i), archivo('portada.jpg', 'image/jpeg'))
     await user.click(screen.getByRole('button', { name: /^guardar$/i }))
 
@@ -331,6 +334,7 @@ describe('Tematicas — panel de alta/edición', () => {
     await user.click(screen.getByRole('button', { name: /crear la primera temática/i }))
 
     await user.type(screen.getByLabelText(/^nombre/i), 'Capitales del mundo')
+    await user.type(screen.getByLabelText(/objetivo global/i), '¿De qué país es esta bandera?')
     await user.upload(screen.getByLabelText(/arrastra o/i), archivo('portada.jpg', 'image/jpeg'))
     await user.click(screen.getByRole('button', { name: /^guardar$/i }))
 

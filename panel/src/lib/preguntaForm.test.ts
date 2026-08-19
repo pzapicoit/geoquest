@@ -31,8 +31,10 @@ describe('fetchPregunta', () => {
     const single = vi.fn().mockResolvedValue({
       data: {
         id: 'd-1',
+        nombre: 'Torre Eiffel',
         tipo: 'imagen',
-        nombre_lugar: 'Torre Eiffel',
+        nombre_lugar: 'Torre Eiffel, París',
+        pista: 'Se ilumina cada hora al anochecer',
         texto_pregunta: null,
         imagen_url: 'https://example.test/eiffel.jpg',
         video_url: null,
@@ -53,8 +55,10 @@ describe('fetchPregunta', () => {
     expect(eq).toHaveBeenCalledWith('id', 'd-1')
     expect(pregunta).toEqual({
       id: 'd-1',
+      nombre: 'Torre Eiffel',
       tipo: 'imagen',
-      nombreLugar: 'Torre Eiffel',
+      nombreLugar: 'Torre Eiffel, París',
+      pista: 'Se ilumina cada hora al anochecer',
       textoPregunta: null,
       imagenUrl: 'https://example.test/eiffel.jpg',
       videoUrl: null,
@@ -166,8 +170,10 @@ describe('guardarPregunta', () => {
 
     const { id } = await guardarPregunta({
       id: null,
+      nombre: 'Machu Picchu',
       tipo: 'pregunta_texto',
-      nombreLugar: 'Machu Picchu',
+      nombreLugar: 'Machu Picchu, Perú',
+      pista: '  Está a más de 2000 m de altitud  ',
       textoPregunta: '¿Ciudadela inca?',
       latReal: -13.1631,
       lngReal: -72.545,
@@ -185,16 +191,41 @@ describe('guardarPregunta', () => {
     expect(upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         id,
+        nombre: 'Machu Picchu',
         tipo: 'pregunta_texto',
         imagen_url: null,
         video_url: null,
         texto_pregunta: '¿Ciudadela inca?',
-        nombre_lugar: 'Machu Picchu',
+        nombre_lugar: 'Machu Picchu, Perú',
+        pista: 'Está a más de 2000 m de altitud',
         activo: true,
         tematica_id: 't-1',
         dificultad: 'normal',
       }),
     )
+  })
+
+  it('guarda la pista vacía como null', async () => {
+    const upsert = mockUpsert()
+
+    await guardarPregunta({
+      id: null,
+      nombre: 'Machu Picchu',
+      tipo: 'pregunta_texto',
+      nombreLugar: 'Machu Picchu, Perú',
+      pista: '   ',
+      textoPregunta: '¿Ciudadela inca?',
+      latReal: -13.1631,
+      lngReal: -72.545,
+      activo: true,
+      tematicaId: 't-1',
+      dificultad: 'normal',
+      archivo: null,
+      imagenUrlActual: null,
+      videoUrlActual: null,
+    })
+
+    expect(upsert).toHaveBeenCalledWith(expect.objectContaining({ pista: null }))
   })
 
   it('crea una pregunta de tipo imagen subiendo el archivo con el id generado', async () => {
@@ -207,8 +238,10 @@ describe('guardarPregunta', () => {
 
     const { id } = await guardarPregunta({
       id: null,
+      nombre: 'Torre Eiffel',
       tipo: 'imagen',
-      nombreLugar: 'Torre Eiffel',
+      nombreLugar: 'Torre Eiffel, París',
+      pista: null,
       textoPregunta: null,
       latReal: 48.8584,
       lngReal: 2.2945,
@@ -231,8 +264,10 @@ describe('guardarPregunta', () => {
 
     await guardarPregunta({
       id: 'd-1',
+      nombre: 'Torre Eiffel',
       tipo: 'imagen',
-      nombreLugar: 'Torre Eiffel (actualizado)',
+      nombreLugar: 'Torre Eiffel, París (actualizado)',
+      pista: null,
       textoPregunta: null,
       latReal: 48.8584,
       lngReal: 2.2945,
@@ -256,8 +291,10 @@ describe('guardarPregunta', () => {
     await expect(
       guardarPregunta({
         id: null,
+        nombre: 'X',
         tipo: 'pregunta_texto',
         nombreLugar: 'X',
+        pista: null,
         textoPregunta: 'Y',
         latReal: 0,
         lngReal: 0,

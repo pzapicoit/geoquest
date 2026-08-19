@@ -6,8 +6,10 @@ export type TipoMedia = Extract<TipoDesafio, 'imagen' | 'video'>
 
 export interface PreguntaDetalle {
   id: string
+  nombre: string
   tipo: TipoDesafio
   nombreLugar: string
+  pista: string | null
   textoPregunta: string | null
   imagenUrl: string | null
   videoUrl: string | null
@@ -20,8 +22,10 @@ export interface PreguntaDetalle {
 
 interface DesafioDetalleRow {
   id: string
+  nombre: string
   tipo: TipoDesafio
   nombre_lugar: string
+  pista: string | null
   texto_pregunta: string | null
   imagen_url: string | null
   video_url: string | null
@@ -36,7 +40,7 @@ export async function fetchPregunta(id: string): Promise<PreguntaDetalle> {
   const { data, error } = await supabase
     .from('desafios')
     .select(
-      'id, tipo, nombre_lugar, texto_pregunta, imagen_url, video_url, lat_real, lng_real, activo, tematica_id, dificultad',
+      'id, nombre, tipo, nombre_lugar, pista, texto_pregunta, imagen_url, video_url, lat_real, lng_real, activo, tematica_id, dificultad',
     )
     .eq('id', id)
     .single()
@@ -45,8 +49,10 @@ export async function fetchPregunta(id: string): Promise<PreguntaDetalle> {
   const row = data as DesafioDetalleRow
   return {
     id: row.id,
+    nombre: row.nombre,
     tipo: row.tipo,
     nombreLugar: row.nombre_lugar,
+    pista: row.pista,
     textoPregunta: row.texto_pregunta,
     imagenUrl: row.imagen_url,
     videoUrl: row.video_url,
@@ -133,8 +139,10 @@ export async function subirMediaDesafio(id: string, tipo: TipoMedia, file: File)
 
 export interface GuardarPreguntaInput {
   id: string | null
+  nombre: string
   tipo: TipoDesafio
   nombreLugar: string
+  pista: string | null
   textoPregunta: string | null
   latReal: number
   lngReal: number
@@ -158,8 +166,11 @@ export async function guardarPregunta(input: GuardarPreguntaInput): Promise<{ id
     else videoUrl = url
   }
 
+  const pista = input.pista?.trim() ? input.pista.trim() : null
+
   const { error } = await supabase.from('desafios').upsert({
     id,
+    nombre: input.nombre,
     tipo: input.tipo,
     imagen_url: imagenUrl,
     video_url: videoUrl,
@@ -167,6 +178,7 @@ export async function guardarPregunta(input: GuardarPreguntaInput): Promise<{ id
     lat_real: input.latReal,
     lng_real: input.lngReal,
     nombre_lugar: input.nombreLugar,
+    pista,
     activo: input.activo,
     tematica_id: input.tematicaId,
     dificultad: input.dificultad,

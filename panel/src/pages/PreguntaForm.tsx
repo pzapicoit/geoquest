@@ -266,6 +266,7 @@ export function PreguntaForm() {
   const [cargando, setCargando] = useState(esEdicion)
   const [errorCarga, setErrorCarga] = useState('')
 
+  const [nombre, setNombre] = useState('')
   const [tipo, setTipo] = useState<TipoDesafio>('imagen')
   const [archivoImagen, setArchivoImagen] = useState<File | null>(null)
   const [archivoVideo, setArchivoVideo] = useState<File | null>(null)
@@ -275,6 +276,7 @@ export function PreguntaForm() {
   const [lat, setLat] = useState('')
   const [lng, setLng] = useState('')
   const [nombreLugar, setNombreLugar] = useState('')
+  const [pista, setPista] = useState('')
   const [activo, setActivo] = useState(true)
   const [tematicaId, setTematicaId] = useState('')
   const [dificultad, setDificultad] = useState<Dificultad | ''>('')
@@ -296,6 +298,7 @@ export function PreguntaForm() {
       fetchPregunta(id)
         .then((pregunta) => {
           if (!isMounted) return
+          setNombre(pregunta.nombre)
           setTipo(pregunta.tipo)
           setTextoPregunta(pregunta.textoPregunta ?? '')
           setImagenUrlActual(pregunta.imagenUrl)
@@ -303,6 +306,7 @@ export function PreguntaForm() {
           setLat(String(pregunta.latReal))
           setLng(String(pregunta.lngReal))
           setNombreLugar(pregunta.nombreLugar)
+          setPista(pregunta.pista ?? '')
           setActivo(pregunta.activo)
           setTematicaId(pregunta.tematicaId)
           setDificultad(pregunta.dificultad)
@@ -376,6 +380,9 @@ export function PreguntaForm() {
   function validar(): Record<string, string> {
     const erroresLocal: Record<string, string> = {}
 
+    if (!nombre.trim()) {
+      erroresLocal.nombre = 'El nombre es obligatorio.'
+    }
     if (!nombreLugar.trim()) {
       erroresLocal.nombreLugar = 'El nombre del lugar es obligatorio.'
     }
@@ -421,8 +428,10 @@ export function PreguntaForm() {
     try {
       await guardarPregunta({
         id: id ?? null,
+        nombre: nombre.trim(),
         tipo,
         nombreLugar: nombreLugar.trim(),
+        pista: pista.trim() ? pista.trim() : null,
         textoPregunta: tipo === 'pregunta_texto' ? textoPregunta.trim() : null,
         latReal: latNum,
         lngReal: lngNum,
@@ -469,6 +478,27 @@ export function PreguntaForm() {
 
       <form onSubmit={handleGuardar} noValidate className="flex flex-col gap-5">
         <div className="flex flex-col gap-6 rounded-2xl border border-brand-border bg-white p-6">
+          <label className="flex max-w-[440px] flex-col gap-1.5">
+            <span className="text-sm font-semibold text-brand-night">
+              Nombre <span className="text-[#E0454A]">*</span>
+            </span>
+            <input
+              type="text"
+              value={nombre}
+              onChange={(e) => {
+                setNombre(e.target.value)
+                limpiarError('nombre')
+              }}
+              placeholder="Ej. Torre Eiffel"
+              className={`${CAMPO_BASE} ${errores.nombre ? CAMPO_ERROR : ''}`}
+            />
+            <span className="text-xs text-brand-night/45">
+              Identifica esta pregunta en el panel y se muestra al jugador junto al objetivo de la
+              temática.
+            </span>
+            <ErrorCampo mensaje={errores.nombre} />
+          </label>
+
           <SeccionHeader numero={1} titulo="Contenido" />
           <SelectorTipo tipo={tipo} onChange={setTipo} />
 
@@ -598,7 +628,7 @@ export function PreguntaForm() {
 
           <label className="flex max-w-[440px] flex-col gap-1.5">
             <span className="text-sm font-semibold text-brand-night">
-              Nombre del lugar <span className="text-[#E0454A]">*</span>
+              Respuesta real (lugar que se revela) <span className="text-[#E0454A]">*</span>
             </span>
             <input
               type="text"
@@ -611,9 +641,26 @@ export function PreguntaForm() {
               className={`${CAMPO_BASE} ${errores.nombreLugar ? CAMPO_ERROR : ''}`}
             />
             <span className="text-xs text-brand-night/45">
-              Se muestra al jugador al revelar la respuesta.
+              El lugar real que se revela al jugador al terminar el desafío. No es el nombre de la
+              pregunta.
             </span>
             <ErrorCampo mensaje={errores.nombreLugar} />
+          </label>
+
+          <label className="flex max-w-[440px] flex-col gap-1.5">
+            <span className="text-sm font-semibold text-brand-night">
+              Pista <span className="font-medium text-brand-night/40">· opcional</span>
+            </span>
+            <textarea
+              rows={2}
+              value={pista}
+              onChange={(e) => setPista(e.target.value)}
+              placeholder="Pista adicional en texto sobre la pregunta"
+              className={`${CAMPO_BASE} h-auto resize-y py-2.5`}
+            />
+            <span className="text-xs text-brand-night/45">
+              Por ahora no se muestra en la app ni en el listado, solo aquí.
+            </span>
           </label>
 
           <label className="flex cursor-pointer items-center gap-3.5">

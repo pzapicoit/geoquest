@@ -12,6 +12,7 @@ import 'fakes/mundo_de_prueba.dart';
 
 const _desafioImagen = DesafioJuego(
   id: 'd1',
+  nombre: 'Torre Eiffel',
   tipo: TipoDesafio.imagen,
   activo: true,
   imagenUrl: 'https://example.com/foto.jpg',
@@ -19,6 +20,7 @@ const _desafioImagen = DesafioJuego(
 
 const _desafioVideo = DesafioJuego(
   id: 'd2',
+  nombre: 'Coliseo de Roma',
   tipo: TipoDesafio.video,
   activo: true,
   videoUrl: 'https://example.com/clip.mp4',
@@ -26,6 +28,7 @@ const _desafioVideo = DesafioJuego(
 
 const _desafioTexto = DesafioJuego(
   id: 'd3',
+  nombre: 'Charles Darwin',
   tipo: TipoDesafio.preguntaTexto,
   activo: true,
   textoPregunta: '¿Dónde está esto?',
@@ -136,11 +139,13 @@ Future<void> _avanzarDesdeElRevelado(WidgetTester tester) async {
 FakeNivelJuegoGateway _gatewayCon(
   List<DesafioJuego> desafios, {
   int segundosPorDesafio = 60,
+  String objetivoGlobal = 'Objetivo de prueba',
 }) => FakeNivelJuegoGateway(
   IntentoNivel(
     intentoId: 'i1',
     desafios: desafios,
     segundosPorDesafio: segundosPorDesafio,
+    objetivoGlobal: objetivoGlobal,
   ),
 );
 
@@ -377,6 +382,35 @@ void main() {
       await _abrirNivel(tester, _gatewayCon(const [_desafioVideo]));
 
       expect(find.byKey(const Key('nivel-juego-video-error')), findsOneWidget);
+    });
+
+    testWidgets('muestra el objetivo global de la temática junto al nombre del '
+        'desafío, para los tres tipos de contenido', (tester) async {
+      final gateway = _gatewayCon(const [
+        _desafioImagen,
+        _desafioVideo,
+        _desafioTexto,
+      ], objetivoGlobal: '¿Dónde está este monumento?');
+
+      await _abrirNivel(tester, gateway);
+      expect(find.text('¿Dónde está este monumento?'), findsOneWidget);
+      expect(find.text('Torre Eiffel'), findsOneWidget);
+
+      await _cerrarPista(tester);
+      await _colocarPin(tester);
+      await _confirmarYRevelar(tester);
+      await _avanzarDesdeElRevelado(tester);
+
+      expect(find.text('¿Dónde está este monumento?'), findsOneWidget);
+      expect(find.text('Coliseo de Roma'), findsOneWidget);
+
+      await _cerrarPista(tester);
+      await _colocarPin(tester);
+      await _confirmarYRevelar(tester);
+      await _avanzarDesdeElRevelado(tester);
+
+      expect(find.text('¿Dónde está este monumento?'), findsOneWidget);
+      expect(find.text('Charles Darwin'), findsOneWidget);
     });
 
     testWidgets('la cabecera identifica tipo y número de pista', (

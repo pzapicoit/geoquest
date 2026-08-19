@@ -202,9 +202,7 @@ function FilaPregunta({
         <div className="flex items-center gap-3">
           <Miniatura pregunta={pregunta} />
           <div className="min-w-0">
-            <div className="truncate text-sm font-semibold text-brand-night">
-              {pregunta.nombreLugar}
-            </div>
+            <div className="truncate text-sm font-semibold text-brand-night">{pregunta.nombre}</div>
             {pregunta.tipo === 'pregunta_texto' && pregunta.textoPregunta && (
               <div className="truncate text-xs text-brand-night/50">{pregunta.textoPregunta}</div>
             )}
@@ -223,7 +221,7 @@ function FilaPregunta({
       </td>
       <td className="px-5 py-3">
         <select
-          aria-label={`Dificultad de "${pregunta.nombreLugar}"`}
+          aria-label={`Dificultad de "${pregunta.nombre}"`}
           value={pregunta.dificultad}
           disabled={guardandoDificultad}
           onChange={(e) => onCambiarDificultad(e.target.value as Dificultad)}
@@ -240,7 +238,7 @@ function FilaPregunta({
         <label className="flex cursor-pointer items-center gap-2">
           <input
             type="checkbox"
-            aria-label={`Cambiar estado de "${pregunta.nombreLugar}"`}
+            aria-label={`Cambiar estado de "${pregunta.nombre}"`}
             checked={pregunta.activo}
             disabled={guardandoActivo}
             onChange={(e) => onCambiarActivo(e.target.checked)}
@@ -348,7 +346,7 @@ function EstadoVacioFiltros({ onLimpiar }: { onLimpiar: () => void }) {
         Ninguna pregunta coincide
       </h4>
       <p className="max-w-md text-sm text-brand-night/55">
-        Prueba a quitar algún filtro o a buscar solo por el nombre del lugar.
+        Prueba a quitar algún filtro o a buscar solo por el nombre.
       </p>
       <button
         type="button"
@@ -483,7 +481,7 @@ export function Preguntas() {
     if (eliminandoIds.has(pregunta.id)) return
 
     const confirmado = window.confirm(
-      `¿Eliminar "${pregunta.nombreLugar}"? Esta acción no se puede deshacer.`,
+      `¿Eliminar "${pregunta.nombre}"? Esta acción no se puede deshacer.`,
     )
     if (!confirmado) return
 
@@ -597,9 +595,7 @@ export function Preguntas() {
   const q = query.trim().toLowerCase()
   const filtradas = (preguntas ?? []).filter((p) => {
     const matchQuery =
-      !q ||
-      p.nombreLugar.toLowerCase().includes(q) ||
-      (p.textoPregunta ?? '').toLowerCase().includes(q)
+      !q || p.nombre.toLowerCase().includes(q) || p.nombreLugar.toLowerCase().includes(q)
     const matchTopic = topic === TODAS_TEMATICAS || p.tematicaNombre === topic
     const matchDificultad = dificultad === 'todas' || p.dificultad === dificultad
     const matchTipo = tipo === 'todos' || p.tipo === tipo
@@ -687,7 +683,7 @@ export function Preguntas() {
                   setQuery(e.target.value)
                   alCambiarFiltro()
                 }}
-                placeholder="Buscar por lugar o texto de la pregunta"
+                placeholder="Buscar por nombre o lugar"
                 className="min-w-0 flex-1 border-0 bg-transparent text-sm text-brand-night outline-none placeholder:text-brand-night/40"
               />
             </label>
