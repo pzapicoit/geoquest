@@ -7,6 +7,9 @@ export interface Tematica {
   orden: number
   activo: boolean
   cantidadParadas: number
+  // Estilo que la generación con IA aplica a las imágenes de esta temática.
+  // Gobierna solo la ilustración, no qué lugares se proponen (INT-113 delta-1).
+  promptImagen: string | null
 }
 
 interface TematicaRow {
@@ -15,6 +18,7 @@ interface TematicaRow {
   imagen_portada: string
   orden: number
   activo: boolean
+  prompt_imagen: string | null
 }
 
 interface CaminoRow {
@@ -26,7 +30,7 @@ export async function fetchTematicas(): Promise<Tematica[]> {
     await Promise.all([
       supabase
         .from('tematicas')
-        .select('id, nombre, imagen_portada, orden, activo')
+        .select('id, nombre, imagen_portada, orden, activo, prompt_imagen')
         .order('orden', { ascending: true }),
       supabase.from('camino').select('tematica_id'),
     ])
@@ -48,6 +52,7 @@ export async function fetchTematicas(): Promise<Tematica[]> {
     orden: tematica.orden,
     activo: tematica.activo,
     cantidadParadas: cantidadPorTematica.get(tematica.id) ?? 0,
+    promptImagen: tematica.prompt_imagen,
   }))
 }
 
@@ -87,10 +92,12 @@ export interface GuardarTematicaInput {
   activo: boolean
   archivo: File | null
   imagenPortadaActual: string | null
+  promptImagen: string | null
 }
 
 export async function guardarTematica(input: GuardarTematicaInput): Promise<{ id: string }> {
   const id = input.id ?? crypto.randomUUID()
+  const promptImagen = input.promptImagen?.trim() ? input.promptImagen.trim() : null
 
   let imagenPortada = input.imagenPortadaActual
   if (input.archivo) {
@@ -107,6 +114,7 @@ export async function guardarTematica(input: GuardarTematicaInput): Promise<{ id
         nombre: input.nombre,
         imagen_portada: imagenPortada,
         activo: input.activo,
+        prompt_imagen: promptImagen,
       })
       .eq('id', input.id)
     if (error) throw new Error(error.message)
@@ -125,6 +133,7 @@ export async function guardarTematica(input: GuardarTematicaInput): Promise<{ id
     imagen_portada: imagenPortada,
     orden: siguienteOrden,
     activo: input.activo,
+    prompt_imagen: promptImagen,
   })
   if (error) throw new Error(error.message)
 

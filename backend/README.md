@@ -63,6 +63,103 @@ es lo que delata esa divergencia.
 > local, es el único entorno que existe: borra y reconstruye. Por eso el contenido
 > de trabajo debe vivir en el seed, no solo dentro de la base.
 
+## Edge Functions
+
+Hay dos, y existen por una sola razón: **custodiar la clave de OpenAI**. El panel
+no puede llamar a OpenAI directamente porque su bundle es público, así que la
+llamada se hace desde una función que lee la clave de su entorno.
+
+| Función | Qué hace |
+|---|---|
+| `proponer-lugares` | Propone lugares reales para una tanda de preguntas (una invocación por tanda) |
+| `generar-imagen-lugar` | Ilustra un lugar en estilo Pixar (**una invocación por imagen**) |
+
+Ambas exigen que quien las invoca tenga `profiles.role = 'admin'`, y no usan la
+clave secreta: hablan con la base con la clave publicable más el `Authorization`
+del invocador, así que RLS sigue siendo la frontera.
+
+```bash
+cd backend
+supabase functions deploy proponer-lugares generar-imagen-lugar
+```
+
+No hace falta Docker para desplegar. `supabase functions serve` (ejecución local)
+sí lo pide, así que **la forma de probarlas es desplegadas** contra el proyecto
+remoto, igual que las migraciones.
+
+### Secretos y variables de las funciones
+
+```bash
+supabase secrets list --project-ref xhrntgsdlnwrvwehqfgl
+supabase secrets set geo_open_api=sk-... --project-ref xhrntgsdlnwrvwehqfgl
+```
+
+| Variable | Obligatoria | Valor por defecto |
+|---|---|---|
+| `geo_open_api` | sí | — (sin ella la función responde `secreto_no_configurado`) |
+| `GEOQUEST_MODELO_TEXTO` | no | `gpt-4.1` |
+| `GEOQUEST_MODELO_IMAGEN` | no | `gpt-image-1` |
+| `GEOQUEST_PUBLISHABLE_KEY` | no | la que inyecta la plataforma |
+
+Los **valores no se versionan**: el repo documenta qué secretos hacen falta y
+para qué, nunca su contenido. `supabase secrets list` devuelve solo el nombre y
+un digest, así que sirve para comprobar que están sin revelarlos.
+
+> ⚠️ **Pon el `--project-ref` explícito.** El selector de proyecto del dashboard
+> se queda en el último que abriste, y un secreto creado en el proyecto vecino no
+> da ningún error: simplemente la función de GeoQuest no lo encuentra.
+
+Cambiar de modelo es un `secrets set` y una invocación nueva, sin redeploy de
+código. Si el modelo por defecto no está habilitado en la cuenta de OpenAI, la
+función responde `openai_error` y el panel lo cuenta como "la IA no ha
+respondido"; el motivo real está en los logs de la función (dashboard → Edge
+Functions → Logs; esta versión del CLI no tiene `functions logs`).
+
+**Elige modelo de texto por velocidad, no por potencia.** Medido contra este
+prompt: `gpt-4.1` devuelve 3 lugares con coordenadas correctas en ~4 s, mientras
+`gpt-5` agotó el límite de 90 s sin responder — es un modelo de razonamiento y
+aquí no se le pide razonar, se le pide recordar lugares reales. Una imagen con
+`gpt-image-1` a calidad media tarda ~24 s y pesa ~1,2 MB en WebP.
+
+`GEOQUEST_PUBLISHABLE_KEY` solo hace falta si la comprobación de admin empieza a
+fallar para un usuario que sí es admin: significa que la clave publicable que
+inyecta la plataforma no vale para este proyecto (las claves legacy de tipo JWT
+están desactivadas aquí). Su valor es la `sb_publishable_…` de `.env.local`, que
+no es secreta —viaja en el panel y en la app—.
+
+### Estilo de ilustración por temática
+
+`tematicas.prompt_imagen` (texto, opcional) guarda el estilo que
+`generar-imagen-lugar` aplica a **todas** las imágenes que la IA genere para esa
+temática. Se edita en el panel, en el formulario de la temática.
+
+Gobierna solo **cómo se ve la ilustración**. No decide qué lugares se proponen:
+eso lo deduce `proponer-lugares` de las preguntas que la temática ya tiene, y
+tener dos fuentes para la misma decisión no tendría forma de resolverse cuando se
+contradijeran.
+
+Llega a la función como campo propio, separado de las indicaciones de la tanda, y
+manda sobre las reglas genéricas del prompt. Ejemplo real, para «Banderas»:
+
+> la ilustración es la bandera del país sobre fondo neutro, la bandera ocupa todo
+> el encuadre, sin escena, sin paisaje, sin edificios y sin gente
+
+Sin ese estilo, el modelo dibuja la bandera dentro de una escena de ciudad — que
+rompe la coherencia con el resto de la temática y da pistas de la respuesta.
+
+### Calidad
+
+```bash
+cd backend/supabase/functions
+deno check proponer-lugares/index.ts generar-imagen-lugar/index.ts
+deno lint
+```
+
+La lógica que se puede equivocar en silencio (deduplicación de lugares, orden del
+lote, traducción de errores) no vive aquí sino en `panel/src/lib/`, donde hay
+tests. Estas funciones se limitan a autorizar, construir el prompt y hablar con
+OpenAI.
+
 ## Stack local (opcional, diferido a INT-77)
 
 Requiere Docker Desktop arrancado.

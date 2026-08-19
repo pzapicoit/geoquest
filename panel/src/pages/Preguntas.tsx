@@ -65,6 +65,10 @@ const BOTON_FONDO = {
   background: 'linear-gradient(140deg, #2BC0A8, #1B6FA8)',
 }
 
+const BOTON_IA_FONDO = {
+  background: 'linear-gradient(140deg, #7C5CFF, #5B3FD1)',
+}
+
 function IconoTipo({ tipo, size = 18 }: { tipo: TipoDesafio; size?: number }) {
   if (tipo === 'imagen') {
     return (
@@ -394,9 +398,7 @@ function ChipFiltro({
       aria-pressed={activo}
       onClick={onClick}
       className={`inline-flex items-center gap-1.5 rounded-full border-[1.5px] px-3 py-1.5 text-xs font-semibold whitespace-nowrap transition-colors ${
-        activo
-          ? claseActiva
-          : 'border-brand-border text-brand-night/55 hover:border-brand-night/30'
+        activo ? claseActiva : 'border-brand-border text-brand-night/55 hover:border-brand-night/30'
       }`}
     >
       {children}
@@ -431,7 +433,9 @@ export function Preguntas() {
   const filtrosGuardados = leerFiltrosGuardados()
   const [query, setQuery] = useState(filtrosGuardados.query ?? '')
   const [topic, setTopic] = useState(filtrosGuardados.topic ?? TODAS_TEMATICAS)
-  const [dificultad, setDificultad] = useState<FiltroDificultad>(filtrosGuardados.dificultad ?? 'todas')
+  const [dificultad, setDificultad] = useState<FiltroDificultad>(
+    filtrosGuardados.dificultad ?? 'todas',
+  )
   const [tipo, setTipo] = useState<FiltroTipo>(filtrosGuardados.tipo ?? 'todos')
   const [estado, setEstado] = useState<FiltroEstado>(filtrosGuardados.estado ?? 'todos')
   const [page, setPage] = useState(1)
@@ -642,13 +646,22 @@ export function Preguntas() {
             {total} {total === 1 ? 'pregunta' : 'preguntas'} en el banco
           </p>
         </div>
-        <Link
-          to="/preguntas/nueva"
-          className="flex items-center gap-2 rounded-xl px-6 py-4 font-display text-base font-extrabold text-white"
-          style={BOTON_FONDO}
-        >
-          <span className="text-xl leading-none">+</span>Nueva pregunta
-        </Link>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <Link
+            to="/preguntas/generar-ia"
+            className="flex items-center gap-2 rounded-xl px-5 py-4 font-display text-base font-extrabold text-white"
+            style={BOTON_IA_FONDO}
+          >
+            <span className="leading-none">✦</span>Generar con IA
+          </Link>
+          <Link
+            to="/preguntas/nueva"
+            className="flex items-center gap-2 rounded-xl px-6 py-4 font-display text-base font-extrabold text-white"
+            style={BOTON_FONDO}
+          >
+            <span className="text-xl leading-none">+</span>Nueva pregunta
+          </Link>
+        </div>
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-brand-border bg-white">

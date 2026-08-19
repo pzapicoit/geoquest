@@ -41,6 +41,7 @@ const TEMATICAS = [
     imagen_portada: 'https://example.test/t-1.jpg',
     orden: 1,
     activo: true,
+    prompt_imagen: 'la bandera sobre fondo neutro',
   },
   {
     id: 't-2',
@@ -48,6 +49,7 @@ const TEMATICAS = [
     imagen_portada: 'https://example.test/t-2.jpg',
     orden: 2,
     activo: true,
+    prompt_imagen: null,
   },
 ]
 
@@ -72,6 +74,7 @@ describe('fetchTematicas', () => {
         orden: 1,
         activo: true,
         cantidadParadas: 2,
+        promptImagen: 'la bandera sobre fondo neutro',
       },
       {
         id: 't-2',
@@ -80,6 +83,7 @@ describe('fetchTematicas', () => {
         orden: 2,
         activo: true,
         cantidadParadas: 1,
+        promptImagen: null,
       },
     ])
   })
@@ -171,6 +175,7 @@ describe('guardarTematica', () => {
       activo: true,
       archivo: null,
       imagenPortadaActual: 'https://example.test/existing.jpg',
+      promptImagen: null,
     })
 
     expect(insert).toHaveBeenCalledWith(
@@ -194,6 +199,7 @@ describe('guardarTematica', () => {
       activo: false,
       archivo: null,
       imagenPortadaActual: 'https://example.test/existing.jpg',
+      promptImagen: null,
     })
 
     expect(update).toHaveBeenCalledWith(
@@ -219,11 +225,48 @@ describe('guardarTematica', () => {
       activo: true,
       archivo: archivo('nueva.jpg', 'image/jpeg'),
       imagenPortadaActual: 'https://example.test/vieja.jpg',
+      promptImagen: null,
     })
 
     expect(update).toHaveBeenCalledWith(
       expect.objectContaining({ imagen_portada: 'https://cdn.test/nueva.jpg' }),
     )
+  })
+
+  it('guarda el prompt de imagen de la temática', async () => {
+    const eq = vi.fn().mockResolvedValue({ error: null })
+    const update = vi.fn().mockReturnValue({ eq })
+    from.mockReturnValue({ update })
+
+    await guardarTematica({
+      id: 't-1',
+      nombre: 'Banderas',
+      activo: true,
+      archivo: null,
+      imagenPortadaActual: 'https://example.test/existing.jpg',
+      promptImagen: '  la bandera sobre fondo neutro  ',
+    })
+
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({ prompt_imagen: 'la bandera sobre fondo neutro' }),
+    )
+  })
+
+  it('guarda el prompt vacío como null, para no distinguir dos formas de "sin estilo"', async () => {
+    const eq = vi.fn().mockResolvedValue({ error: null })
+    const update = vi.fn().mockReturnValue({ eq })
+    from.mockReturnValue({ update })
+
+    await guardarTematica({
+      id: 't-1',
+      nombre: 'Banderas',
+      activo: true,
+      archivo: null,
+      imagenPortadaActual: 'https://example.test/existing.jpg',
+      promptImagen: '   ',
+    })
+
+    expect(update).toHaveBeenCalledWith(expect.objectContaining({ prompt_imagen: null }))
   })
 
   it('lanza un error si no hay portada (ni nueva ni actual)', async () => {
@@ -234,6 +277,7 @@ describe('guardarTematica', () => {
         activo: true,
         archivo: null,
         imagenPortadaActual: null,
+        promptImagen: null,
       }),
     ).rejects.toThrow(/portada/i)
   })

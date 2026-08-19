@@ -277,6 +277,16 @@ describe('Preguntas', () => {
     expect(accionEditar).toHaveAttribute('href', '/preguntas/d-eiffel/editar')
   })
 
+  it('"Generar con IA" navega a /preguntas/generar-ia', async () => {
+    fetchPreguntas.mockResolvedValue([TORRE_EIFFEL])
+
+    renderPreguntas()
+    await screen.findByText('Torre Eiffel')
+
+    const generarConIa = screen.getByText('Generar con IA')
+    expect(generarConIa.closest('a')).toHaveAttribute('href', '/preguntas/generar-ia')
+  })
+
   it('elimina un desafío con éxito y lo quita del listado', async () => {
     fetchPreguntas.mockResolvedValue([TORRE_EIFFEL, MACHU_PICCHU])
     eliminarPregunta.mockResolvedValue(undefined)

@@ -385,6 +385,17 @@ deno_version = 2
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 
+# INT-113: funciones de IA para la generacion de preguntas del panel.
+# verify_jwt deja fuera a quien no trae sesion; el rol de admin lo comprueba
+# la propia funcion contra profiles (functions/_shared/admin.ts).
+[functions.proponer-lugares]
+enabled = true
+verify_jwt = true
+
+[functions.generar-imagen-lugar]
+enabled = true
+verify_jwt = true
+
 [analytics]
 enabled = true
 port = 54327

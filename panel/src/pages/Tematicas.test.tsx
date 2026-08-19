@@ -38,6 +38,7 @@ function tematica(overrides: Partial<Tematica> & { id: string }): Tematica {
     orden: 1,
     activo: true,
     cantidadParadas: 0,
+    promptImagen: null,
     ...overrides,
   }
 }
@@ -217,6 +218,50 @@ describe('Tematicas — panel de alta/edición', () => {
     await user.click(screen.getAllByLabelText('Editar temática')[1])
 
     expect(screen.getByDisplayValue('Paisajes de Europa')).toBeInTheDocument()
+  })
+
+  it('precarga el prompt de imagen guardado y lo manda al guardar', async () => {
+    const banderas = tematica({
+      id: 't-banderas',
+      nombre: 'Banderas',
+      promptImagen: 'la bandera sobre fondo neutro',
+    })
+    fetchTematicas.mockResolvedValue([banderas])
+    guardarTematica.mockResolvedValue({ id: 't-banderas' })
+    const user = userEvent.setup()
+    renderTematicas()
+
+    await screen.findByText('Banderas')
+    await user.click(screen.getAllByLabelText('Editar temática')[0])
+
+    const campo = screen.getByDisplayValue('la bandera sobre fondo neutro')
+    await user.clear(campo)
+    await user.type(campo, 'la bandera ondeando, fondo liso')
+    await user.click(screen.getByRole('button', { name: /^guardar$/i }))
+
+    await waitFor(() =>
+      expect(guardarTematica).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: 't-banderas',
+          promptImagen: 'la bandera ondeando, fondo liso',
+        }),
+      ),
+    )
+  })
+
+  it('el prompt de imagen es opcional: se puede guardar sin él', async () => {
+    fetchTematicas.mockResolvedValue([CAPITALES])
+    guardarTematica.mockResolvedValue({ id: 't-1' })
+    const user = userEvent.setup()
+    renderTematicas()
+
+    await screen.findByText('Capitales del mundo')
+    await user.click(screen.getAllByLabelText('Editar temática')[0])
+    await user.click(screen.getByRole('button', { name: /^guardar$/i }))
+
+    await waitFor(() =>
+      expect(guardarTematica).toHaveBeenCalledWith(expect.objectContaining({ promptImagen: '' })),
+    )
   })
 
   it('bloquea el guardado sin nombre ni portada', async () => {
