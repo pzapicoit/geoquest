@@ -84,8 +84,8 @@ begin
 
   -- 2) Tematica + dos paradas de camino (dificultad 'facil', ya seedeada en
   -- dificultad_defaults). Orden muy alto para no chocar con datos reales.
-  insert into tematicas (id, nombre, imagen_portada, orden)
-  values (v_tematica, 'Test INT-109', 'x.png', 900001);
+  insert into tematicas (id, nombre, imagen_portada, orden, objetivo_global)
+  values (v_tematica, 'Test INT-109', 'x.png', 900001, '¿Dónde está esto?');
   insert into camino (id, orden, tematica_id, dificultad, nombre)
   values
     (v_camino_1, 900001, v_tematica, 'facil', 'Test parada 1'),
@@ -116,10 +116,10 @@ begin
   -- agotado -> bonus de rapidez 0 -> puntos = calcular_puntaje_por_distancia(0)
   -- = 5000 exactos (ver test_calcular_puntaje.sql). Con lat/lng NULL
   -- (sin pin) el trigger deja puntos = 0 exactos, sin pasar por la curva.
-  insert into desafios (id, tipo, texto_pregunta, lat_real, lng_real, nombre_lugar, tematica_id, dificultad)
+  insert into desafios (id, nombre, tipo, texto_pregunta, lat_real, lng_real, nombre_lugar, tematica_id, dificultad)
   values
-    (v_desafio_1, 'pregunta_texto', 'Test 1', 0, 0, 'Test lugar 1', v_tematica, 'facil'),
-    (v_desafio_2, 'pregunta_texto', 'Test 2', 0, 0, 'Test lugar 2', v_tematica, 'facil');
+    (v_desafio_1, 'Test 1', 'pregunta_texto', 'Test 1', 0, 0, 'Test lugar 1', v_tematica, 'facil'),
+    (v_desafio_2, 'Test 2', 'pregunta_texto', 'Test 2', 0, 0, 'Test lugar 2', v_tematica, 'facil');
 
   insert into intentos_nivel (id, usuario_id, camino_id) values (gen_random_uuid(), v_jug_a, v_camino_1) returning id into v_intento_a;
   insert into intentos_nivel (id, usuario_id, camino_id) values (gen_random_uuid(), v_jug_b, v_camino_1) returning id into v_intento_b;
