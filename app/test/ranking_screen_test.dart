@@ -116,18 +116,18 @@ void main() {
     },
   );
 
-  testWidgets('el selector de chips solo aparece en Nivel y Temática', (
+  testWidgets('el selector de chips solo aparece en Camino y Temática', (
     tester,
   ) async {
     final gateway = FakeRankingGateway(global: _globalDePrueba);
     await tester.pumpWidget(_pantalla(gateway));
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const Key('ranking-chip-nivel-c1')), findsNothing);
+    expect(find.byKey(const Key('ranking-chip-camino-c1')), findsNothing);
 
-    await tester.tap(find.byKey(const Key('ranking-tab-nivel')));
+    await tester.tap(find.byKey(const Key('ranking-tab-camino')));
     await tester.pumpAndSettle();
-    expect(find.byKey(const Key('ranking-chip-nivel-c1')), findsOneWidget);
+    expect(find.byKey(const Key('ranking-chip-camino-c1')), findsOneWidget);
     expect(
       find.byKey(const Key('ranking-chip-tematica-t-monumentos')),
       findsNothing,
@@ -139,11 +139,36 @@ void main() {
       find.byKey(const Key('ranking-chip-tematica-t-monumentos')),
       findsOneWidget,
     );
-    expect(find.byKey(const Key('ranking-chip-nivel-c1')), findsNothing);
+    expect(find.byKey(const Key('ranking-chip-camino-c1')), findsNothing);
   });
 
   testWidgets(
-    'cambiar a la pestaña Nivel recarga la clasificación de la primera parada',
+    'el texto de un chip de filtro no se recorta contra su propio borde',
+    (tester) async {
+      final gateway = FakeRankingGateway(global: _globalDePrueba);
+      await tester.pumpWidget(_pantalla(gateway));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('ranking-tab-camino')));
+      await tester.pumpAndSettle();
+
+      final chip = find.byKey(const Key('ranking-chip-camino-c1'));
+      final texto = find.descendant(of: chip, matching: find.text('Camino 1'));
+
+      final altoChip = tester.getSize(chip).height;
+      final altoTexto = tester.getSize(texto).height;
+      // Presupuesto real del widget: el chip reserva `vertical: 9` de padding
+      // a cada lado (`_SelectorChips`, `Container` del chip) — el texto debe
+      // caber en lo que queda sin recortarse contra el borde.
+      const paddingVerticalChip = 9 * 2;
+
+      expect(altoTexto, lessThan(altoChip - paddingVerticalChip));
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'cambiar a la pestaña Camino recarga la clasificación de la primera parada',
     (tester) async {
       final gateway = FakeRankingGateway(
         global: _globalDePrueba,
@@ -151,7 +176,7 @@ void main() {
           'c1': const [
             EntradaRanking(
               usuarioId: 'u9',
-              nombre: 'JugadorNivel',
+              nombre: 'JugadorCamino',
               puntuacion: 90,
               superado: true,
               posicion: 1,
@@ -163,16 +188,16 @@ void main() {
       await tester.pumpWidget(_pantalla(gateway));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byKey(const Key('ranking-tab-nivel')));
+      await tester.tap(find.byKey(const Key('ranking-tab-camino')));
       await tester.pumpAndSettle();
 
       expect(gateway.fetchPorCaminoCalls, 1);
       expect(gateway.caminoIdsConsultados, ['c1']);
-      expect(find.text('JugadorNivel'), findsOneWidget);
+      expect(find.text('JugadorCamino'), findsOneWidget);
     },
   );
 
-  testWidgets('seleccionar otro chip de nivel recarga con ese caminoId', (
+  testWidgets('seleccionar otro chip de camino recarga con ese caminoId', (
     tester,
   ) async {
     final gateway = FakeRankingGateway(
@@ -202,10 +227,10 @@ void main() {
     );
     await tester.pumpWidget(_pantalla(gateway));
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('ranking-tab-nivel')));
+    await tester.tap(find.byKey(const Key('ranking-tab-camino')));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byKey(const Key('ranking-chip-nivel-c2')));
+    await tester.tap(find.byKey(const Key('ranking-chip-camino-c2')));
     await tester.pumpAndSettle();
 
     expect(gateway.caminoIdsConsultados, ['c1', 'c2']);

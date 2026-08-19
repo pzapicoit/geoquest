@@ -15,7 +15,7 @@ const _plata = Color(0xFFD8E3E8);
 const _bronce = Color(0xFFE09B62);
 
 /// Colores de acento que rotan por `tematicaId`, para el punto de color de
-/// cada chip de "Temática"/"Nivel" — misma técnica que `_colorAcento` en
+/// cada chip de "Temática"/"Camino" — misma técnica que `_colorAcento` en
 /// `camino_screen.dart`, redefinida aquí porque cada pantalla lleva sus
 /// propias constantes de color (no hay un `AppColors` compartido).
 const _acentosTematica = [
@@ -58,9 +58,9 @@ EntradaRanking? _buscarPropia(List<EntradaRanking> entradas) {
   return null;
 }
 
-/// Chip seleccionable de la pestaña "Nivel": una parada del camino.
-class ChipNivel {
-  const ChipNivel({
+/// Chip seleccionable de la pestaña "Camino": una parada del camino.
+class ChipCamino {
+  const ChipCamino({
     required this.caminoId,
     required this.orden,
     required this.tematicaId,
@@ -73,14 +73,14 @@ class ChipNivel {
   final String tematicaNombre;
 }
 
-/// Deriva los chips de la pestaña "Nivel" a partir del camino del jugador:
+/// Deriva los chips de la pestaña "Camino" a partir del camino del jugador:
 /// una entrada por parada, ordenadas por `orden` ascendente aunque
 /// [paradas] no lo esté (INT-110).
-List<ChipNivel> derivarChipsNivel(List<ParadaCamino> paradas) {
+List<ChipCamino> derivarChipsCamino(List<ParadaCamino> paradas) {
   final ordenadas = [...paradas]..sort((a, b) => a.orden.compareTo(b.orden));
   return [
     for (final parada in ordenadas)
-      ChipNivel(
+      ChipCamino(
         caminoId: parada.caminoId,
         orden: parada.orden,
         tematicaId: parada.tematicaId,
@@ -116,10 +116,10 @@ List<ChipTematica> derivarChipsTematica(List<ParadaCamino> paradas) {
   return chips;
 }
 
-enum _Pestana { global, nivel, tematica }
+enum _Pestana { global, camino, tematica }
 
 /// Pantalla de Clasificación (INT-110): tres pestañas navegables —Global,
-/// Nivel y Temática— sobre las clasificaciones de INT-109. Reproduce
+/// Camino y Temática— sobre las clasificaciones de INT-109. Reproduce
 /// `[App] - Ranking.dc.html` (Claude Design) como especificación visual,
 /// con las simplificaciones de alcance de `design.md` (sin indicador ▲/▼,
 /// sin racha/intentos/%acierto, sin concepto de "temporada").
@@ -137,7 +137,7 @@ class RankingScreen extends StatefulWidget {
   final CaminoGateway? caminoGateway;
 
   /// Paradas del camino ya cargadas por quien navega aquí (normalmente
-  /// `CaminoScreen`), para derivar los chips de Nivel/Temática sin repetir
+  /// `CaminoScreen`), para derivar los chips de Camino/Temática sin repetir
   /// `CaminoGateway.fetchCamino()` (design.md, decisión 2). Si es `null`, la
   /// propia pantalla las carga.
   final List<ParadaCamino>? paradas;
@@ -163,7 +163,7 @@ class _RankingScreenState extends State<RankingScreen> {
   String? _tematicaIdSeleccionada;
   late Future<List<EntradaRanking>> _futuro;
 
-  List<ChipNivel> get _chipsNivel => derivarChipsNivel(_paradas);
+  List<ChipCamino> get _chipsCamino => derivarChipsCamino(_paradas);
   List<ChipTematica> get _chipsTematica => derivarChipsTematica(_paradas);
 
   @override
@@ -178,10 +178,10 @@ class _RankingScreenState extends State<RankingScreen> {
     if (!mounted) return;
     setState(() {
       _paradas = camino.entradas;
-      if (_pestana == _Pestana.nivel &&
+      if (_pestana == _Pestana.camino &&
           _caminoIdSeleccionado == null &&
-          _chipsNivel.isNotEmpty) {
-        _caminoIdSeleccionado = _chipsNivel.first.caminoId;
+          _chipsCamino.isNotEmpty) {
+        _caminoIdSeleccionado = _chipsCamino.first.caminoId;
         _futuro = _cargarRanking();
       } else if (_pestana == _Pestana.tematica &&
           _tematicaIdSeleccionada == null &&
@@ -196,7 +196,7 @@ class _RankingScreenState extends State<RankingScreen> {
     switch (_pestana) {
       case _Pestana.global:
         return _rankingGateway.fetchClasificacionGlobal();
-      case _Pestana.nivel:
+      case _Pestana.camino:
         final caminoId = _caminoIdSeleccionado;
         return caminoId == null
             ? Future.value(const <EntradaRanking>[])
@@ -213,10 +213,10 @@ class _RankingScreenState extends State<RankingScreen> {
     if (nueva == _pestana) return;
     setState(() {
       _pestana = nueva;
-      if (nueva == _Pestana.nivel) {
-        _caminoIdSeleccionado ??= _chipsNivel.isEmpty
+      if (nueva == _Pestana.camino) {
+        _caminoIdSeleccionado ??= _chipsCamino.isEmpty
             ? null
-            : _chipsNivel.first.caminoId;
+            : _chipsCamino.first.caminoId;
       } else if (nueva == _Pestana.tematica) {
         _tematicaIdSeleccionada ??= _chipsTematica.isEmpty
             ? null
@@ -226,7 +226,7 @@ class _RankingScreenState extends State<RankingScreen> {
     });
   }
 
-  void _onSeleccionarNivel(String caminoId) {
+  void _onSeleccionarCamino(String caminoId) {
     if (caminoId == _caminoIdSeleccionado) return;
     setState(() {
       _caminoIdSeleccionado = caminoId;
@@ -242,9 +242,9 @@ class _RankingScreenState extends State<RankingScreen> {
     });
   }
 
-  ChipNivel? _buscarChipNivel(String? caminoId) {
+  ChipCamino? _buscarChipCamino(String? caminoId) {
     if (caminoId == null) return null;
-    for (final chip in _chipsNivel) {
+    for (final chip in _chipsCamino) {
       if (chip.caminoId == caminoId) return chip;
     }
     return null;
@@ -262,11 +262,11 @@ class _RankingScreenState extends State<RankingScreen> {
     switch (_pestana) {
       case _Pestana.global:
         return 'Global · acumulado histórico';
-      case _Pestana.nivel:
-        final chip = _buscarChipNivel(_caminoIdSeleccionado);
+      case _Pestana.camino:
+        final chip = _buscarChipCamino(_caminoIdSeleccionado);
         return chip == null
-            ? 'Nivel'
-            : 'Nivel ${chip.orden} · ${chip.tematicaNombre}';
+            ? 'Camino'
+            : 'Camino ${chip.orden} · ${chip.tematicaNombre}';
       case _Pestana.tematica:
         final chip = _buscarChipTematica(_tematicaIdSeleccionada);
         return chip == null ? 'Temática' : '${chip.tematicaNombre} · ranking';
@@ -279,7 +279,7 @@ class _RankingScreenState extends State<RankingScreen> {
       case _Pestana.tematica:
         final n = entrada.nivelesSuperados ?? 0;
         return n == 1 ? '1 nivel superado' : '$n niveles superados';
-      case _Pestana.nivel:
+      case _Pestana.camino:
         return (entrada.superado ?? false) ? 'Superado' : 'Aún no superado';
     }
   }
@@ -307,16 +307,16 @@ class _RankingScreenState extends State<RankingScreen> {
                 pestana: _pestana,
                 onCambiar: _onCambiarPestana,
               ),
-              if (_pestana == _Pestana.nivel)
+              if (_pestana == _Pestana.camino)
                 _SelectorChips(
-                  prefijoKey: 'ranking-chip-nivel',
+                  prefijoKey: 'ranking-chip-camino',
                   seleccionado: _caminoIdSeleccionado,
-                  onSeleccionar: _onSeleccionarNivel,
+                  onSeleccionar: _onSeleccionarCamino,
                   chips: [
-                    for (final chip in _chipsNivel)
+                    for (final chip in _chipsCamino)
                       _ChipDato(
                         id: chip.caminoId,
-                        etiqueta: 'Nivel ${chip.orden}',
+                        etiqueta: 'Camino ${chip.orden}',
                         color: _colorTematica(chip.tematicaId),
                       ),
                   ],
@@ -502,7 +502,7 @@ class _SelectorPestanas extends StatelessWidget {
 
   static const _etiquetas = {
     _Pestana.global: 'Global',
-    _Pestana.nivel: 'Nivel',
+    _Pestana.camino: 'Camino',
     _Pestana.tematica: 'Temática',
   };
 
@@ -586,9 +586,9 @@ class _SelectorChips extends StatelessWidget {
   Widget build(BuildContext context) {
     if (chips.isEmpty) return const SizedBox(height: 8);
     return SizedBox(
-      height: 48,
+      height: 54,
       child: ListView.separated(
-        padding: const EdgeInsets.fromLTRB(18, 14, 18, 2),
+        padding: const EdgeInsets.fromLTRB(18, 10, 18, 4),
         scrollDirection: Axis.horizontal,
         itemCount: chips.length,
         separatorBuilder: (context, index) => const SizedBox(width: 8),

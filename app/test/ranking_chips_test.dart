@@ -42,11 +42,11 @@ const _c3 = ParadaCamino(
 );
 
 void main() {
-  group('derivarChipsNivel', () {
+  group('derivarChipsCamino', () {
     test(
       'una entrada por parada, en orden de `orden` aunque llegue desordenado',
       () {
-        final chips = derivarChipsNivel([_c3, _c1, _c2]);
+        final chips = derivarChipsCamino([_c3, _c1, _c2]);
 
         expect(chips.map((c) => c.caminoId), ['c1', 'c2', 'c3']);
         expect(chips.map((c) => c.orden), [1, 2, 3]);
@@ -54,7 +54,7 @@ void main() {
     );
 
     test('lista vacía de paradas produce lista vacía de chips', () {
-      expect(derivarChipsNivel(const []), isEmpty);
+      expect(derivarChipsCamino(const []), isEmpty);
     });
   });
 
