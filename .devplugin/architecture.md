@@ -43,7 +43,7 @@ el rol del usuario autenticado.
 | Carpeta | Stack | Estado |
 |---|---|---|
 | `backend/` | Supabase CLI, SQL | esquema del juego (INT-74) + alta anónima y trigger de perfil (INT-75) + Storage de media de desafíos (INT-76) + RLS en todo el esquema del juego (INT-77) + cálculo de distancia/puntaje al responder un desafío (INT-78) + superación de nivel, estrellas y desbloqueos al cerrar un intento (INT-79) + RPCs de reorden y vistas/funciones de métricas y alertas para el panel (INT-87) + `actividad_reciente()` para el feed de altas/niveles superados del Home del panel (INT-81) + camino como secuencia propia de niveles y desbloqueo por estrellas acumuladas en el camino, sustituyendo el desbloqueo por temática (INT-98) + vista `camino_jugador` con el camino completo y el progreso del jugador autenticado, para la Home de la app (INT-96) + vista `desafios_para_jugar` y RPC `iniciar_intento_nivel` para leer contenido de desafío sin exponer su ubicación real y arrancar un intento con sus desafíos seleccionados (INT-95) + temporizador por desafío con medición server-authoritative del tiempo (`marcar_desafio_mostrado`) y bonus de puntuación por rapidez sobre `calcular_puntaje` (INT-99) + rediseño de contenido: `niveles`/`nivel_desafios` (curación manual) se eliminan; `desafios` pasa a tener `tematica_id` propio y una `dificultad` de catálogo cerrado (enum `dificultad`, 5 valores), con valores por defecto por dificultad en `dificultad_defaults` (preguntas por partida, segundos por desafío, puntuación mínima, umbrales de estrella); `camino` absorbe la configuración de las paradas (temática+dificultad+overrides opcionales) y sustituye a `iniciar_intento_nivel`/`cerrar_intento_nivel` por `iniciar_intento_parada`/`cerrar_intento_parada`, que sortean preguntas del pool de esa temática+dificultad en vez de una lista curada; `intentos_nivel`/`progreso_usuario_nivel` pasan a identificarse por `camino_id` (INT-106) + RPC de reseteo de progreso y de eliminación completa de un jugador (borra en cascada su historial y su usuario de Auth), y alias único entre jugadores a nivel de esquema (INT-111) + primeras Edge Functions del proyecto (`proponer-lugares`, `generar-imagen-lugar`) para la generación de preguntas con IA del panel: custodian la clave de OpenAI como secreto de función, exigen `profiles.role = 'admin'` al invocador y devuelven códigos de error propios que el panel traduce (INT-113) + `tematicas.prompt_imagen`: estilo de ilustración por temática que la generación con IA aplica a todas sus imágenes, y que gobierna solo la ilustración — qué lugares se proponen se sigue deduciendo del banco de la temática (INT-113 delta-1) |
-| `app/` | Flutter 3.47 + `supabase_flutter` + `google_fonts` + `video_player` | sesión anónima automática en el arranque (INT-75) + splash con branding e icono de app (INT-88) + pantalla de apodo con guardado en `profiles` (INT-89) + camino de niveles como Home (INT-90) + pantalla de juego: pista en toast (INT-91) y fase de adivinar sobre mapa mundial con pin, confirmación contra `responder_desafio` y salida con aviso (INT-92) + cuenta atrás por desafío con auto-confirmación al agotarse y desglose de bonus por rapidez en el revelado (INT-99) + arranque de intento y camino identificados por `camino_id` (parada) en vez de `nivel_id`; sin cambio de vocabulario de cara al jugador (INT-106) + splash con animaciones de entrada y fondo compartido con las pantallas de entrada (`EntryBackdrop`/`entry_motion.dart` de INT-108), en vez de la composición estática de INT-88 (INT-107) |
+| `app/` | Flutter 3.47 + `supabase_flutter` + `google_fonts` + `video_player` | sesión anónima automática en el arranque (INT-75) + splash con branding e icono de app (INT-88) + pantalla de apodo con guardado en `profiles` (INT-89) + camino de niveles como Home (INT-90) + pantalla de juego: pista en toast (INT-91) y fase de adivinar sobre mapa mundial con pin, confirmación contra `responder_desafio` y salida con aviso (INT-92) + cuenta atrás por desafío con auto-confirmación al agotarse y desglose de bonus por rapidez en el revelado (INT-99) + arranque de intento y camino identificados por `camino_id` (parada) en vez de `nivel_id`; sin cambio de vocabulario de cara al jugador (INT-106) + splash con animaciones de entrada y fondo compartido con las pantallas de entrada (`EntryBackdrop`/`entry_motion.dart` de INT-108), en vez de la composición estática de INT-88 (INT-107) + sensación de juego de la pantalla de partida: cuenta atrás continua contra un instante de fin, marco rojo periférico en tiempo crítico y doble toque para acercar el mapa sobre un punto (INT-114) |
 | `panel/` | React 19 + Vite + TypeScript, Tailwind CSS | login (INT-80) + Home/dashboard con layout fijo, métricas, accesos rápidos, actividad reciente y alertas de contenido (INT-81) + pantalla "Camino" para gestionar la secuencia global de niveles (INT-98) + campo de segundos por desafío en la configuración del nivel (INT-99) + selector de temática/dificultad y edición inline en el formulario y listados de preguntas, pantalla "Dificultades" para los valores por defecto, "Camino" reescrito sobre temática+dificultad con overrides por parada, retirada de las pantallas de niveles (listado y detalle), edición inline de estado en el listado de temáticas (INT-106) + pantalla "Jugadores" con listado/búsqueda, reseteo de progreso y eliminación completa de un jugador con confirmación (INT-111), pantalla "Generar con IA" con wizard de tres pasos (propuesta de lugares → revisión candidato a candidato → ilustración estilo Pixar y guardado del lote), deduplicando contra el banco por nombre normalizado y cercanía de coordenadas (INT-113), campo de prompt de imagen en el formulario de temáticas y aviso en el paso 1 del estilo que se aplicará (INT-113 delta-1), desplegado en https://geoquest-seven-omega.vercel.app/ |
 
 ### El mapa de juego no usa ningún SDK de mapas
@@ -62,7 +62,28 @@ respeta la mecánica.
 
 La aritmética de cámara (proyección, límites de zoom, recorte de
 desplazamiento, pin) vive en `MapaMundiController`, fuera del widget, y se
-prueba con tests unitarios puros en vez de simulando gestos.
+prueba con tests unitarios puros en vez de simulando gestos. Desde INT-114 el
+encuadre con foco se puede pedir como valor (`camaraDeZoomEn`) además de
+aplicarlo (`zoomEn`): el controlador no tiene `vsync`, así que animar hacia un
+encuadre es cosa del widget, pero los topes y el recorte siguen calculándose en
+un solo sitio.
+
+**El doble toque se detecta a mano, no con un `DoubleTapGestureRecognizer`
+(INT-114).** Registrar ese reconocedor en el `GestureDetector` del mapa mete al
+reconocedor de toque simple en una arena donde ya no puede ganar al levantar el
+dedo: colocar el pin —la acción principal de la pantalla de juego— se retrasaría
+`kDoubleTapTimeout` (300 ms). Así que el pin se sigue colocando en `onTapUp`, y
+es ese mismo manejador el que recuerda el toque anterior (plazo del framework,
+slop propio de 40 px) y lanza el acercamiento animado cuando los dos toques
+caen juntos.
+
+Y un doble toque **solo acerca**: acercarse a mirar y responder son dos
+intenciones distintas, así que al confirmarse se deshace el pin que había
+colocado su primer toque y el mapa vuelve al que hubiera antes del gesto. La
+primera versión heredaba ese pin, y un jugador que ya tenía su respuesta puesta
+la perdía al acercarse a mirar otra zona. El precio es que en un doble toque el
+pin aparece y desaparece en menos de 300 ms: se prefiere eso antes que retrasar
+el toque simple hasta saber si viene un segundo.
 
 **El generador del asset arregla dos rasgos del dataset (INT-103).** En
 world-atlas la Antártida viene como un polígono cuyo anillo exterior es la
@@ -85,6 +106,32 @@ apreciable** (no se registraron cifras concretas). Así que la caché de una
 resolver. Si el asset creciera —pasar a Natural Earth 10m es la vía obvia para
 más detalle de costa— esta medida deja de valer y hay que repetirla antes de
 subir la resolución.
+
+### El reloj de la partida es del servidor; el de la pantalla, cosmético
+
+`segundos_transcurridos` y el bonus por rapidez los calcula el servidor entre
+`intento_desafios.mostrado_en` y la respuesta (INT-99). La cuenta atrás que ve el
+jugador no puntúa nada, y por eso puede ser puramente de presentación.
+
+Desde INT-114 esa cuenta atrás (`CuentaAtrasDeDesafio`, en
+`app/lib/screens/`) cuelga de un **instante de fin** que se fija una vez al
+volverse actual el desafío, y no de acumular avisos de un segundo: un `Ticker`
+solo dice "hay fotograma nuevo, recalcula". Con eso la barra avanza continua
+—cambia entre segundo y segundo, la etiqueta se queda en enteros—, no hay deriva
+y volver de segundo plano deja el tiempo cuadrado con el reloj real en vez de con
+los fotogramas entregados. La contrapartida es que la pantalla de juego programa
+fotogramas mientras corre el tiempo: los tests que la montan no pueden usar
+`pumpAndSettle`.
+
+El reloj de pared se **inyecta** en `NivelJuegoScreen` (`ahora`), como ya se
+inyectan sus gateways. No es opcional: `flutter_test` expone su reloj falso en
+`binding.clock` pero no instala un `withClock` de `package:clock`, así que un
+deadline que llamara al reloj global no se podría probar con `tester.pump`.
+
+La zona crítica de tiempo (rojo de la barra y marco de aviso) tiene una sola
+definición, en esa misma pieza: menos de una quinta parte del desafío **o** menos
+de 5 segundos. El suelo existe porque en las dificultades cortas una quinta parte
+son 1-2 s y el aviso llegaría tarde para servir de algo.
 
 ## Flujo de base de datos
 
