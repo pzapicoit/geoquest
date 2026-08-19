@@ -15,9 +15,9 @@
 
 ## 3. App: distinguir el error de alias en uso
 
-- [ ] 3.1 En `app/lib/services/profile_gateway.dart`, capturar `PostgrestException` con `code == '23505'` y relanzar como una excepción propia (p. ej. `AliasEnUsoException`).
-- [ ] 3.2 En `app/lib/screens/username_screen.dart`, capturar `AliasEnUsoException` por separado y mostrar "Ese apodo ya está en uso, prueba con otro"; mantener el mensaje genérico actual para el resto de errores.
-- [ ] 3.3 Tests: `profile_gateway_test.dart` (o equivalente) cubriendo el mapeo de la excepción; test de `username_screen` cubriendo el mensaje específico frente al genérico.
+- [x] 3.1 En `app/lib/services/profile_gateway.dart`, capturar `PostgrestException` con `code == '23505'` y relanzar como una excepción propia (p. ej. `AliasEnUsoException`).
+- [x] 3.2 En `app/lib/screens/username_screen.dart`, capturar `AliasEnUsoException` por separado y mostrar "Ese apodo ya está en uso, prueba con otro"; mantener el mensaje genérico actual para el resto de errores.
+- [x] 3.3 Tests: `profile_gateway_test.dart` (o equivalente) cubriendo el mapeo de la excepción; test de `username_screen` cubriendo el mensaje específico frente al genérico.
 
 ## 4. Panel: acción de eliminar jugador
 

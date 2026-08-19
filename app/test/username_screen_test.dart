@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:geoquest/screens/camino_screen.dart';
 import 'package:geoquest/screens/username_screen.dart';
+import 'package:geoquest/services/profile_gateway.dart';
 import 'package:geoquest/services/username_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -140,6 +141,29 @@ void main() {
       );
       expect(find.byType(UsernameScreen), findsOneWidget);
       expect(find.text('Ana'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'si el apodo ya está en uso, muestra un mensaje específico en vez del genérico',
+    (tester) async {
+      final profileGateway = FakeProfileGateway()
+        ..throwOnNextCall = const AliasEnUsoException();
+
+      await _pump(tester, profileGateway: profileGateway);
+
+      await tester.enterText(find.byKey(const Key('nickname-field')), 'Zapi');
+      await tester.pump();
+      await tester.tap(_startButton);
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Ese apodo ya está en uso. Prueba con otro.'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Comprueba tu conexión'), findsNothing);
+      expect(find.byType(UsernameScreen), findsOneWidget);
+      expect(find.text('Zapi'), findsOneWidget);
     },
   );
 
