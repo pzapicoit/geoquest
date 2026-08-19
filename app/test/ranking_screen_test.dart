@@ -213,6 +213,77 @@ void main() {
   });
 
   testWidgets(
+    'cambiar a la pestaña Temática recarga la clasificación de la primera '
+    'temática',
+    (tester) async {
+      final gateway = FakeRankingGateway(
+        global: _globalDePrueba,
+        porTematica: {
+          't-monumentos': const [
+            EntradaRanking(
+              usuarioId: 'u9',
+              nombre: 'JugadorTematica',
+              puntuacion: 70,
+              nivelesSuperados: 2,
+              posicion: 1,
+              esUsuarioActual: false,
+            ),
+          ],
+        },
+      );
+      await tester.pumpWidget(_pantalla(gateway));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('ranking-tab-tematica')));
+      await tester.pumpAndSettle();
+
+      expect(gateway.fetchPorTematicaCalls, 1);
+      expect(gateway.tematicaIdsConsultadas, ['t-monumentos']);
+      expect(find.text('JugadorTematica'), findsOneWidget);
+    },
+  );
+
+  testWidgets('seleccionar otra temática recarga con ese tematicaId', (
+    tester,
+  ) async {
+    final gateway = FakeRankingGateway(
+      global: _globalDePrueba,
+      porTematica: {
+        't-monumentos': const [
+          EntradaRanking(
+            usuarioId: 'u9',
+            nombre: 'UnoMonumentos',
+            puntuacion: 10,
+            nivelesSuperados: 1,
+            posicion: 1,
+            esUsuarioActual: false,
+          ),
+        ],
+        't-banderas': const [
+          EntradaRanking(
+            usuarioId: 'u9',
+            nombre: 'UnoBanderas',
+            puntuacion: 20,
+            nivelesSuperados: 2,
+            posicion: 1,
+            esUsuarioActual: false,
+          ),
+        ],
+      },
+    );
+    await tester.pumpWidget(_pantalla(gateway));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('ranking-tab-tematica')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('ranking-chip-tematica-t-banderas')));
+    await tester.pumpAndSettle();
+
+    expect(gateway.tematicaIdsConsultadas, ['t-monumentos', 't-banderas']);
+    expect(find.text('UnoBanderas'), findsOneWidget);
+  });
+
+  testWidgets(
     'la fila fija muestra la posición propia aunque quede fuera del top cargado',
     (tester) async {
       final gateway = FakeRankingGateway(global: _globalDePrueba);
