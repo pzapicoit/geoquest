@@ -59,10 +59,13 @@ class SupabaseCaminoGateway implements CaminoGateway {
 
   @override
   Future<CaminoJugador> fetchCamino() async {
+    // `ascending` por defecto es `false` en el cliente Dart de postgrest (al
+    // revés que en SQL y en postgrest-js) -- sin pasarlo explícito, el
+    // camino llega en orden inverso.
     final caminoRows = await _client
         .from('camino_jugador')
         .select()
-        .order('orden');
+        .order('orden', ascending: true);
 
     final tematicaIds = <String>{
       for (final row in caminoRows) row['tematica_id'] as String,
