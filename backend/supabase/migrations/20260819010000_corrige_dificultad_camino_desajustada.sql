@@ -1,0 +1,14 @@
+-- Hotfix de datos: la migracion 20260818121000 (INT-106) fijo dificultad =
+-- 'normal' para las paradas de camino backfilleadas desde niveles, bajo la
+-- premisa de que las preguntas existentes tambien migrarian a 'normal'. En
+-- la practica las 15 preguntas existentes quedaron etiquetadas 'facil' (via
+-- el editor inline del panel), asi que ninguna parada con dificultad
+-- 'normal' encontraba pool -- iniciar_intento_parada fallaba con "no existe
+-- o no esta activa"/pool insuficiente en TODAS las paradas del camino.
+--
+-- Esto iguala la dificultad configurada de cada parada a la dificultad real
+-- de sus preguntas. No resuelve por si solo el pool insuficiente de
+-- Monumentos/Olimpiadas (les faltan preguntas activas propias) ni el de
+-- Museos (no tiene ninguna pregunta con esa tematica) -- eso requiere dar de
+-- alta/activar contenido real desde el panel, no un cambio de esquema.
+update camino set dificultad = 'facil' where dificultad = 'normal';
