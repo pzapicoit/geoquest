@@ -18,4 +18,4 @@
 - [x] 3.1 Actualizar `app/test/ranking_chips_test.dart`: `derivarChipsNivel` → `derivarChipsCamino`, `ChipNivel` → `ChipCamino`.
 - [x] 3.2 Actualizar `app/test/ranking_screen_test.dart`: claves `ranking-tab-nivel`/`ranking-chip-nivel-*` → `ranking-tab-camino`/`ranking-chip-camino-*`, y cualquier texto de aserción que mencione "Nivel" en el contexto de esta pestaña.
 - [x] 3.3 Ejecutar `flutter test`, `flutter analyze` y `dart format --set-exit-if-changed` en `app/` y confirmar que todo pasa sin regresiones.
-- [ ] 3.4 Sincronizar `openspec/specs/app-ranking/spec.md` con los requisitos `MODIFIED` de este delta al archivar.
+- [x] 3.4 Sincronizar `openspec/specs/app-ranking/spec.md` con los requisitos `MODIFIED` de este delta al archivar.
