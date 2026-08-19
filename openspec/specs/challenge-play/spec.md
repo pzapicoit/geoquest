@@ -8,17 +8,17 @@ TBD - created by archiving change int-95-vista-desafios-intento. Update Purpose 
 ### Requirement: Vista `desafios_para_jugar` expone solo contenido de juego
 
 El sistema SHALL exponer una vista `desafios_para_jugar` con, para cada
-desafío, `id`, `tipo`, `imagen_url`, `video_url`, `texto_pregunta` y
-`activo`. La vista SHALL ser legible por cualquier usuario autenticado
-(incluida una sesión anónima), y SHALL no incluir en ningún caso
-`lat_real`, `lng_real` ni `nombre_lugar`.
+desafío, `id`, `tipo`, `nombre`, `imagen_url`, `video_url`,
+`texto_pregunta` y `activo`. La vista SHALL ser legible por cualquier
+usuario autenticado (incluida una sesión anónima), y SHALL no incluir en
+ningún caso `lat_real`, `lng_real` ni `nombre_lugar`.
 
 #### Scenario: Un jugador lee la vista de desafíos para jugar
 
 - **WHEN** un usuario autenticado (o con sesión anónima) hace `select`
   sobre `desafios_para_jugar`
-- **THEN** la operación se permite y devuelve `id`, `tipo`, `imagen_url`,
-  `video_url`, `texto_pregunta` y `activo` de cada desafío
+- **THEN** la operación se permite y devuelve `id`, `tipo`, `nombre`,
+  `imagen_url`, `video_url`, `texto_pregunta` y `activo` de cada desafío
 
 #### Scenario: La vista nunca expone la ubicación real
 
@@ -28,12 +28,17 @@ desafío, `id`, `tipo`, `imagen_url`, `video_url`, `texto_pregunta` y
 
 ### Requirement: RPC `iniciar_intento_parada` arranca una partida con sus desafíos
 
-El sistema SHALL exponer una RPC `iniciar_intento_parada(p_camino_id uuid)` que cree un `intento_nivel` para el usuario autenticado actual sobre la parada de `camino` dada y devuelva, en una sola respuesta, el `intento_id` creado junto con la lista de desafíos de esa partida (mismas columnas que `desafios_para_jugar`). La RPC SHALL resolver la temática y dificultad efectivas de la parada (override o valor de `dificultad_defaults`) y sortear `preguntas_por_partida` desafíos elegidos al azar entre todos los desafíos `activo` cuyo `tematica_id` y `dificultad` coincidan con los de la parada. La RPC SHALL además persistir esa misma selección, en el mismo orden en que se devuelve, en `intento_desafios` antes de responder, de forma que quede fijada para ese intento independientemente de cambios posteriores en `desafios.dificultad`, `desafios.tematica_id` o `desafios.activo`.
+El sistema SHALL exponer una RPC `iniciar_intento_parada(p_camino_id uuid)` que cree un `intento_nivel` para el usuario autenticado actual sobre la parada de `camino` dada y devuelva, en una sola respuesta, el `intento_id` creado, el `objetivo_global` de la temática de esa parada, junto con la lista de desafíos de esa partida (mismas columnas que `desafios_para_jugar`, incluido `nombre`). La RPC SHALL resolver la temática y dificultad efectivas de la parada (override o valor de `dificultad_defaults`) y sortear `preguntas_por_partida` desafíos elegidos al azar entre todos los desafíos `activo` cuyo `tematica_id` y `dificultad` coincidan con los de la parada. La RPC SHALL además persistir esa misma selección, en el mismo orden en que se devuelve, en `intento_desafios` antes de responder, de forma que quede fijada para ese intento independientemente de cambios posteriores en `desafios.dificultad`, `desafios.tematica_id` o `desafios.activo`.
 
 #### Scenario: Se sortea sobre el pool de temática+dificultad de la parada
 
 - **WHEN** un usuario autenticado llama a `iniciar_intento_parada` para una parada cuya dificultad efectiva tiene `preguntas_por_partida = 5`, y existen 12 desafíos `activo` con esa misma temática y dificultad
 - **THEN** la respuesta incluye un `intento_id` nuevo y exactamente 5 de esos 12 desafíos, elegidos al azar
+
+#### Scenario: La respuesta incluye el objetivo global de la temática de la parada
+
+- **WHEN** un usuario autenticado llama a `iniciar_intento_parada` para una parada cuya temática tiene `objetivo_global = '¿Dónde está este monumento?'`
+- **THEN** la respuesta incluye ese mismo texto como `objetivo_global`, una sola vez, no repetido por cada desafío de la lista
 
 #### Scenario: Parada inexistente o inactiva
 

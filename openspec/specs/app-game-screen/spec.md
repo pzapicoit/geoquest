@@ -47,10 +47,11 @@ el campo `tipo` del desafío: una imagen a buen tamaño cuando `tipo` es
 la pregunta en tamaño grande cuando `tipo` es `pregunta_texto`.
 
 El toast SHALL llevar una cabecera que identifique el tipo de pista y su
-número dentro del intento, un botón de cerrar en esa cabecera, un pie
-explicativo de qué se le pide al jugador, y el botón "Listo, voy a
-adivinar". Tocar el fondo oscurecido SHALL cerrar el toast igual que
-cualquiera de sus botones de cierre.
+número dentro del intento, un botón de cerrar en esa cabecera, el
+`objetivo_global` de la temática de la parada junto con el `nombre` del
+desafío actual, un pie explicativo de qué se le pide al jugador, y el
+botón "Listo, voy a adivinar". Tocar el fondo oscurecido SHALL cerrar el
+toast igual que cualquiera de sus botones de cierre.
 
 #### Scenario: Desafío de tipo imagen
 
@@ -81,6 +82,14 @@ cualquiera de sus botones de cierre.
   es `video`
 - **THEN** la cabecera del toast lo identifica como pista de vídeo y como
   la número 3
+
+#### Scenario: El toast muestra el objetivo global junto al nombre del desafío
+
+- **WHEN** se muestra el toast de un desafío cuyo `nombre` es "Torre
+  Eiffel" en una parada cuya temática tiene `objetivo_global = '¿Dónde
+  está este monumento?'`
+- **THEN** el toast muestra ambos textos, para cualquiera de los tres
+  tipos de contenido (imagen, vídeo o pregunta de texto)
 
 #### Scenario: Cerrar tocando el fondo
 
