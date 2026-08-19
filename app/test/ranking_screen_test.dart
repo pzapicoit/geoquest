@@ -88,6 +88,31 @@ Widget _pantalla(
   ),
 );
 
+/// Para probar la navegación real ‹ (rejilla → sale de la pantalla) se
+/// necesita una ruta anterior de la que hacer `pop`, igual que
+/// `camino_screen_test.dart` hace con `CaminoScreen`.
+Widget _pantallaConHistorial(FakeRankingGateway gateway) => MaterialApp(
+  home: Builder(
+    builder: (context) => Scaffold(
+      body: Center(
+        child: TextButton(
+          key: const Key('abrir-ranking'),
+          onPressed: () => Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => RankingScreen(
+                rankingGateway: gateway,
+                paradas: _paradas,
+                puntosTotales: 1234,
+              ),
+            ),
+          ),
+          child: const Text('Abrir'),
+        ),
+      ),
+    ),
+  ),
+);
+
 void main() {
   testWidgets(
     'la pestaña Global carga por defecto y muestra el podio y la lista',
@@ -116,122 +141,69 @@ void main() {
     },
   );
 
-  testWidgets('el selector de chips solo aparece en Camino y Temática', (
-    tester,
-  ) async {
-    final gateway = FakeRankingGateway(global: _globalDePrueba);
-    await tester.pumpWidget(_pantalla(gateway));
-    await tester.pumpAndSettle();
-
-    expect(find.byKey(const Key('ranking-chip-camino-c1')), findsNothing);
-
-    await tester.tap(find.byKey(const Key('ranking-tab-camino')));
-    await tester.pumpAndSettle();
-    expect(find.byKey(const Key('ranking-chip-camino-c1')), findsOneWidget);
-    expect(
-      find.byKey(const Key('ranking-chip-tematica-t-monumentos')),
-      findsNothing,
-    );
-
-    await tester.tap(find.byKey(const Key('ranking-tab-tematica')));
-    await tester.pumpAndSettle();
-    expect(
-      find.byKey(const Key('ranking-chip-tematica-t-monumentos')),
-      findsOneWidget,
-    );
-    expect(find.byKey(const Key('ranking-chip-camino-c1')), findsNothing);
-  });
-
-  /// Presupuesto real del widget: el chip reserva `vertical: 9` de padding a
-  /// cada lado (`_SelectorChips`, `Container` del chip) — el texto debe caber
-  /// en lo que queda sin recortarse contra el borde.
-  const paddingVerticalChip = 9 * 2;
-
-  void expectTextoDeChipCabe(WidgetTester tester, Key chipKey, String texto) {
-    final chip = find.byKey(chipKey);
-    final textoFinder = find.descendant(of: chip, matching: find.text(texto));
-
-    final altoChip = tester.getSize(chip).height;
-    final altoTexto = tester.getSize(textoFinder).height;
-
-    expect(altoTexto, lessThan(altoChip - paddingVerticalChip));
-  }
-
   testWidgets(
-    'el texto de los chips de filtro no se recorta contra su propio borde, '
-    'ni en Camino ni en Temática',
+    'la rejilla de tarjetas solo aparece en Camino y Temática; Global va '
+    'directa a la clasificación',
     (tester) async {
-      const paradaLarga = ParadaCamino(
-        orden: 3,
-        caminoId: 'c3',
-        tematicaId: 't-patrimonio',
-        tematicaNombre: 'Patrimonio de la Humanidad',
-        superado: false,
-        estrellasObtenidas: 0,
-        estrellasRequeridas: 0,
-        estrellasAcumuladasUsuario: 0,
-        desbloqueado: true,
-        esActual: false,
-      );
       final gateway = FakeRankingGateway(global: _globalDePrueba);
-      await tester.pumpWidget(
-        _pantalla(gateway, paradas: [..._paradas, paradaLarga]),
-      );
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.byKey(const Key('ranking-tab-camino')));
-      await tester.pumpAndSettle();
-      expectTextoDeChipCabe(
-        tester,
-        const Key('ranking-chip-camino-c1'),
-        'Camino 1',
-      );
-      expect(tester.takeException(), isNull);
-
-      await tester.tap(find.byKey(const Key('ranking-tab-tematica')));
-      await tester.pumpAndSettle();
-      expectTextoDeChipCabe(
-        tester,
-        const Key('ranking-chip-tematica-t-patrimonio'),
-        'Patrimonio de la Humanidad',
-      );
-      expect(tester.takeException(), isNull);
-    },
-  );
-
-  testWidgets(
-    'cambiar a la pestaña Camino recarga la clasificación de la primera parada',
-    (tester) async {
-      final gateway = FakeRankingGateway(
-        global: _globalDePrueba,
-        porCamino: {
-          'c1': const [
-            EntradaRanking(
-              usuarioId: 'u9',
-              nombre: 'JugadorCamino',
-              puntuacion: 90,
-              superado: true,
-              posicion: 1,
-              esUsuarioActual: false,
-            ),
-          ],
-        },
-      );
       await tester.pumpWidget(_pantalla(gateway));
       await tester.pumpAndSettle();
 
+      expect(find.byKey(const Key('ranking-rejilla-camino')), findsNothing);
+      expect(find.byKey(const Key('ranking-lista')), findsOneWidget);
+
       await tester.tap(find.byKey(const Key('ranking-tab-camino')));
       await tester.pumpAndSettle();
+      expect(find.byKey(const Key('ranking-rejilla-camino')), findsOneWidget);
+      expect(
+        find.byKey(const Key('ranking-tarjeta-camino-c1')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('ranking-lista')), findsNothing);
 
-      expect(gateway.fetchPorCaminoCalls, 1);
-      expect(gateway.caminoIdsConsultados, ['c1']);
-      expect(find.text('JugadorCamino'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('ranking-tab-tematica')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('ranking-rejilla-tematica')), findsOneWidget);
+      expect(
+        find.byKey(const Key('ranking-tarjeta-tematica-t-monumentos')),
+        findsOneWidget,
+      );
     },
   );
 
-  testWidgets('seleccionar otro chip de camino recarga con ese caminoId', (
-    tester,
-  ) async {
+  testWidgets('entrar en Camino muestra la rejilla; tocar una tarjeta abre su '
+      'clasificación', (tester) async {
+    final gateway = FakeRankingGateway(
+      global: _globalDePrueba,
+      porCamino: {
+        'c1': const [
+          EntradaRanking(
+            usuarioId: 'u9',
+            nombre: 'JugadorCamino',
+            puntuacion: 90,
+            superado: true,
+            posicion: 1,
+            esUsuarioActual: false,
+          ),
+        ],
+      },
+    );
+    await tester.pumpWidget(_pantalla(gateway));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('ranking-tab-camino')));
+    await tester.pumpAndSettle();
+    expect(find.text('JugadorCamino'), findsNothing);
+
+    await tester.tap(find.byKey(const Key('ranking-tarjeta-camino-c1')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('ranking-rejilla-camino')), findsNothing);
+    expect(find.text('JugadorCamino'), findsOneWidget);
+  });
+
+  testWidgets('volver a la rejilla de Camino y tocar otra tarjeta carga esa '
+      'clasificación', (tester) async {
     final gateway = FakeRankingGateway(
       global: _globalDePrueba,
       porCamino: {
@@ -262,16 +234,22 @@ void main() {
     await tester.tap(find.byKey(const Key('ranking-tab-camino')));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byKey(const Key('ranking-chip-camino-c2')));
+    await tester.tap(find.byKey(const Key('ranking-tarjeta-camino-c1')));
     await tester.pumpAndSettle();
+    expect(find.text('UnoC1'), findsOneWidget);
 
-    expect(gateway.caminoIdsConsultados, ['c1', 'c2']);
+    await tester.tap(find.byKey(const Key('ranking-boton-volver')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('ranking-rejilla-camino')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('ranking-tarjeta-camino-c2')));
+    await tester.pumpAndSettle();
     expect(find.text('UnoC2'), findsOneWidget);
   });
 
   testWidgets(
-    'cambiar a la pestaña Temática recarga la clasificación de la primera '
-    'temática',
+    'entrar en Temática muestra la rejilla; tocar una tarjeta abre su '
+    'clasificación',
     (tester) async {
       final gateway = FakeRankingGateway(
         global: _globalDePrueba,
@@ -293,16 +271,20 @@ void main() {
 
       await tester.tap(find.byKey(const Key('ranking-tab-tematica')));
       await tester.pumpAndSettle();
+      expect(find.text('JugadorTematica'), findsNothing);
 
-      expect(gateway.fetchPorTematicaCalls, 1);
-      expect(gateway.tematicaIdsConsultadas, ['t-monumentos']);
+      await tester.tap(
+        find.byKey(const Key('ranking-tarjeta-tematica-t-monumentos')),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('ranking-rejilla-tematica')), findsNothing);
       expect(find.text('JugadorTematica'), findsOneWidget);
     },
   );
 
-  testWidgets('seleccionar otra temática recarga con ese tematicaId', (
-    tester,
-  ) async {
+  testWidgets('volver a la rejilla de Temática y tocar otra tarjeta carga esa '
+      'clasificación', (tester) async {
     final gateway = FakeRankingGateway(
       global: _globalDePrueba,
       porTematica: {
@@ -333,12 +315,138 @@ void main() {
     await tester.tap(find.byKey(const Key('ranking-tab-tematica')));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byKey(const Key('ranking-chip-tematica-t-banderas')));
+    await tester.tap(
+      find.byKey(const Key('ranking-tarjeta-tematica-t-monumentos')),
+    );
     await tester.pumpAndSettle();
+    expect(find.text('UnoMonumentos'), findsOneWidget);
 
-    expect(gateway.tematicaIdsConsultadas, ['t-monumentos', 't-banderas']);
+    await tester.tap(find.byKey(const Key('ranking-boton-volver')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('ranking-rejilla-tematica')), findsOneWidget);
+
+    await tester.tap(
+      find.byKey(const Key('ranking-tarjeta-tematica-t-banderas')),
+    );
+    await tester.pumpAndSettle();
     expect(find.text('UnoBanderas'), findsOneWidget);
   });
+
+  testWidgets(
+    'cambiar de pestaña con una tarjeta abierta resetea a la rejilla al '
+    'volver a esa pestaña',
+    (tester) async {
+      final gateway = FakeRankingGateway(
+        global: _globalDePrueba,
+        porCamino: {
+          'c1': const [
+            EntradaRanking(
+              usuarioId: 'u9',
+              nombre: 'UnoC1',
+              puntuacion: 10,
+              superado: true,
+              posicion: 1,
+              esUsuarioActual: false,
+            ),
+          ],
+        },
+      );
+      await tester.pumpWidget(_pantalla(gateway));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('ranking-tab-camino')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('ranking-tarjeta-camino-c1')));
+      await tester.pumpAndSettle();
+      expect(find.text('UnoC1'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('ranking-tab-global')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('ranking-tab-camino')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('ranking-rejilla-camino')), findsOneWidget);
+      expect(find.text('UnoC1'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'cada tarjeta adelanta la posición propia: "Tú #N" o "Sin jugar"',
+    (tester) async {
+      final gateway = FakeRankingGateway(
+        global: _globalDePrueba,
+        porCamino: {
+          'c1': const [
+            EntradaRanking(
+              usuarioId: 'yo',
+              nombre: 'Ana',
+              puntuacion: 90,
+              superado: true,
+              posicion: 7,
+              esUsuarioActual: true,
+            ),
+          ],
+          // 'c2' sin datos: el falso devuelve lista vacía -> sin fila
+          // propia -> la tarjeta debe caer al "Sin jugar" por defecto.
+        },
+      );
+      await tester.pumpWidget(_pantalla(gateway));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('ranking-tab-camino')));
+      await tester.pumpAndSettle();
+
+      final propiaC1 = tester.widget<Text>(
+        find.byKey(const Key('ranking-tarjeta-camino-c1-propia')),
+      );
+      expect(propiaC1.data, 'Tú #7');
+
+      final propiaC2 = tester.widget<Text>(
+        find.byKey(const Key('ranking-tarjeta-camino-c2-propia')),
+      );
+      expect(propiaC2.data, 'Sin jugar');
+    },
+  );
+
+  testWidgets(
+    'volver desde una tarjeta abierta cierra la tarjeta sin salir de la '
+    'pantalla; volver desde la rejilla sí sale de la pantalla',
+    (tester) async {
+      final gateway = FakeRankingGateway(
+        global: _globalDePrueba,
+        porCamino: {
+          'c1': const [
+            EntradaRanking(
+              usuarioId: 'u9',
+              nombre: 'UnoC1',
+              puntuacion: 10,
+              superado: true,
+              posicion: 1,
+              esUsuarioActual: false,
+            ),
+          ],
+        },
+      );
+      await tester.pumpWidget(_pantallaConHistorial(gateway));
+      await tester.tap(find.byKey(const Key('abrir-ranking')));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('ranking-tab-camino')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('ranking-tarjeta-camino-c1')));
+      await tester.pumpAndSettle();
+      expect(find.text('UnoC1'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('ranking-boton-volver')));
+      await tester.pumpAndSettle();
+      expect(find.text('Clasificación'), findsOneWidget);
+      expect(find.byKey(const Key('ranking-rejilla-camino')), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('ranking-boton-volver')));
+      await tester.pumpAndSettle();
+      expect(find.text('Clasificación'), findsNothing);
+      expect(find.byKey(const Key('abrir-ranking')), findsOneWidget);
+    },
+  );
 
   testWidgets(
     'la fila fija muestra la posición propia aunque quede fuera del top cargado',

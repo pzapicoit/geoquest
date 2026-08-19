@@ -163,8 +163,19 @@ class _RankingScreenState extends State<RankingScreen> {
   String? _tematicaIdSeleccionada;
   late Future<List<EntradaRanking>> _futuro;
 
+  /// Adelanto de la posición propia por tarjeta de la rejilla ("Tú #N" /
+  /// "Sin jugar"), una entrada por `caminoId`/`tematicaId`. Se calcula una
+  /// sola vez por apertura de pestaña (design.md, decisión 3) — `null`
+  /// mientras no se ha entrado todavía en esa pestaña.
+  Future<Map<String, EntradaRanking>>? _futuroPreviasCamino;
+  Future<Map<String, EntradaRanking>>? _futuroPreviasTematica;
+
   List<ChipCamino> get _chipsCamino => derivarChipsCamino(_paradas);
   List<ChipTematica> get _chipsTematica => derivarChipsTematica(_paradas);
+
+  bool get _haySeleccion =>
+      (_pestana == _Pestana.camino && _caminoIdSeleccionado != null) ||
+      (_pestana == _Pestana.tematica && _tematicaIdSeleccionada != null);
 
   @override
   void initState() {
@@ -178,18 +189,54 @@ class _RankingScreenState extends State<RankingScreen> {
     if (!mounted) return;
     setState(() {
       _paradas = camino.entradas;
-      if (_pestana == _Pestana.camino &&
-          _caminoIdSeleccionado == null &&
-          _chipsCamino.isNotEmpty) {
-        _caminoIdSeleccionado = _chipsCamino.first.caminoId;
-        _futuro = _cargarRanking();
-      } else if (_pestana == _Pestana.tematica &&
-          _tematicaIdSeleccionada == null &&
-          _chipsTematica.isNotEmpty) {
-        _tematicaIdSeleccionada = _chipsTematica.first.tematicaId;
-        _futuro = _cargarRanking();
-      }
+      // Las paradas pudieron llegar tarde (fallback sin `widget.paradas`):
+      // si ya se había disparado una previa con la rejilla vacía, se
+      // descarta para recalcularla con las paradas reales.
+      _futuroPreviasCamino = null;
+      _futuroPreviasTematica = null;
+      _asegurarPreviasPestanaActual();
     });
+  }
+
+  /// Dispara (si hace falta) la carga de previas de la rejilla de la
+  /// pestaña activa, sin repetirla si ya está en marcha (design.md,
+  /// decisión 3).
+  void _asegurarPreviasPestanaActual() {
+    if (_pestana == _Pestana.camino && _caminoIdSeleccionado == null) {
+      _futuroPreviasCamino ??= _cargarPreviasCamino();
+    } else if (_pestana == _Pestana.tematica &&
+        _tematicaIdSeleccionada == null) {
+      _futuroPreviasTematica ??= _cargarPreviasTematica();
+    }
+  }
+
+  Future<Map<String, EntradaRanking>> _cargarPreviasCamino() async {
+    final chips = _chipsCamino;
+    final resultados = await Future.wait([
+      for (final chip in chips)
+        _rankingGateway.fetchClasificacionPorCamino(chip.caminoId, limite: 1),
+    ]);
+    return {
+      for (var i = 0; i < chips.length; i++)
+        if (_buscarPropia(resultados[i]) != null)
+          chips[i].caminoId: _buscarPropia(resultados[i])!,
+    };
+  }
+
+  Future<Map<String, EntradaRanking>> _cargarPreviasTematica() async {
+    final chips = _chipsTematica;
+    final resultados = await Future.wait([
+      for (final chip in chips)
+        _rankingGateway.fetchClasificacionPorTematica(
+          chip.tematicaId,
+          limite: 1,
+        ),
+    ]);
+    return {
+      for (var i = 0; i < chips.length; i++)
+        if (_buscarPropia(resultados[i]) != null)
+          chips[i].tematicaId: _buscarPropia(resultados[i])!,
+    };
   }
 
   Future<List<EntradaRanking>> _cargarRanking() {
@@ -213,16 +260,33 @@ class _RankingScreenState extends State<RankingScreen> {
     if (nueva == _pestana) return;
     setState(() {
       _pestana = nueva;
-      if (nueva == _Pestana.camino) {
-        _caminoIdSeleccionado ??= _chipsCamino.isEmpty
-            ? null
-            : _chipsCamino.first.caminoId;
-      } else if (nueva == _Pestana.tematica) {
-        _tematicaIdSeleccionada ??= _chipsTematica.isEmpty
-            ? null
-            : _chipsTematica.first.tematicaId;
+      // Cambiar de pestaña siempre vuelve a la rejilla, igual que el
+      // mockup (`sels[i] = null` en cada cambio de pestaña) — nunca se
+      // conserva una tarjeta abierta de una visita anterior.
+      _caminoIdSeleccionado = null;
+      _tematicaIdSeleccionada = null;
+      if (nueva == _Pestana.global) {
+        _futuro = _cargarRanking();
+      } else {
+        _asegurarPreviasPestanaActual();
       }
-      _futuro = _cargarRanking();
+    });
+  }
+
+  /// Botón ‹ de la cabecera: si hay una tarjeta abierta, vuelve a la
+  /// rejilla; si no, sale de la pantalla (design.md, decisión 2).
+  void _onVolver() {
+    if (_haySeleccion) {
+      _cerrarTarjeta();
+    } else {
+      Navigator.of(context).pop();
+    }
+  }
+
+  void _cerrarTarjeta() {
+    setState(() {
+      _caminoIdSeleccionado = null;
+      _tematicaIdSeleccionada = null;
     });
   }
 
@@ -264,13 +328,20 @@ class _RankingScreenState extends State<RankingScreen> {
         return 'Global · acumulado histórico';
       case _Pestana.camino:
         final chip = _buscarChipCamino(_caminoIdSeleccionado);
-        return chip == null
-            ? 'Camino'
-            : 'Camino ${chip.orden} · ${chip.tematicaNombre}';
+        if (chip != null) return 'Nivel ${chip.orden} · ${chip.tematicaNombre}';
+        return 'Elige una parada del camino · ${_chipsCamino.length} paradas';
       case _Pestana.tematica:
         final chip = _buscarChipTematica(_tematicaIdSeleccionada);
-        return chip == null ? 'Temática' : '${chip.tematicaNombre} · ranking';
+        if (chip != null) return '${chip.tematicaNombre} · ranking';
+        return 'Elige una temática · ${_chipsTematica.length} colecciones';
     }
+  }
+
+  String? _imagenTematica(String tematicaId) {
+    for (final parada in _paradas) {
+      if (parada.tematicaId == tematicaId) return parada.imagenPortadaUrl;
+    }
+    return null;
   }
 
   String _metaTexto(EntradaRanking entrada) {
@@ -286,112 +357,156 @@ class _RankingScreenState extends State<RankingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: DecoratedBox(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [_bgTop, _bgMid, _bgBottom],
+    final mostrarRejilla =
+        (_pestana == _Pestana.camino || _pestana == _Pestana.tematica) &&
+        !_haySeleccion;
+
+    return PopScope(
+      canPop: !_haySeleccion,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        _cerrarTarjeta();
+      },
+      child: Scaffold(
+        body: DecoratedBox(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [_bgTop, _bgMid, _bgBottom],
+            ),
           ),
-        ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              _Cabecera(
-                subtitulo: _subtitulo,
-                puntosTotales: widget.puntosTotales,
-                onBack: () => Navigator.of(context).pop(),
-              ),
-              _SelectorPestanas(
-                pestana: _pestana,
-                onCambiar: _onCambiarPestana,
-              ),
-              if (_pestana == _Pestana.camino)
-                _SelectorChips(
-                  prefijoKey: 'ranking-chip-camino',
-                  seleccionado: _caminoIdSeleccionado,
-                  onSeleccionar: _onSeleccionarCamino,
-                  chips: [
-                    for (final chip in _chipsCamino)
-                      _ChipDato(
-                        id: chip.caminoId,
-                        etiqueta: 'Camino ${chip.orden}',
-                        color: _colorTematica(chip.tematicaId),
-                      ),
-                  ],
+          child: SafeArea(
+            child: Column(
+              children: [
+                _Cabecera(
+                  subtitulo: _subtitulo,
+                  puntosTotales: widget.puntosTotales,
+                  onBack: _onVolver,
                 ),
-              if (_pestana == _Pestana.tematica)
-                _SelectorChips(
-                  prefijoKey: 'ranking-chip-tematica',
-                  seleccionado: _tematicaIdSeleccionada,
-                  onSeleccionar: _onSeleccionarTematica,
-                  chips: [
-                    for (final chip in _chipsTematica)
-                      _ChipDato(
-                        id: chip.tematicaId,
-                        etiqueta: chip.tematicaNombre,
-                        color: _colorTematica(chip.tematicaId),
-                      ),
-                  ],
+                _SelectorPestanas(
+                  pestana: _pestana,
+                  onCambiar: _onCambiarPestana,
                 ),
-              Expanded(
-                child: FutureBuilder<List<EntradaRanking>>(
-                  future: _futuro,
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState != ConnectionState.done) {
-                      return const Center(
-                        child: CircularProgressIndicator(color: _teal),
-                      );
-                    }
-                    if (snapshot.hasError) {
-                      return _EstadoError(
-                        onRetry: () => setState(() {
-                          _futuro = _cargarRanking();
-                        }),
-                      );
-                    }
-
-                    final entradas = snapshot.data!;
-                    final propia = _buscarPropia(entradas);
-                    final otros = entradas
-                        .where((e) => !e.esUsuarioActual)
-                        .toList();
-                    final vacio = otros.isEmpty;
-
-                    return Column(
-                      children: [
-                        Expanded(
-                          child: vacio
-                              ? const _EstadoVacio()
-                              : ListView(
-                                  key: const Key('ranking-lista'),
-                                  padding: const EdgeInsets.only(bottom: 12),
-                                  children: [
-                                    _Podio(top: entradas.take(3).toList()),
-                                    const SizedBox(height: 6),
-                                    for (final entrada in entradas.skip(3))
-                                      _FilaRanking(
-                                        entrada: entrada,
-                                        metaTexto: _metaTexto(entrada),
-                                      ),
-                                  ],
-                                ),
-                        ),
-                        if (propia != null)
-                          _FilaPropia(
-                            entrada: propia,
-                            metaTexto: _metaTexto(propia),
-                          ),
-                      ],
-                    );
-                  },
+                Expanded(
+                  child: mostrarRejilla
+                      ? _buildRejilla()
+                      : _buildClasificacion(),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildRejilla() {
+    final futuro = _pestana == _Pestana.camino
+        ? _futuroPreviasCamino
+        : _futuroPreviasTematica;
+
+    return FutureBuilder<Map<String, EntradaRanking>>(
+      future: futuro,
+      builder: (context, snapshot) {
+        if (futuro == null ||
+            snapshot.connectionState != ConnectionState.done) {
+          return const Center(child: CircularProgressIndicator(color: _teal));
+        }
+        if (snapshot.hasError) {
+          return _EstadoError(
+            onRetry: () => setState(() {
+              if (_pestana == _Pestana.camino) {
+                _futuroPreviasCamino = _cargarPreviasCamino();
+              } else {
+                _futuroPreviasTematica = _cargarPreviasTematica();
+              }
+            }),
+          );
+        }
+
+        final previas = snapshot.data!;
+        if (_pestana == _Pestana.camino) {
+          return _RejillaTarjetas(
+            key: const Key('ranking-rejilla-camino'),
+            tarjetas: [
+              for (final chip in _chipsCamino)
+                _Tarjeta(
+                  keyValue: 'ranking-tarjeta-camino-${chip.caminoId}',
+                  onTap: () => _onSeleccionarCamino(chip.caminoId),
+                  titulo: 'Nivel ${chip.orden}',
+                  subtitulo: chip.tematicaNombre,
+                  color: _colorTematica(chip.tematicaId),
+                  numeroInsignia: chip.orden,
+                  propia: previas[chip.caminoId],
+                ),
+            ],
+          );
+        }
+        return _RejillaTarjetas(
+          key: const Key('ranking-rejilla-tematica'),
+          tarjetas: [
+            for (final chip in _chipsTematica)
+              _Tarjeta(
+                keyValue: 'ranking-tarjeta-tematica-${chip.tematicaId}',
+                onTap: () => _onSeleccionarTematica(chip.tematicaId),
+                titulo: chip.tematicaNombre,
+                subtitulo:
+                    '${_paradas.where((p) => p.tematicaId == chip.tematicaId).length} niveles',
+                color: _colorTematica(chip.tematicaId),
+                imagenUrl: _imagenTematica(chip.tematicaId),
+                propia: previas[chip.tematicaId],
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildClasificacion() {
+    return FutureBuilder<List<EntradaRanking>>(
+      future: _futuro,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Center(child: CircularProgressIndicator(color: _teal));
+        }
+        if (snapshot.hasError) {
+          return _EstadoError(
+            onRetry: () => setState(() {
+              _futuro = _cargarRanking();
+            }),
+          );
+        }
+
+        final entradas = snapshot.data!;
+        final propia = _buscarPropia(entradas);
+        final otros = entradas.where((e) => !e.esUsuarioActual).toList();
+        final vacio = otros.isEmpty;
+
+        return Column(
+          children: [
+            Expanded(
+              child: vacio
+                  ? const _EstadoVacio()
+                  : ListView(
+                      key: const Key('ranking-lista'),
+                      padding: const EdgeInsets.only(bottom: 12),
+                      children: [
+                        _Podio(top: entradas.take(3).toList()),
+                        const SizedBox(height: 6),
+                        for (final entrada in entradas.skip(3))
+                          _FilaRanking(
+                            entrada: entrada,
+                            metaTexto: _metaTexto(entrada),
+                          ),
+                      ],
+                    ),
+            ),
+            if (propia != null)
+              _FilaPropia(entrada: propia, metaTexto: _metaTexto(propia)),
+          ],
+        );
+      },
     );
   }
 }
@@ -557,88 +672,205 @@ class _SelectorPestanas extends StatelessWidget {
   }
 }
 
-class _ChipDato {
-  const _ChipDato({
-    required this.id,
-    required this.etiqueta,
-    required this.color,
-  });
+class _RejillaTarjetas extends StatelessWidget {
+  const _RejillaTarjetas({super.key, required this.tarjetas});
 
-  final String id;
-  final String etiqueta;
-  final Color color;
-}
-
-class _SelectorChips extends StatelessWidget {
-  const _SelectorChips({
-    required this.chips,
-    required this.seleccionado,
-    required this.onSeleccionar,
-    required this.prefijoKey,
-  });
-
-  final List<_ChipDato> chips;
-  final String? seleccionado;
-  final ValueChanged<String> onSeleccionar;
-  final String prefijoKey;
+  final List<Widget> tarjetas;
 
   @override
   Widget build(BuildContext context) {
-    if (chips.isEmpty) return const SizedBox(height: 8);
-    return SizedBox(
-      height: 54,
-      child: ListView.separated(
-        padding: const EdgeInsets.fromLTRB(18, 10, 18, 4),
-        scrollDirection: Axis.horizontal,
-        itemCount: chips.length,
-        separatorBuilder: (context, index) => const SizedBox(width: 8),
-        itemBuilder: (context, index) {
-          final chip = chips[index];
-          final activo = chip.id == seleccionado;
-          return GestureDetector(
-            key: Key('$prefijoKey-${chip.id}'),
-            onTap: () => onSeleccionar(chip.id),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
+    if (tarjetas.isEmpty) return const SizedBox.shrink();
+    return GridView.count(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+      crossAxisCount: 2,
+      mainAxisSpacing: 11,
+      crossAxisSpacing: 11,
+      childAspectRatio: 0.8,
+      children: tarjetas,
+    );
+  }
+}
+
+/// Tarjeta de la rejilla de Camino (con [numeroInsignia], sin imagen) o de
+/// Temática (con [imagenUrl], sin insignia) — INT-110 delta-2.
+class _Tarjeta extends StatelessWidget {
+  const _Tarjeta({
+    required this.keyValue,
+    required this.onTap,
+    required this.titulo,
+    required this.subtitulo,
+    required this.color,
+    required this.propia,
+    this.numeroInsignia,
+    this.imagenUrl,
+  });
+
+  final String keyValue;
+  final VoidCallback onTap;
+  final String titulo;
+  final String subtitulo;
+  final Color color;
+  final EntradaRanking? propia;
+  final int? numeroInsignia;
+  final String? imagenUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    final propiaTexto = propia?.posicion == null
+        ? 'Sin jugar'
+        : 'Tú #${propia!.posicion}';
+
+    return GestureDetector(
+      key: Key(keyValue),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.05),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.1),
+            width: 1.5,
+          ),
+          borderRadius: BorderRadius.circular(22),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            numeroInsignia != null
+                ? _MediaInsignia(numero: numeroInsignia!, color: color)
+                : _MediaImagen(url: imagenUrl, color: color),
+            const SizedBox(height: 9),
+            Text(
+              titulo,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.outfit(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+                fontSize: 14,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              subtitulo,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.outfit(
+                color: Colors.white.withValues(alpha: 0.5),
+                fontWeight: FontWeight.w500,
+                fontSize: 11,
+              ),
+            ),
+            const Spacer(),
+            Container(
+              margin: const EdgeInsets.only(top: 9),
+              padding: const EdgeInsets.only(top: 9),
               decoration: BoxDecoration(
-                color: activo
-                    ? _teal.withValues(alpha: 0.16)
-                    : Colors.white.withValues(alpha: 0.05),
-                border: Border.all(
-                  color: activo
-                      ? _teal.withValues(alpha: 0.6)
-                      : Colors.white.withValues(alpha: 0.1),
-                  width: 1.5,
+                border: Border(
+                  top: BorderSide(color: Colors.white.withValues(alpha: 0.07)),
                 ),
-                borderRadius: BorderRadius.circular(14),
               ),
               child: Row(
-                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Container(
-                    width: 7,
-                    height: 7,
-                    decoration: BoxDecoration(
-                      color: chip.color,
-                      shape: BoxShape.circle,
+                  Text(
+                    propiaTexto,
+                    key: Key('$keyValue-propia'),
+                    style: GoogleFonts.outfit(
+                      color: const Color(0xFF8FE7D6),
+                      fontWeight: FontWeight.w700,
+                      fontSize: 11.5,
                     ),
                   ),
-                  const SizedBox(width: 7),
                   Text(
-                    chip.etiqueta,
+                    '›',
                     style: GoogleFonts.outfit(
-                      color: activo
-                          ? const Color(0xFF8FE7D6)
-                          : Colors.white.withValues(alpha: 0.6),
+                      color: Colors.white.withValues(alpha: 0.35),
                       fontWeight: FontWeight.w700,
-                      fontSize: 12,
+                      fontSize: 14,
                     ),
                   ),
                 ],
               ),
             ),
-          );
-        },
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MediaInsignia extends StatelessWidget {
+  const _MediaInsignia({required this.numero, required this.color});
+
+  final int numero;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 34,
+      height: 34,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [color, Colors.white.withValues(alpha: 0.18)],
+        ),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.2),
+          width: 1.5,
+        ),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        '$numero',
+        style: GoogleFonts.baloo2(
+          color: const Color(0xFF04202A),
+          fontWeight: FontWeight.w800,
+          fontSize: 14,
+        ),
+      ),
+    );
+  }
+}
+
+class _MediaImagen extends StatelessWidget {
+  const _MediaImagen({required this.url, required this.color});
+
+  final String? url;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final urlActual = url;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(15),
+      child: SizedBox(
+        height: 78,
+        width: double.infinity,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            if (urlActual == null)
+              ColoredBox(color: color.withValues(alpha: 0.3))
+            else
+              Image.network(
+                urlActual,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) =>
+                    ColoredBox(color: color.withValues(alpha: 0.3)),
+              ),
+            Positioned(
+              top: 8,
+              left: 8,
+              child: Container(
+                width: 9,
+                height: 9,
+                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
