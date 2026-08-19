@@ -97,6 +97,13 @@ class _UsernameScreenState extends State<UsernameScreen> {
 
     try {
       await _profileGateway.updateNickname(nombre);
+    } on AliasEnUsoException {
+      if (!mounted) return;
+      setState(() {
+        _saving = false;
+        _errorMessage = 'Ese apodo ya está en uso. Prueba con otro.';
+      });
+      return;
     } catch (_) {
       if (!mounted) return;
       setState(() {

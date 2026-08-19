@@ -3,6 +3,7 @@ import { RequireAuth } from './components/RequireAuth'
 import { PanelLayout } from './components/PanelLayout'
 import { Login } from './pages/Login'
 import { Home } from './pages/Home'
+import { Jugadores } from './pages/Jugadores'
 import { Preguntas } from './pages/Preguntas'
 import { PreguntaForm } from './pages/PreguntaForm'
 import { Tematicas } from './pages/Tematicas'
@@ -20,6 +21,16 @@ export function App() {
             <RequireAuth>
               <PanelLayout>
                 <Home />
+              </PanelLayout>
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/jugadores"
+          element={
+            <RequireAuth>
+              <PanelLayout>
+                <Jugadores />
               </PanelLayout>
             </RequireAuth>
           }
