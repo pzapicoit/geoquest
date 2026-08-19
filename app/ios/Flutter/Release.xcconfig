@@ -1,1 +1,8 @@
 #include "Generated.xcconfig"
+
+// Ver Debug.xcconfig: la identidad de firma se redefine en `Local.xcconfig`,
+// no en el .pbxproj. Release y Profile comparten este fichero.
+GEOQUEST_DEVELOPMENT_TEAM = TYZG5ZZWXC
+GEOQUEST_BUNDLE_ID = es.intermarkit.geoquest
+
+#include? "Local.xcconfig"
