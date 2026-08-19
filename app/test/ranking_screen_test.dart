@@ -142,27 +142,59 @@ void main() {
     expect(find.byKey(const Key('ranking-chip-camino-c1')), findsNothing);
   });
 
+  /// Presupuesto real del widget: el chip reserva `vertical: 9` de padding a
+  /// cada lado (`_SelectorChips`, `Container` del chip) — el texto debe caber
+  /// en lo que queda sin recortarse contra el borde.
+  const paddingVerticalChip = 9 * 2;
+
+  void expectTextoDeChipCabe(WidgetTester tester, Key chipKey, String texto) {
+    final chip = find.byKey(chipKey);
+    final textoFinder = find.descendant(of: chip, matching: find.text(texto));
+
+    final altoChip = tester.getSize(chip).height;
+    final altoTexto = tester.getSize(textoFinder).height;
+
+    expect(altoTexto, lessThan(altoChip - paddingVerticalChip));
+  }
+
   testWidgets(
-    'el texto de un chip de filtro no se recorta contra su propio borde',
+    'el texto de los chips de filtro no se recorta contra su propio borde, '
+    'ni en Camino ni en Temática',
     (tester) async {
+      const paradaLarga = ParadaCamino(
+        orden: 3,
+        caminoId: 'c3',
+        tematicaId: 't-patrimonio',
+        tematicaNombre: 'Patrimonio de la Humanidad',
+        superado: false,
+        estrellasObtenidas: 0,
+        estrellasRequeridas: 0,
+        estrellasAcumuladasUsuario: 0,
+        desbloqueado: true,
+        esActual: false,
+      );
       final gateway = FakeRankingGateway(global: _globalDePrueba);
-      await tester.pumpWidget(_pantalla(gateway));
+      await tester.pumpWidget(
+        _pantalla(gateway, paradas: [..._paradas, paradaLarga]),
+      );
       await tester.pumpAndSettle();
 
       await tester.tap(find.byKey(const Key('ranking-tab-camino')));
       await tester.pumpAndSettle();
+      expectTextoDeChipCabe(
+        tester,
+        const Key('ranking-chip-camino-c1'),
+        'Camino 1',
+      );
+      expect(tester.takeException(), isNull);
 
-      final chip = find.byKey(const Key('ranking-chip-camino-c1'));
-      final texto = find.descendant(of: chip, matching: find.text('Camino 1'));
-
-      final altoChip = tester.getSize(chip).height;
-      final altoTexto = tester.getSize(texto).height;
-      // Presupuesto real del widget: el chip reserva `vertical: 9` de padding
-      // a cada lado (`_SelectorChips`, `Container` del chip) — el texto debe
-      // caber en lo que queda sin recortarse contra el borde.
-      const paddingVerticalChip = 9 * 2;
-
-      expect(altoTexto, lessThan(altoChip - paddingVerticalChip));
+      await tester.tap(find.byKey(const Key('ranking-tab-tematica')));
+      await tester.pumpAndSettle();
+      expectTextoDeChipCabe(
+        tester,
+        const Key('ranking-chip-tematica-t-patrimonio'),
+        'Patrimonio de la Humanidad',
+      );
       expect(tester.takeException(), isNull);
     },
   );
