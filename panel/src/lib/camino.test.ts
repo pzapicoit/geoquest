@@ -88,7 +88,8 @@ describe('fetchCamino', () => {
 
   it('propaga el error si falla la consulta del camino', async () => {
     from.mockImplementation((table: string) => {
-      if (table === 'camino_panel') return { select: () => selectOrder(null, { message: 'rechazado' }) }
+      if (table === 'camino_panel')
+        return { select: () => selectOrder(null, { message: 'rechazado' }) }
       throw new Error(`tabla inesperada: ${table}`)
     })
 

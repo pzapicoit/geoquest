@@ -93,13 +93,11 @@ function FilaDificultad({
   onGuardar: () => void
 }) {
   const [umbrales, setUmbrales] = useState<UmbralesParada | null>(null)
+  const preguntas = Number(form.preguntasPorPartida)
+  const preguntasValidas = Number.isInteger(preguntas) && preguntas > 0
 
   useEffect(() => {
-    const preguntas = Number(form.preguntasPorPartida)
-    if (!Number.isInteger(preguntas) || preguntas <= 0) {
-      setUmbrales(null)
-      return
-    }
+    if (!preguntasValidas) return
 
     let cancelado = false
     const timeout = setTimeout(() => {
@@ -116,7 +114,9 @@ function FilaDificultad({
       cancelado = true
       clearTimeout(timeout)
     }
-  }, [fila.dificultad, form.preguntasPorPartida])
+  }, [fila.dificultad, preguntas, preguntasValidas])
+
+  const umbralesMostrables = preguntasValidas ? umbrales : null
 
   return (
     <tr className="border-b border-brand-base last:border-0">
@@ -140,7 +140,7 @@ function FilaDificultad({
         />
       </td>
       <td className="px-4 py-3.5 align-top">
-        <BloqueUmbrales umbrales={umbrales} />
+        <BloqueUmbrales umbrales={umbralesMostrables} />
       </td>
       <td className="px-4 py-3.5 align-top">
         <button

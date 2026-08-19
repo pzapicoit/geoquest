@@ -187,12 +187,11 @@ function BloqueUmbralesParada({
   totalCamino: number
 }) {
   const [umbrales, setUmbrales] = useState<UmbralesParada | null>(null)
+  const preguntasValidas =
+    Number.isInteger(preguntasPorPartidaEfectivo) && preguntasPorPartidaEfectivo > 0
 
   useEffect(() => {
-    if (!Number.isInteger(preguntasPorPartidaEfectivo) || preguntasPorPartidaEfectivo <= 0) {
-      setUmbrales(null)
-      return
-    }
+    if (!preguntasValidas) return
 
     let cancelado = false
     const timeout = setTimeout(() => {
@@ -209,39 +208,45 @@ function BloqueUmbralesParada({
       cancelado = true
       clearTimeout(timeout)
     }
-  }, [dificultad, preguntasPorPartidaEfectivo])
+  }, [dificultad, preguntasPorPartidaEfectivo, preguntasValidas])
 
-  if (!umbrales) {
+  const umbralesMostrables = preguntasValidas ? umbrales : null
+  if (!umbralesMostrables) {
     return <p className="text-xs text-brand-night/40">Calculando umbrales…</p>
   }
 
-  const pct = (valor: number) => Math.round((valor / umbrales.maximo) * 100)
+  const pct = (valor: number) => Math.round((valor / umbralesMostrables.maximo) * 100)
 
   return (
     <div className="flex flex-col gap-1 rounded-xl border border-brand-border/70 bg-white/60 p-3 text-xs tabular-nums text-brand-night/70">
       <div className="flex justify-between">
         <span className="text-brand-night/45">Máximo alcanzable</span>
         <span className="font-semibold">
-          {umbrales.maximo.toLocaleString('es-ES')} pts ({preguntasPorPartidaEfectivo} ×{' '}
-          {Math.round(umbrales.maximo / preguntasPorPartidaEfectivo).toLocaleString('es-ES')})
+          {umbralesMostrables.maximo.toLocaleString('es-ES')} pts ({preguntasPorPartidaEfectivo} ×{' '}
+          {Math.round(umbralesMostrables.maximo / preguntasPorPartidaEfectivo).toLocaleString(
+            'es-ES',
+          )}
+          )
         </span>
       </div>
       <div className="flex justify-between">
         <span className="text-brand-night/45">★1 · superar</span>
         <span>
-          {umbrales.minimo.toLocaleString('es-ES')} · {pct(umbrales.minimo)}%
+          {umbralesMostrables.minimo.toLocaleString('es-ES')} · {pct(umbralesMostrables.minimo)}%
         </span>
       </div>
       <div className="flex justify-between">
         <span className="text-brand-night/45">★2</span>
         <span>
-          {umbrales.umbralEstrella2.toLocaleString('es-ES')} · {pct(umbrales.umbralEstrella2)}%
+          {umbralesMostrables.umbralEstrella2.toLocaleString('es-ES')} ·{' '}
+          {pct(umbralesMostrables.umbralEstrella2)}%
         </span>
       </div>
       <div className="flex justify-between">
         <span className="text-brand-night/45">★3</span>
         <span>
-          {umbrales.umbralEstrella3.toLocaleString('es-ES')} · {pct(umbrales.umbralEstrella3)}%
+          {umbralesMostrables.umbralEstrella3.toLocaleString('es-ES')} ·{' '}
+          {pct(umbralesMostrables.umbralEstrella3)}%
         </span>
       </div>
       <div className="mt-1 flex justify-between border-t border-brand-border/50 pt-1">

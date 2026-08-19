@@ -271,9 +271,7 @@ describe('Camino — overrides por posición', () => {
     await screen.findByText('Monumentos · Fácil')
     await user.click(screen.getAllByRole('button', { name: 'Overrides' })[0])
 
-    await waitFor(() =>
-      expect(fetchUmbralesParada).toHaveBeenCalledWith('facil', 8),
-    )
+    await waitFor(() => expect(fetchUmbralesParada).toHaveBeenCalledWith('facil', 8))
     expect(await screen.findByText(/Se desbloquea con/)).toBeInTheDocument()
     expect(await screen.findByText(/posición 1 de 2/)).toBeInTheDocument()
 
