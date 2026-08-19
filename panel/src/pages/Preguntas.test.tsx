@@ -77,6 +77,7 @@ beforeEach(() => {
   actualizarDificultadPregunta.mockReset()
   actualizarActivoPregunta.mockReset()
   vi.spyOn(window, 'confirm').mockReturnValue(true)
+  sessionStorage.clear()
 })
 
 describe('Preguntas', () => {
@@ -136,11 +137,13 @@ describe('Preguntas', () => {
     renderPreguntas()
     await screen.findByText('Torre Eiffel')
 
-    await user.selectOptions(screen.getByLabelText(/filtrar por tipo/i), 'video')
+    const grupoTipo = screen.getByRole('group', { name: /filtrar por tipo/i })
+    await user.click(within(grupoTipo).getByRole('button', { name: 'Vídeo' }))
     expect(screen.queryByText('Torre Eiffel')).not.toBeInTheDocument()
     expect(screen.getByText('Desafío suelto')).toBeInTheDocument()
 
-    await user.selectOptions(screen.getByLabelText(/filtrar por estado/i), 'activo')
+    const grupoEstado = screen.getByRole('group', { name: /filtrar por estado/i })
+    await user.click(within(grupoEstado).getByRole('button', { name: 'Activo' }))
     expect(screen.queryByText('Desafío suelto')).not.toBeInTheDocument()
   })
 
@@ -163,9 +166,54 @@ describe('Preguntas', () => {
     renderPreguntas()
     await screen.findByText('Torre Eiffel')
 
-    await user.selectOptions(screen.getByLabelText(/filtrar por dificultad/i), 'muy_dificil')
+    const grupoDificultad = screen.getByRole('group', { name: /filtrar por dificultad/i })
+    await user.click(within(grupoDificultad).getByRole('button', { name: 'Muy difícil' }))
     expect(screen.queryByText('Torre Eiffel')).not.toBeInTheDocument()
     expect(screen.getByText('Machu Picchu')).toBeInTheDocument()
+  })
+
+  it('marca como activo (aria-pressed) el chip del filtro seleccionado', async () => {
+    fetchPreguntas.mockResolvedValue([TORRE_EIFFEL, MACHU_PICCHU, DESAFIO_SUELTO])
+    const user = userEvent.setup()
+
+    renderPreguntas()
+    await screen.findByText('Torre Eiffel')
+
+    const grupoTipo = screen.getByRole('group', { name: /filtrar por tipo/i })
+    const chipTodos = within(grupoTipo).getByRole('button', { name: 'Todos' })
+    const chipVideo = within(grupoTipo).getByRole('button', { name: 'Vídeo' })
+
+    expect(chipTodos).toHaveAttribute('aria-pressed', 'true')
+    expect(chipVideo).toHaveAttribute('aria-pressed', 'false')
+
+    await user.click(chipVideo)
+
+    expect(chipTodos).toHaveAttribute('aria-pressed', 'false')
+    expect(chipVideo).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('recuerda el último filtro aplicado al volver a montar el listado (p.ej. tras crear una pregunta)', async () => {
+    fetchPreguntas.mockResolvedValue([TORRE_EIFFEL, MACHU_PICCHU, DESAFIO_SUELTO])
+    const user = userEvent.setup()
+
+    const { unmount } = renderPreguntas()
+    await screen.findByText('Torre Eiffel')
+
+    const grupoTipo = screen.getByRole('group', { name: /filtrar por tipo/i })
+    await user.click(within(grupoTipo).getByRole('button', { name: 'Vídeo' }))
+    expect(screen.getByText('Desafío suelto')).toBeInTheDocument()
+
+    unmount()
+
+    renderPreguntas()
+    await screen.findByText('Desafío suelto')
+    expect(screen.queryByText('Torre Eiffel')).not.toBeInTheDocument()
+
+    const grupoTipoTrasRemontar = screen.getByRole('group', { name: /filtrar por tipo/i })
+    expect(within(grupoTipoTrasRemontar).getByRole('button', { name: 'Vídeo' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
   })
 
   it('pagina los resultados y reinicia a la primera página al cambiar un filtro', async () => {

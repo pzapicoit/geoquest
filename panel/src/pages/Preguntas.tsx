@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import {
   actualizarActivoPregunta,
@@ -12,6 +12,7 @@ import { DIFICULTADES, type Dificultad } from '../lib/dificultad'
 
 const PAGE_SIZE = 10
 const TODAS_TEMATICAS = 'Todas las temáticas'
+const FILTROS_STORAGE_KEY = 'panel:preguntas:filtros'
 
 type FiltroTipo = 'todos' | TipoDesafio
 type FiltroEstado = 'todos' | 'activo' | 'inactivo'
@@ -37,16 +38,39 @@ const DIFICULTAD_BADGE: Record<Dificultad, string> = {
   muy_dificil: 'bg-[#E0454A]/10 text-[#B3282D]',
 }
 
+// Mismos colores que las badges de la tabla, para que el filtro activo se
+// reconozca de un vistazo con la fila que produce.
+const DIFICULTAD_CHIP_ACTIVA: Record<Dificultad, string> = {
+  facil: 'border-brand-teal bg-brand-teal/10 text-brand-teal',
+  normal: 'border-brand-blue bg-brand-blue/10 text-brand-blue',
+  intermedio: 'border-brand-gold bg-brand-gold/25 text-[#996100]',
+  dificil: 'border-brand-special bg-brand-special/10 text-brand-special',
+  muy_dificil: 'border-[#E0454A] bg-[#E0454A]/10 text-[#B3282D]',
+}
+
+const TIPO_CHIP_ACTIVA: Record<TipoDesafio, string> = {
+  imagen: 'border-brand-blue bg-brand-blue/10 text-brand-blue',
+  video: 'border-brand-special bg-brand-special/10 text-brand-special',
+  pregunta_texto: 'border-brand-gold bg-brand-gold/25 text-[#996100]',
+}
+
+const ESTADO_CHIP_ACTIVA: Record<'activo' | 'inactivo', string> = {
+  activo: 'border-brand-success bg-brand-success/10 text-brand-success',
+  inactivo: 'border-brand-night/35 bg-brand-night/5 text-brand-night/70',
+}
+
+const CHIP_TODOS_ACTIVA = 'border-brand-night/70 bg-brand-base text-brand-night'
+
 const BOTON_FONDO = {
   background: 'linear-gradient(140deg, #2BC0A8, #1B6FA8)',
 }
 
-function IconoTipo({ tipo }: { tipo: TipoDesafio }) {
+function IconoTipo({ tipo, size = 18 }: { tipo: TipoDesafio; size?: number }) {
   if (tipo === 'imagen') {
     return (
       <svg
-        width="18"
-        height="18"
+        width={size}
+        height={size}
         viewBox="0 0 24 24"
         fill="none"
         stroke="currentColor"
@@ -63,8 +87,8 @@ function IconoTipo({ tipo }: { tipo: TipoDesafio }) {
   if (tipo === 'video') {
     return (
       <svg
-        width="18"
-        height="18"
+        width={size}
+        height={size}
         viewBox="0 0 24 24"
         fill="none"
         stroke="currentColor"
@@ -79,8 +103,8 @@ function IconoTipo({ tipo }: { tipo: TipoDesafio }) {
   }
   return (
     <svg
-      width="18"
-      height="18"
+      width={size}
+      height={size}
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -353,6 +377,50 @@ function EstadoVacioBanco() {
   )
 }
 
+function ChipFiltro({
+  activo,
+  claseActiva,
+  onClick,
+  children,
+}: {
+  activo: boolean
+  claseActiva: string
+  onClick: () => void
+  children: ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={activo}
+      onClick={onClick}
+      className={`inline-flex items-center gap-1.5 rounded-full border-[1.5px] px-3 py-1.5 text-xs font-semibold whitespace-nowrap transition-colors ${
+        activo
+          ? claseActiva
+          : 'border-brand-border text-brand-night/55 hover:border-brand-night/30'
+      }`}
+    >
+      {children}
+    </button>
+  )
+}
+
+type FiltrosGuardados = {
+  query?: string
+  topic?: string
+  dificultad?: FiltroDificultad
+  tipo?: FiltroTipo
+  estado?: FiltroEstado
+}
+
+function leerFiltrosGuardados(): FiltrosGuardados {
+  try {
+    const raw = sessionStorage.getItem(FILTROS_STORAGE_KEY)
+    return raw ? (JSON.parse(raw) as FiltrosGuardados) : {}
+  } catch {
+    return {}
+  }
+}
+
 export function Preguntas() {
   const [preguntas, setPreguntas] = useState<Pregunta[] | null>(null)
   const [error, setError] = useState('')
@@ -360,12 +428,25 @@ export function Preguntas() {
   const [eliminandoIds, setEliminandoIds] = useState<Set<string>>(new Set())
   const [guardandoCampos, setGuardandoCampos] = useState<Set<string>>(new Set())
 
-  const [query, setQuery] = useState('')
-  const [topic, setTopic] = useState(TODAS_TEMATICAS)
-  const [dificultad, setDificultad] = useState<FiltroDificultad>('todas')
-  const [tipo, setTipo] = useState<FiltroTipo>('todos')
-  const [estado, setEstado] = useState<FiltroEstado>('todos')
+  const filtrosGuardados = leerFiltrosGuardados()
+  const [query, setQuery] = useState(filtrosGuardados.query ?? '')
+  const [topic, setTopic] = useState(filtrosGuardados.topic ?? TODAS_TEMATICAS)
+  const [dificultad, setDificultad] = useState<FiltroDificultad>(filtrosGuardados.dificultad ?? 'todas')
+  const [tipo, setTipo] = useState<FiltroTipo>(filtrosGuardados.tipo ?? 'todos')
+  const [estado, setEstado] = useState<FiltroEstado>(filtrosGuardados.estado ?? 'todos')
   const [page, setPage] = useState(1)
+
+  // Recuerda el último filtro aplicado (p.ej. al volver de "Nueva pregunta").
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(
+        FILTROS_STORAGE_KEY,
+        JSON.stringify({ query, topic, dificultad, tipo, estado }),
+      )
+    } catch {
+      // sessionStorage puede no estar disponible (modo privado); no persistir en ese caso.
+    }
+  }, [query, topic, dificultad, tipo, estado])
 
   useEffect(() => {
     let isMounted = true
@@ -571,103 +652,172 @@ export function Preguntas() {
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-brand-border bg-white">
-        <div className="flex flex-wrap items-center gap-2.5 border-b border-brand-base p-4">
-          <label className="flex h-10 max-w-96 min-w-[240px] flex-1 items-center gap-2 rounded-xl border-[1.5px] border-brand-border bg-brand-base/60 px-3.5 focus-within:border-brand-teal">
-            <svg
-              width="15"
-              height="15"
-              viewBox="0 0 20 20"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              className="text-brand-night/40"
-            >
-              <circle cx="8.5" cy="8.5" r="5.5" />
-              <path d="M12.5 12.5 17 17" />
-            </svg>
-            <input
-              type="search"
-              value={query}
+        <div className="flex flex-col gap-3 border-b border-brand-base p-4">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <label className="flex h-10 max-w-96 min-w-[240px] flex-1 items-center gap-2 rounded-xl border-[1.5px] border-brand-border bg-brand-base/60 px-3.5 focus-within:border-brand-teal">
+              <svg
+                width="15"
+                height="15"
+                viewBox="0 0 20 20"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                className="text-brand-night/40"
+              >
+                <circle cx="8.5" cy="8.5" r="5.5" />
+                <path d="M12.5 12.5 17 17" />
+              </svg>
+              <input
+                type="search"
+                value={query}
+                onChange={(e) => {
+                  setQuery(e.target.value)
+                  alCambiarFiltro()
+                }}
+                placeholder="Buscar por lugar o texto de la pregunta"
+                className="min-w-0 flex-1 border-0 bg-transparent text-sm text-brand-night outline-none placeholder:text-brand-night/40"
+              />
+            </label>
+
+            <select
+              aria-label="Filtrar por temática"
+              value={topic}
               onChange={(e) => {
-                setQuery(e.target.value)
+                setTopic(e.target.value)
                 alCambiarFiltro()
               }}
-              placeholder="Buscar por lugar o texto de la pregunta"
-              className="min-w-0 flex-1 border-0 bg-transparent text-sm text-brand-night outline-none placeholder:text-brand-night/40"
-            />
-          </label>
-
-          <select
-            aria-label="Filtrar por temática"
-            value={topic}
-            onChange={(e) => {
-              setTopic(e.target.value)
-              alCambiarFiltro()
-            }}
-            className="h-10 rounded-xl border-[1.5px] border-brand-border bg-white px-3 text-sm font-medium text-brand-night/75"
-          >
-            {topicOptions.map((o) => (
-              <option key={o} value={o}>
-                {o}
-              </option>
-            ))}
-          </select>
-
-          <select
-            aria-label="Filtrar por dificultad"
-            value={dificultad}
-            onChange={(e) => {
-              setDificultad(e.target.value as FiltroDificultad)
-              alCambiarFiltro()
-            }}
-            className="h-10 rounded-xl border-[1.5px] border-brand-border bg-white px-3 text-sm font-medium text-brand-night/75"
-          >
-            <option value="todas">Todas las dificultades</option>
-            {DIFICULTADES.map((d) => (
-              <option key={d.valor} value={d.valor}>
-                {d.label}
-              </option>
-            ))}
-          </select>
-
-          <select
-            aria-label="Filtrar por tipo"
-            value={tipo}
-            onChange={(e) => {
-              setTipo(e.target.value as FiltroTipo)
-              alCambiarFiltro()
-            }}
-            className="h-10 rounded-xl border-[1.5px] border-brand-border bg-white px-3 text-sm font-medium text-brand-night/75"
-          >
-            <option value="todos">Todos los tipos</option>
-            <option value="imagen">Imagen</option>
-            <option value="video">Vídeo</option>
-            <option value="pregunta_texto">Pregunta de texto</option>
-          </select>
-
-          <select
-            aria-label="Filtrar por estado"
-            value={estado}
-            onChange={(e) => {
-              setEstado(e.target.value as FiltroEstado)
-              alCambiarFiltro()
-            }}
-            className="h-10 rounded-xl border-[1.5px] border-brand-border bg-white px-3 text-sm font-medium text-brand-night/75"
-          >
-            <option value="todos">Todos los estados</option>
-            <option value="activo">Activo</option>
-            <option value="inactivo">Inactivo</option>
-          </select>
-
-          {hasFilters && (
-            <button
-              type="button"
-              onClick={limpiarFiltros}
-              className="text-xs font-semibold text-brand-blue underline underline-offset-2"
+              className="h-10 rounded-xl border-[1.5px] border-brand-border bg-white px-3 text-sm font-medium text-brand-night/75"
             >
-              Limpiar filtros
-            </button>
-          )}
+              {topicOptions.map((o) => (
+                <option key={o} value={o}>
+                  {o}
+                </option>
+              ))}
+            </select>
+
+            {hasFilters && (
+              <button
+                type="button"
+                onClick={limpiarFiltros}
+                className="text-xs font-semibold text-brand-blue underline underline-offset-2"
+              >
+                Limpiar filtros
+              </button>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <div
+              role="group"
+              aria-label="Filtrar por tipo"
+              className="flex flex-wrap items-center gap-1.5"
+            >
+              <span className="text-[10px] font-bold tracking-wide text-brand-night/35 uppercase">
+                Tipo
+              </span>
+              <ChipFiltro
+                activo={tipo === 'todos'}
+                claseActiva={CHIP_TODOS_ACTIVA}
+                onClick={() => {
+                  setTipo('todos')
+                  alCambiarFiltro()
+                }}
+              >
+                Todos
+              </ChipFiltro>
+              {(['imagen', 'video', 'pregunta_texto'] as TipoDesafio[]).map((t) => (
+                <ChipFiltro
+                  key={t}
+                  activo={tipo === t}
+                  claseActiva={TIPO_CHIP_ACTIVA[t]}
+                  onClick={() => {
+                    setTipo(t)
+                    alCambiarFiltro()
+                  }}
+                >
+                  <IconoTipo tipo={t} size={13} />
+                  {TIPO_LABEL[t]}
+                </ChipFiltro>
+              ))}
+            </div>
+
+            <div className="hidden h-6 w-px bg-brand-border sm:block" />
+
+            <div
+              role="group"
+              aria-label="Filtrar por dificultad"
+              className="flex flex-wrap items-center gap-1.5"
+            >
+              <span className="text-[10px] font-bold tracking-wide text-brand-night/35 uppercase">
+                Dificultad
+              </span>
+              <ChipFiltro
+                activo={dificultad === 'todas'}
+                claseActiva={CHIP_TODOS_ACTIVA}
+                onClick={() => {
+                  setDificultad('todas')
+                  alCambiarFiltro()
+                }}
+              >
+                Todas
+              </ChipFiltro>
+              {DIFICULTADES.map((d) => (
+                <ChipFiltro
+                  key={d.valor}
+                  activo={dificultad === d.valor}
+                  claseActiva={DIFICULTAD_CHIP_ACTIVA[d.valor]}
+                  onClick={() => {
+                    setDificultad(d.valor)
+                    alCambiarFiltro()
+                  }}
+                >
+                  {d.label}
+                </ChipFiltro>
+              ))}
+            </div>
+
+            <div className="hidden h-6 w-px bg-brand-border sm:block" />
+
+            <div
+              role="group"
+              aria-label="Filtrar por estado"
+              className="flex flex-wrap items-center gap-1.5"
+            >
+              <span className="text-[10px] font-bold tracking-wide text-brand-night/35 uppercase">
+                Estado
+              </span>
+              <ChipFiltro
+                activo={estado === 'todos'}
+                claseActiva={CHIP_TODOS_ACTIVA}
+                onClick={() => {
+                  setEstado('todos')
+                  alCambiarFiltro()
+                }}
+              >
+                Todos
+              </ChipFiltro>
+              <ChipFiltro
+                activo={estado === 'activo'}
+                claseActiva={ESTADO_CHIP_ACTIVA.activo}
+                onClick={() => {
+                  setEstado('activo')
+                  alCambiarFiltro()
+                }}
+              >
+                Activo
+              </ChipFiltro>
+              <ChipFiltro
+                activo={estado === 'inactivo'}
+                claseActiva={ESTADO_CHIP_ACTIVA.inactivo}
+                onClick={() => {
+                  setEstado('inactivo')
+                  alCambiarFiltro()
+                }}
+              >
+                Inactivo
+              </ChipFiltro>
+            </div>
+          </div>
         </div>
 
         {bancoVacio ? (
