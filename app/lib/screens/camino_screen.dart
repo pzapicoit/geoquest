@@ -5,8 +5,10 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../route_observer.dart';
 import '../services/camino_gateway.dart';
 import '../services/nivel_juego_gateway.dart';
+import '../services/ranking_gateway.dart';
 import '../services/username_storage.dart';
 import 'nivel_juego_screen.dart';
+import 'ranking_screen.dart';
 
 const _bgTop = Color(0xFF102A38);
 const _bgMid = Color(0xFF0B1B27);
@@ -90,14 +92,16 @@ class CaminoScreen extends StatefulWidget {
     this.caminoGateway,
     this.usernameStorage,
     this.nivelJuegoGateway,
+    this.rankingGateway,
   });
 
   /// Inyectables para poder probar la pantalla sin salir a la red ni al
   /// disco. `nivelJuegoGateway` se reenvía a `NivelJuegoScreen` al navegar
-  /// a ella (INT-91).
+  /// a ella (INT-91); `rankingGateway` se reenvía a `RankingScreen` (INT-110).
   final CaminoGateway? caminoGateway;
   final UsernameStorage? usernameStorage;
   final NivelJuegoGateway? nivelJuegoGateway;
+  final RankingGateway? rankingGateway;
 
   @override
   State<CaminoScreen> createState() => _CaminoScreenState();
@@ -205,6 +209,21 @@ class _CaminoScreenState extends State<CaminoScreen> with RouteAware {
       _offsetObjetivo = offset;
       _controller.jumpTo(offset);
     });
+  }
+
+  /// Único punto de navegación global de la Home hacia la Clasificación
+  /// (INT-110): se reenvían las paradas y los puntos totales ya cargados
+  /// para no repetir `CaminoGateway.fetchCamino()` (design.md, decisión 2).
+  void _onTapRanking(CaminoJugador camino) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => RankingScreen(
+          rankingGateway: widget.rankingGateway,
+          paradas: camino.entradas,
+          puntosTotales: camino.puntosTotales,
+        ),
+      ),
+    );
   }
 
   /// Solo se invoca para paradas desbloqueadas: una bloqueada recibe
@@ -439,7 +458,11 @@ class _CaminoScreenState extends State<CaminoScreen> with RouteAware {
                   top: 0,
                   left: 0,
                   right: 0,
-                  child: _BarraSuperior(nickname: _nickname, camino: camino),
+                  child: _BarraSuperior(
+                    nickname: _nickname,
+                    camino: camino,
+                    onTapRanking: () => _onTapRanking(camino),
+                  ),
                 ),
                 if (_mostrarBotonMiNivel)
                   Positioned(
@@ -471,10 +494,15 @@ class _CaminoScreenState extends State<CaminoScreen> with RouteAware {
 }
 
 class _BarraSuperior extends StatelessWidget {
-  const _BarraSuperior({required this.nickname, required this.camino});
+  const _BarraSuperior({
+    required this.nickname,
+    required this.camino,
+    required this.onTapRanking,
+  });
 
   final String nickname;
   final CaminoJugador camino;
+  final VoidCallback onTapRanking;
 
   @override
   Widget build(BuildContext context) {
@@ -508,6 +536,8 @@ class _BarraSuperior extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               _BotonPerfil(nickname: nickname),
+              const SizedBox(width: 8),
+              _BotonRanking(onTap: onTapRanking),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -583,6 +613,34 @@ class _BotonPerfil extends StatelessWidget {
             fontSize: 15,
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _BotonRanking extends StatelessWidget {
+  const _BotonRanking({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      key: const Key('camino-ranking-boton'),
+      onTap: onTap,
+      child: Container(
+        width: 44,
+        height: 44,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(15),
+          color: Colors.white.withValues(alpha: 0.06),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.14),
+            width: 2,
+          ),
+        ),
+        child: const Icon(Icons.emoji_events_outlined, color: _gold, size: 22),
       ),
     );
   }

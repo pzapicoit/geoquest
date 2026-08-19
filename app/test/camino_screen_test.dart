@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'fakes/fake_camino_gateway.dart';
 import 'fakes/fake_nivel_juego_gateway.dart';
+import 'fakes/fake_ranking_gateway.dart';
 
 final _nivelJuegoGatewayDePrueba = FakeNivelJuegoGateway(
   const IntentoNivel(
@@ -726,6 +727,30 @@ void main() {
 
       expect(relleno.top, closeTo(pista.top, 0.5));
       expect(relleno.bottom, closeTo(pista.bottom, 0.5));
+    },
+  );
+
+  testWidgets(
+    'el botón de Ranking en la barra superior navega a la pantalla de '
+    'Clasificación',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          navigatorObservers: [routeObserver],
+          home: CaminoScreen(
+            caminoGateway: FakeCaminoGateway(_caminoDePrueba),
+            usernameStorage: UsernameStorage(),
+            nivelJuegoGateway: _nivelJuegoGatewayDePrueba,
+            rankingGateway: FakeRankingGateway(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('camino-ranking-boton')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Clasificación'), findsOneWidget);
     },
   );
 }
