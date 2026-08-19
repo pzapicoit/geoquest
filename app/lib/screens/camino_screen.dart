@@ -239,6 +239,7 @@ class _CaminoScreenState extends State<CaminoScreen> with RouteAware {
     double top,
     double offset,
     double viewport,
+    int puntosTotales,
   ) {
     final vt = top - offset;
     final vb = vt + _paradaAltura;
@@ -268,6 +269,7 @@ class _CaminoScreenState extends State<CaminoScreen> with RouteAware {
             ..scaleByDouble(0.93 + 0.07 * ease, 0.93 + 0.07 * ease, 1.0, 1.0),
           child: _ParadaTile(
             parada: parada,
+            puntosTotales: puntosTotales,
             onTap: parada.desbloqueado ? () => _onTapParada(parada) : null,
           ),
         ),
@@ -423,6 +425,7 @@ class _CaminoScreenState extends State<CaminoScreen> with RouteAware {
                                     tops[i],
                                     offset,
                                     viewport,
+                                    camino.puntosTotales,
                                   ),
                               ],
                             );
@@ -627,9 +630,18 @@ class _PildoraPuntos extends StatelessWidget {
 }
 
 class _ParadaTile extends StatelessWidget {
-  const _ParadaTile({required this.parada, required this.onTap});
+  const _ParadaTile({
+    required this.parada,
+    required this.puntosTotales,
+    required this.onTap,
+  });
 
   final ParadaCamino parada;
+
+  /// Puntos totales acumulados del jugador (no de esta parada en
+  /// concreto): se repite igual en todas las paradas del camino, igual
+  /// que en la píldora de la cabecera (INT-112).
+  final int puntosTotales;
 
   /// `null` cuando la parada está bloqueada: no SHALL responder a toques en
   /// absoluto, así que ni se le adjunta un `GestureDetector`.
@@ -673,7 +685,8 @@ class _ParadaTile extends StatelessWidget {
                 ),
                 const SizedBox(height: 5),
                 Text(
-                  '${parada.estrellasRequeridas} ★',
+                  _formatMiles(puntosTotales),
+                  key: Key('parada-puntos-${parada.caminoId}'),
                   style: GoogleFonts.baloo2(
                     color: Colors.white.withValues(
                       alpha: bloqueado ? 0.4 : 0.85,

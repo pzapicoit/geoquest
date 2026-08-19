@@ -119,8 +119,104 @@ void main() {
   ) async {
     await _pump(tester, FakeCaminoGateway(_caminoDePrueba));
 
-    expect(find.text('240'), findsOneWidget);
+    final pildora = tester.widget<Text>(find.byKey(const Key('camino-puntos')));
+    expect(pildora.data, '240');
   });
+
+  testWidgets(
+    'el indicador izquierdo de cada parada muestra los puntos totales del '
+    'jugador, formateados con separador de miles',
+    (tester) async {
+      final camino = CaminoJugador(
+        entradas: [_monumentos, _monumentos2, _banderas],
+        puntosTotales: 1234,
+      );
+      await _pump(tester, FakeCaminoGateway(camino));
+
+      for (final caminoId in [
+        'nivel-superado',
+        'nivel-actual',
+        'nivel-bloqueado',
+      ]) {
+        final indicador = tester.widget<Text>(
+          find.byKey(Key('parada-puntos-$caminoId')),
+        );
+        expect(indicador.data, '1 234');
+      }
+    },
+  );
+
+  testWidgets(
+    'el indicador izquierdo muestra 0 cuando el jugador no tiene puntos',
+    (tester) async {
+      final camino = CaminoJugador(entradas: [_monumentos], puntosTotales: 0);
+      await _pump(tester, FakeCaminoGateway(camino));
+
+      final indicador = tester.widget<Text>(
+        find.byKey(const Key('parada-puntos-nivel-superado')),
+      );
+      expect(indicador.data, '0');
+    },
+  );
+
+  testWidgets(
+    'la parada bloqueada muestra un icono de candado y las demás no',
+    (tester) async {
+      await _pump(tester, FakeCaminoGateway(_caminoDePrueba));
+
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('parada-borde-nivel-bloqueado')),
+          matching: find.byIcon(Icons.lock_rounded),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('parada-borde-nivel-actual')),
+          matching: find.byIcon(Icons.lock_rounded),
+        ),
+        findsNothing,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('parada-borde-nivel-superado')),
+          matching: find.byIcon(Icons.lock_rounded),
+        ),
+        findsNothing,
+      );
+    },
+  );
+
+  testWidgets(
+    'la parada bloqueada aplica un filtro de escala de grises a su portada',
+    (tester) async {
+      await _pump(tester, FakeCaminoGateway(_caminoDePrueba));
+
+      const grayscale = ColorFilter.matrix(<double>[
+        0.2126, 0.7152, 0.0722, 0, 0, //
+        0.2126, 0.7152, 0.0722, 0, 0, //
+        0.2126, 0.7152, 0.0722, 0, 0, //
+        0, 0, 0, 1, 0, //
+      ]);
+
+      final bloqueada = tester.widget<ColorFiltered>(
+        find.descendant(
+          of: find.byKey(const Key('parada-borde-nivel-bloqueado')),
+          matching: find.byType(ColorFiltered),
+        ),
+      );
+      expect(bloqueada.colorFilter, grayscale);
+
+      final actual = tester.widget<ColorFiltered>(
+        find.descendant(
+          of: find.byKey(const Key('parada-borde-nivel-actual')),
+          matching: find.byType(ColorFiltered),
+        ),
+      );
+      expect(actual.colorFilter, isNot(grayscale));
+    },
+  );
 
   testWidgets(
     'tocar una parada bloqueada no navega ni produce ninguna respuesta',
