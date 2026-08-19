@@ -61,15 +61,30 @@ export async function fetchPregunta(id: string): Promise<PreguntaDetalle> {
 export interface TematicaOpcion {
   id: string
   nombre: string
+  // Estilo de ilustración de la temática (INT-113 delta-1). Viene en la misma
+  // consulta que ya cargaba el formulario: el generador lo necesita en el mismo
+  // instante en que se cambia el selector, para poder mostrarlo.
+  promptImagen: string | null
+}
+
+interface TematicaOpcionRow {
+  id: string
+  nombre: string
+  prompt_imagen: string | null
 }
 
 export async function fetchTematicasParaPregunta(): Promise<TematicaOpcion[]> {
   const { data, error } = await supabase
     .from('tematicas')
-    .select('id, nombre')
+    .select('id, nombre, prompt_imagen')
     .order('orden', { ascending: true })
   if (error) throw new Error(error.message)
-  return (data ?? []) as TematicaOpcion[]
+
+  return ((data ?? []) as TematicaOpcionRow[]).map((row) => ({
+    id: row.id,
+    nombre: row.nombre,
+    promptImagen: row.prompt_imagen,
+  }))
 }
 
 const MAX_MEDIA_BYTES = 50 * 1024 * 1024
@@ -96,9 +111,16 @@ export function validarArchivoMedia(tipo: TipoMedia, file: File): string | null 
   return null
 }
 
-export async function subirMediaDesafio(id: string, tipo: TipoMedia, file: File): Promise<string> {
+// La convencion `{tipo}/{desafio_id}.{extension}` del spec challenge-media-storage
+// vive aqui y en un solo sitio: el guardado de lotes generados con IA
+// (lib/loteIA.ts) la necesita tambien para poder limpiar una subida huerfana.
+export function rutaMediaDesafio(id: string, tipo: TipoMedia, file: File): string {
   const extension = EXTENSION_POR_MIME[file.type] ?? file.name.split('.').pop() ?? 'bin'
-  const ruta = `${tipo}/${id}.${extension}`
+  return `${tipo}/${id}.${extension}`
+}
+
+export async function subirMediaDesafio(id: string, tipo: TipoMedia, file: File): Promise<string> {
+  const ruta = rutaMediaDesafio(id, tipo, file)
 
   const { error } = await supabase.storage
     .from('challenge-media')

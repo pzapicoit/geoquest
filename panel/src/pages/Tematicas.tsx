@@ -325,6 +325,7 @@ interface FormState {
   activo: boolean
   archivo: File | null
   imagenPortadaActual: string | null
+  promptImagen: string
 }
 
 const FORM_VACIO: FormState = {
@@ -333,6 +334,7 @@ const FORM_VACIO: FormState = {
   activo: true,
   archivo: null,
   imagenPortadaActual: null,
+  promptImagen: '',
 }
 
 function PanelTematica({
@@ -394,6 +396,24 @@ function PanelTematica({
             error={errores.portada}
             onChange={onArchivoSeleccionado}
           />
+
+          <label className="flex flex-col gap-1.5">
+            <span className="text-sm font-semibold text-brand-night">
+              Prompt de imagen <span className="font-medium text-brand-night/40">· opcional</span>
+            </span>
+            <textarea
+              rows={3}
+              value={form.promptImagen}
+              onChange={(e) => onCambiar({ ...form, promptImagen: e.target.value })}
+              placeholder="Ej. la ilustración es la bandera del país sobre fondo neutro, sin escena alrededor."
+              className={`${CAMPO_BASE} resize-y`}
+            />
+            <span className="text-xs text-brand-night/45">
+              Se aplica a todas las imágenes que la IA genere para esta temática. Describe cómo debe
+              verse la ilustración, no qué lugares proponer: eso lo deduce la IA de las preguntas
+              que ya tiene la temática.
+            </span>
+          </label>
 
           <label className="flex cursor-pointer items-center gap-3.5 border-t border-brand-base pt-5">
             <input
@@ -500,6 +520,7 @@ export function Tematicas() {
       activo: tematica.activo,
       archivo: null,
       imagenPortadaActual: tematica.imagenPortada,
+      promptImagen: tematica.promptImagen ?? '',
     })
     setFormErrores({})
     setErrorGuardado('')
@@ -544,6 +565,7 @@ export function Tematicas() {
         activo: form.activo,
         archivo: form.archivo,
         imagenPortadaActual: form.imagenPortadaActual,
+        promptImagen: form.promptImagen,
       })
       setPanelAbierto(false)
       cargar()

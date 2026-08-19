@@ -20,8 +20,8 @@ vi.mock('../lib/preguntaForm', async () => {
 })
 
 const TEMATICAS: TematicaOpcion[] = [
-  { id: 't-1', nombre: 'Capitales' },
-  { id: 't-2', nombre: 'Paisajes' },
+  { id: 't-1', nombre: 'Capitales', promptImagen: null },
+  { id: 't-2', nombre: 'Paisajes', promptImagen: null },
 ]
 
 const PREGUNTA_EXISTENTE: PreguntaDetalle = {

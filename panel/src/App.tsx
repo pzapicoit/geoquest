@@ -6,6 +6,7 @@ import { Home } from './pages/Home'
 import { Jugadores } from './pages/Jugadores'
 import { Preguntas } from './pages/Preguntas'
 import { PreguntaForm } from './pages/PreguntaForm'
+import { PreguntasGenerarIA } from './pages/PreguntasGenerarIA'
 import { Tematicas } from './pages/Tematicas'
 import { Camino } from './pages/Camino'
 import { DificultadDefaults } from './pages/DificultadDefaults'
@@ -71,6 +72,16 @@ export function App() {
             <RequireAuth>
               <PanelLayout>
                 <Preguntas />
+              </PanelLayout>
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/preguntas/generar-ia"
+          element={
+            <RequireAuth>
+              <PanelLayout>
+                <PreguntasGenerarIA />
               </PanelLayout>
             </RequireAuth>
           }
