@@ -214,7 +214,11 @@ class _FilaDesplegada extends StatelessWidget {
                   inventario.cantidadDe(tipo) > 0,
               onTap: () => onUsar(tipo),
             ),
-            const SizedBox(width: 8),
+            // Hueco más ajustado que en la versión de 44px (era 8): con
+            // iconos de 72px, 4 de ellos + el botón de cerrar necesitan caber
+            // en el ancho de la pantalla sin desbordar en dispositivos
+            // estrechos.
+            const SizedBox(width: 4),
           ],
           _BotonCerrarBandeja(onTap: onCerrar),
         ],
@@ -238,9 +242,10 @@ class _IconoComodin extends StatelessWidget {
 
   /// Sin caja de fondo alrededor (feedback tras probar la primera versión:
   /// con el asset ya sin fondo blanco propio, una caja encima sobraba) y más
-  /// grande que la primera versión (44px) para que se distinga bien sobre el
-  /// mapa.
-  static const double _tamano = 56;
+  /// grande que las versiones anteriores (44px, luego 56px) para que se
+  /// distinga bien sobre el mapa (delta-1: feedback de que seguía viéndose
+  /// pequeño).
+  static const double _tamano = 72;
 
   @override
   Widget build(BuildContext context) {

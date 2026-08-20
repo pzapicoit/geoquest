@@ -44,11 +44,11 @@ String _descripcion(ComodinTipo tipo) => switch (tipo) {
     'Dibuja en el mapa un círculo de 150 km alrededor del objetivo real.',
 };
 
-String _assetArte(ComodinTipo tipo) => switch (tipo) {
-  ComodinTipo.tiempo => 'assets/comodines/arte_tiempo.png',
-  ComodinTipo.pais => 'assets/comodines/arte_pais.png',
-  ComodinTipo.km1000 => 'assets/comodines/arte_km1000.png',
-  ComodinTipo.km500 => 'assets/comodines/arte_km500.png',
+String _assetIcono(ComodinTipo tipo) => switch (tipo) {
+  ComodinTipo.tiempo => 'assets/comodines/icono_tiempo.png',
+  ComodinTipo.pais => 'assets/comodines/icono_pais.png',
+  ComodinTipo.km1000 => 'assets/comodines/icono_km1000.png',
+  ComodinTipo.km500 => 'assets/comodines/icono_km500.png',
 };
 
 /// Separador de millares a la española, sin depender de `intl` (duplicado a
@@ -169,7 +169,10 @@ class _ComodinesScreenState extends State<ComodinesScreen> {
                             cantidad: inventario.cantidadDe(tipo),
                             onInfo: () => _mostrarDescripcion(tipo),
                           ),
-                          const SizedBox(height: 14),
+                          // Más espacio que antes (era 14): feedback tras
+                          // probar en dispositivo, "separa más los
+                          // comodines".
+                          const SizedBox(height: 28),
                         ],
                       ],
                     ),
@@ -299,86 +302,56 @@ class _TarjetaComodin extends StatelessWidget {
   final int cantidad;
   final VoidCallback onInfo;
 
+  /// Sin caja/borde alrededor (feedback tras probar en dispositivo: "ya
+  /// dejaste unas cajas con borde, no hace falta") — el icono se apoya
+  /// directamente sobre el fondo de la pantalla, igual que en la bandeja de
+  /// la pantalla de juego tras el fix anterior de esta misma historia.
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
+    return Row(
       key: Key('comodines-tarjeta-${tipo.aTexto}'),
-      height: 112,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(20),
-          child: Stack(
-            fit: StackFit.expand,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Image.asset(_assetIcono(tipo), width: 64, height: 64),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Image.asset(_assetArte(tipo), fit: BoxFit.cover),
-              DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.centerLeft,
-                    end: Alignment.centerRight,
-                    colors: [
-                      _ink.withValues(alpha: 0.8),
-                      _ink.withValues(alpha: 0.2),
-                    ],
-                  ),
+              Text(
+                _nombre(tipo),
+                style: GoogleFonts.baloo2(
+                  color: Colors.white,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 3,
-                            ),
-                            decoration: BoxDecoration(
-                              color: _gold,
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                            child: Text(
-                              'x$cantidad',
-                              key: Key('comodines-cantidad-${tipo.aTexto}'),
-                              style: GoogleFonts.baloo2(
-                                color: _ink,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          Text(
-                            _nombre(tipo),
-                            style: GoogleFonts.baloo2(
-                              color: Colors.white,
-                              fontSize: 17,
-                              fontWeight: FontWeight.w800,
-                              shadows: const [
-                                Shadow(color: Color(0xB0000000), blurRadius: 6),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    _BotonInfo(tipo: tipo, onTap: onInfo),
-                  ],
+              const SizedBox(height: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 3,
+                ),
+                decoration: BoxDecoration(
+                  color: _gold,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  'x$cantidad',
+                  key: Key('comodines-cantidad-${tipo.aTexto}'),
+                  style: GoogleFonts.baloo2(
+                    color: _ink,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
               ),
             ],
           ),
         ),
-      ),
+        _BotonInfo(tipo: tipo, onTap: onInfo),
+      ],
     );
   }
 }
