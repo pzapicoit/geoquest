@@ -7,7 +7,7 @@ TBD - created by archiving change int-119-comodines-inventario-uso. Update Purpo
 
 ### Requirement: Catálogo cerrado de tipos de comodín
 
-El sistema SHALL reconocer exactamente 4 tipos de comodín: `tiempo` (extiende el margen antes del auto-envío), `pais` (revela el país del objetivo), `km1000` y `km500` (acotan el objetivo a ese radio).
+El sistema SHALL reconocer exactamente 4 tipos de comodín: `tiempo` (detiene el cronómetro del desafío en curso), `pais` (revela el país del objetivo), `km1000` y `km500` (acotan el objetivo a ese radio).
 
 #### Scenario: Se consulta el inventario de un jugador
 
@@ -45,12 +45,12 @@ Un intento de parada SHALL permitir el uso de como mucho 1 comodín (de cualquie
 
 ### Requirement: Efecto del comodín "tiempo"
 
-Consumir el comodín `tiempo` SHALL extender 15 segundos el margen antes del auto-envío del desafío en curso, sin afectar al cálculo de puntaje del servidor (que sigue basándose en el tiempo real transcurrido desde que se marcó el desafío como mostrado).
+Consumir el comodín `tiempo` SHALL detener el cronómetro del desafío en curso por completo: sin límite de tiempo ni auto-envío para esa pregunta, sin afectar al cálculo de puntaje del servidor (que sigue basándose en el tiempo real transcurrido desde que se marcó el desafío como mostrado).
 
 #### Scenario: Se consume el comodín tiempo con la cuenta atrás corriendo
 
 - **WHEN** un jugador con al menos 1 unidad de `tiempo` lo consume durante un desafío en curso
-- **THEN** el margen antes del auto-envío aumenta 15 segundos
+- **THEN** el cronómetro de ese desafío se detiene por completo: no vuelve a disminuir ni dispara el auto-envío
 - **AND** el bonus de puntuación por rapidez del servidor para ese desafío se sigue calculando sobre el tiempo real transcurrido, sin ningún ajuste por este consumo
 
 ### Requirement: Efecto del comodín "país" y su disponibilidad
@@ -71,12 +71,12 @@ Consumir el comodín `pais` SHALL revelar el país real del objetivo del desafí
 
 ### Requirement: Efecto de los comodines de radio
 
-Consumir `km1000` o `km500` SHALL devolver la posición real del objetivo del desafío en curso junto con el radio correspondiente (1000 km o 500 km), para que el cliente dibuje un círculo de acierto sobre el mapa, sin revelar `nombre_lugar`.
+Consumir `km1000` o `km500` SHALL devolver la posición real del objetivo del desafío en curso junto con el radio correspondiente (500 km para `km1000`, 150 km para `km500`), para que el cliente dibuje un círculo de acierto sobre el mapa, sin revelar `nombre_lugar`.
 
 #### Scenario: Se consume un comodín de radio
 
 - **WHEN** un jugador con al menos 1 unidad de `km1000` o `km500` lo consume en un desafío en curso
-- **THEN** recibe la coordenada real del objetivo y el radio correspondiente al tipo consumido
+- **THEN** recibe la coordenada real del objetivo y el radio correspondiente al tipo consumido (500 km para `km1000`, 150 km para `km500`)
 - **AND** no recibe `nombre_lugar` en esa misma respuesta
 
 ### Requirement: Obtención de comodines por vídeo publicitario
