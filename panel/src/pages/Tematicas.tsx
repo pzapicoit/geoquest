@@ -326,6 +326,7 @@ interface FormState {
   archivo: File | null
   imagenPortadaActual: string | null
   promptImagen: string
+  objetivoGlobal: string
 }
 
 const FORM_VACIO: FormState = {
@@ -335,6 +336,7 @@ const FORM_VACIO: FormState = {
   archivo: null,
   imagenPortadaActual: null,
   promptImagen: '',
+  objetivoGlobal: '',
 }
 
 function PanelTematica({
@@ -389,6 +391,23 @@ function PanelTematica({
               Se muestra como título del mundo en el mapa del jugador.
             </span>
             <ErrorCampo mensaje={errores.nombre} />
+          </label>
+
+          <label className="flex flex-col gap-1.5">
+            <span className="text-sm font-semibold text-brand-night">
+              Objetivo global <span className="text-[#E0454A]">*</span>
+            </span>
+            <textarea
+              rows={2}
+              value={form.objetivoGlobal}
+              onChange={(e) => onCambiar({ ...form, objetivoGlobal: e.target.value })}
+              placeholder="Ej. ¿Dónde está este monumento?"
+              className={`${CAMPO_BASE} resize-y ${errores.objetivoGlobal ? CAMPO_ERROR : ''}`}
+            />
+            <span className="text-xs text-brand-night/45">
+              La pregunta fija que se le muestra al jugador en cualquier desafío de esta temática.
+            </span>
+            <ErrorCampo mensaje={errores.objetivoGlobal} />
           </label>
 
           <CampoPortada
@@ -521,6 +540,7 @@ export function Tematicas() {
       archivo: null,
       imagenPortadaActual: tematica.imagenPortada,
       promptImagen: tematica.promptImagen ?? '',
+      objetivoGlobal: tematica.objetivoGlobal,
     })
     setFormErrores({})
     setErrorGuardado('')
@@ -540,6 +560,9 @@ export function Tematicas() {
     }
     if (!form.archivo && !form.imagenPortadaActual) {
       erroresLocal.portada = 'Selecciona una imagen de portada.'
+    }
+    if (!form.objetivoGlobal.trim()) {
+      erroresLocal.objetivoGlobal = 'El objetivo global es obligatorio.'
     }
 
     return erroresLocal
@@ -566,6 +589,7 @@ export function Tematicas() {
         archivo: form.archivo,
         imagenPortadaActual: form.imagenPortadaActual,
         promptImagen: form.promptImagen,
+        objetivoGlobal: form.objetivoGlobal.trim(),
       })
       setPanelAbierto(false)
       cargar()

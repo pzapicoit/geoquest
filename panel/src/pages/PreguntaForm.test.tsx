@@ -26,8 +26,10 @@ const TEMATICAS: TematicaOpcion[] = [
 
 const PREGUNTA_EXISTENTE: PreguntaDetalle = {
   id: 'd-eiffel',
+  nombre: 'Torre Eiffel',
   tipo: 'imagen',
-  nombreLugar: 'Torre Eiffel',
+  nombreLugar: 'Torre Eiffel, París',
+  pista: null,
   textoPregunta: null,
   imagenUrl: 'https://cdn.test/imagen/d-eiffel.jpg',
   videoUrl: null,
@@ -70,7 +72,8 @@ beforeEach(() => {
 })
 
 async function rellenarCamposComunes(user: ReturnType<typeof userEvent.setup>) {
-  await user.type(screen.getByPlaceholderText(/torre eiffel, parís/i), 'Machu Picchu')
+  await user.type(screen.getByPlaceholderText('Ej. Torre Eiffel'), 'Machu Picchu')
+  await user.type(screen.getByPlaceholderText(/torre eiffel, parís/i), 'Machu Picchu, Perú')
   await user.type(screen.getByPlaceholderText('-90 a 90'), '-13.1631')
   await user.type(screen.getByPlaceholderText('-180 a 180'), '-72.545')
   await user.selectOptions(screen.getByLabelText(/^temática/i), 't-1')
@@ -173,6 +176,45 @@ describe('PreguntaForm — creación', () => {
     expect(guardarPregunta).not.toHaveBeenCalled()
   })
 
+  it('bloquea el guardado sin nombre', async () => {
+    const user = userEvent.setup()
+    renderNueva()
+
+    await user.click(screen.getByText('Pregunta de texto'))
+    await user.type(screen.getByPlaceholderText(/ciudadela inca/i), '¿Dónde está esto?')
+    await user.type(screen.getByPlaceholderText(/torre eiffel, parís/i), 'Lugar')
+    await user.type(screen.getByPlaceholderText('-90 a 90'), '1')
+    await user.type(screen.getByPlaceholderText('-180 a 180'), '2')
+    await user.selectOptions(screen.getByLabelText(/^temática/i), 't-1')
+    await user.selectOptions(screen.getByLabelText(/^dificultad/i), 'normal')
+
+    await user.click(screen.getByRole('button', { name: /guardar pregunta/i }))
+
+    expect(await screen.findByText('El nombre es obligatorio.')).toBeInTheDocument()
+    expect(guardarPregunta).not.toHaveBeenCalled()
+  })
+
+  it('guarda una pista opcional', async () => {
+    guardarPregunta.mockResolvedValue({ id: 'd-nueva' })
+    const user = userEvent.setup()
+    renderNueva()
+
+    await user.click(screen.getByText('Pregunta de texto'))
+    await user.type(screen.getByPlaceholderText(/ciudadela inca/i), '¿Ciudadela inca?')
+    await rellenarCamposComunes(user)
+    await user.type(
+      screen.getByPlaceholderText(/pista adicional/i),
+      'Está a más de 2000 m de altitud',
+    )
+
+    await user.click(screen.getByRole('button', { name: /guardar pregunta/i }))
+
+    await waitFor(() => expect(guardarPregunta).toHaveBeenCalledTimes(1))
+    expect(guardarPregunta).toHaveBeenCalledWith(
+      expect.objectContaining({ pista: 'Está a más de 2000 m de altitud' }),
+    )
+  })
+
   it('bloquea el guardado con una latitud fuera de rango', async () => {
     const user = userEvent.setup()
     renderNueva()
@@ -206,8 +248,10 @@ describe('PreguntaForm — creación', () => {
     expect(guardarPregunta).toHaveBeenCalledWith(
       expect.objectContaining({
         id: null,
+        nombre: 'Machu Picchu',
         tipo: 'pregunta_texto',
-        nombreLugar: 'Machu Picchu',
+        nombreLugar: 'Machu Picchu, Perú',
+        pista: null,
         textoPregunta: '¿Ciudadela inca?',
         latReal: -13.1631,
         lngReal: -72.545,
@@ -252,6 +296,7 @@ describe('PreguntaForm — edición', () => {
 
     expect(await screen.findByText('Editar pregunta')).toBeInTheDocument()
     expect(screen.getByDisplayValue('Torre Eiffel')).toBeInTheDocument()
+    expect(screen.getByDisplayValue('Torre Eiffel, París')).toBeInTheDocument()
     expect(screen.getByDisplayValue('48.8584')).toBeInTheDocument()
     expect(screen.getByDisplayValue('2.2945')).toBeInTheDocument()
     expect(screen.getByLabelText(/^temática/i)).toHaveValue('t-1')

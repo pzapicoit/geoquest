@@ -16,8 +16,9 @@ function selectable(data: unknown[] | null, error: unknown = null) {
 const DESAFIOS = [
   {
     id: 'd-eiffel',
+    nombre: 'Torre Eiffel',
     tipo: 'imagen',
-    nombre_lugar: 'Torre Eiffel',
+    nombre_lugar: 'Torre Eiffel, París',
     texto_pregunta: null,
     imagen_url: 'https://example.test/eiffel.jpg',
     activo: true,
@@ -26,8 +27,9 @@ const DESAFIOS = [
   },
   {
     id: 'd-texto',
+    nombre: 'Machu Picchu',
     tipo: 'pregunta_texto',
-    nombre_lugar: 'Machu Picchu',
+    nombre_lugar: 'Machu Picchu, Perú',
     texto_pregunta: '¿Ciudadela inca?',
     imagen_url: null,
     activo: true,
@@ -65,8 +67,9 @@ describe('fetchPreguntas', () => {
 
     const eiffel = preguntas.find((p) => p.id === 'd-eiffel')
     expect(eiffel).toMatchObject({
+      nombre: 'Torre Eiffel',
       tipo: 'imagen',
-      nombreLugar: 'Torre Eiffel',
+      nombreLugar: 'Torre Eiffel, París',
       imagenUrl: 'https://example.test/eiffel.jpg',
       activo: true,
       dificultad: 'dificil',

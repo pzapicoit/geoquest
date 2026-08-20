@@ -21,6 +21,7 @@ void main() {
     test('un desafío de imagen solo trae imagenUrl', () {
       const desafio = DesafioJuego(
         id: 'd1',
+        nombre: 'Coliseo de Roma',
         tipo: TipoDesafio.imagen,
         activo: true,
         imagenUrl: 'https://example.com/foto.jpg',
@@ -34,6 +35,7 @@ void main() {
     test('un desafío de video solo trae videoUrl', () {
       const desafio = DesafioJuego(
         id: 'd2',
+        nombre: 'Coliseo de Roma',
         tipo: TipoDesafio.video,
         activo: true,
         videoUrl: 'https://example.com/clip.mp4',
@@ -47,6 +49,7 @@ void main() {
     test('un desafío de pregunta de texto solo trae textoPregunta', () {
       const desafio = DesafioJuego(
         id: 'd3',
+        nombre: 'Coliseo de Roma',
         tipo: TipoDesafio.preguntaTexto,
         activo: true,
         textoPregunta: '¿Dónde está esto?',
@@ -63,9 +66,11 @@ void main() {
       final intento = mapearIntentoNivel({
         'intento_id': 'i1',
         'segundos_por_desafio': 60,
+        'objetivo_global': '¿Dónde está este monumento?',
         'desafios': [
           {
             'id': 'd1',
+            'nombre': 'Torre Eiffel',
             'tipo': 'imagen',
             'imagen_url': 'https://example.com/foto.jpg',
             'video_url': null,
@@ -74,6 +79,7 @@ void main() {
           },
           {
             'id': 'd2',
+            'nombre': 'Big Ben',
             'tipo': 'video',
             'imagen_url': null,
             'video_url': 'https://example.com/clip.mp4',
@@ -82,6 +88,7 @@ void main() {
           },
           {
             'id': 'd3',
+            'nombre': 'Charles Darwin',
             'tipo': 'pregunta_texto',
             'imagen_url': null,
             'video_url': null,
@@ -94,18 +101,23 @@ void main() {
       expect(intento.intentoId, 'i1');
       expect(intento.desafios, hasLength(3));
       expect(intento.desafios[0].tipo, TipoDesafio.imagen);
+      expect(intento.desafios[0].nombre, 'Torre Eiffel');
       expect(intento.desafios[0].imagenUrl, 'https://example.com/foto.jpg');
       expect(intento.desafios[1].tipo, TipoDesafio.video);
+      expect(intento.desafios[1].nombre, 'Big Ben');
       expect(intento.desafios[1].videoUrl, 'https://example.com/clip.mp4');
       expect(intento.desafios[2].tipo, TipoDesafio.preguntaTexto);
+      expect(intento.desafios[2].nombre, 'Charles Darwin');
       expect(intento.desafios[2].textoPregunta, '¿Dónde está esto?');
       expect(intento.segundosPorDesafio, 60);
+      expect(intento.objetivoGlobal, '¿Dónde está este monumento?');
     });
 
     test('un intento sin desafíos mapea una lista vacía', () {
       final intento = mapearIntentoNivel({
         'intento_id': 'i2',
         'segundos_por_desafio': 90,
+        'objetivo_global': '¿Dónde está este monumento?',
         'desafios': [],
       });
 
@@ -117,7 +129,25 @@ void main() {
       // INT-99: la pantalla necesita este límite para inicializar la cuenta
       // atrás, así que una respuesta sin él es incompleta, no "sin límite".
       expect(
-        () => mapearIntentoNivel({'intento_id': 'i3', 'desafios': []}),
+        () => mapearIntentoNivel({
+          'intento_id': 'i3',
+          'objetivo_global': '¿Dónde está este monumento?',
+          'desafios': [],
+        }),
+        throwsArgumentError,
+      );
+    });
+
+    test('sin objetivo_global falla en vez de asumir un valor', () {
+      // INT-116: el toast de pista necesita este texto para mostrarlo junto
+      // al nombre de cada desafío, así que una respuesta sin él es
+      // incompleta.
+      expect(
+        () => mapearIntentoNivel({
+          'intento_id': 'i4',
+          'segundos_por_desafio': 60,
+          'desafios': [],
+        }),
         throwsArgumentError,
       );
     });

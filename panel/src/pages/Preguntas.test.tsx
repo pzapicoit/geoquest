@@ -31,6 +31,7 @@ vi.mock('../lib/preguntas', async () => {
 
 function pregunta(overrides: Partial<Pregunta> & { id: string }): Pregunta {
   return {
+    nombre: 'Nombre de prueba',
     tipo: 'imagen',
     nombreLugar: 'Lugar de prueba',
     textoPregunta: null,
@@ -45,7 +46,8 @@ function pregunta(overrides: Partial<Pregunta> & { id: string }): Pregunta {
 
 const TORRE_EIFFEL = pregunta({
   id: 'd-eiffel',
-  nombreLugar: 'Torre Eiffel',
+  nombre: 'Torre Eiffel',
+  nombreLugar: 'Torre Eiffel, París',
   tipo: 'imagen',
   dificultad: 'dificil',
   tematicaId: 't-patrimonio',
@@ -54,7 +56,8 @@ const TORRE_EIFFEL = pregunta({
 
 const MACHU_PICCHU = pregunta({
   id: 'd-machu',
-  nombreLugar: 'Machu Picchu',
+  nombre: 'Machu Picchu',
+  nombreLugar: 'Machu Picchu, Perú',
   tipo: 'pregunta_texto',
   textoPregunta: 'Ciudadela inca a 2 430 m de altitud',
   activo: true,
@@ -65,6 +68,7 @@ const MACHU_PICCHU = pregunta({
 
 const DESAFIO_SUELTO = pregunta({
   id: 'd-suelto',
+  nombre: 'Desafío suelto',
   nombreLugar: 'Desafío suelto',
   tipo: 'video',
   activo: false,
@@ -102,6 +106,7 @@ describe('Preguntas', () => {
     fetchPreguntas.mockResolvedValue([
       pregunta({
         id: 'd-rota',
+        nombre: 'Imagen rota',
         nombreLugar: 'Imagen rota',
         tipo: 'imagen',
         imagenUrl: 'https://example.test/no-existe.jpg',
@@ -117,14 +122,27 @@ describe('Preguntas', () => {
     await waitFor(() => expect(screen.queryByAltText('')).not.toBeInTheDocument())
   })
 
-  it('busca por nombre de lugar o texto de la pregunta', async () => {
+  it('busca por nombre de la pregunta', async () => {
     fetchPreguntas.mockResolvedValue([TORRE_EIFFEL, MACHU_PICCHU])
     const user = userEvent.setup()
 
     renderPreguntas()
     await screen.findByText('Torre Eiffel')
 
-    await user.type(screen.getByPlaceholderText(/buscar por lugar/i), 'ciudadela')
+    await user.type(screen.getByPlaceholderText(/buscar por nombre/i), 'machu')
+
+    expect(screen.queryByText('Torre Eiffel')).not.toBeInTheDocument()
+    expect(screen.getByText('Machu Picchu')).toBeInTheDocument()
+  })
+
+  it('busca por el lugar real revelado aunque no coincida con el nombre', async () => {
+    fetchPreguntas.mockResolvedValue([TORRE_EIFFEL, MACHU_PICCHU])
+    const user = userEvent.setup()
+
+    renderPreguntas()
+    await screen.findByText('Torre Eiffel')
+
+    await user.type(screen.getByPlaceholderText(/buscar por nombre/i), 'perú')
 
     expect(screen.queryByText('Torre Eiffel')).not.toBeInTheDocument()
     expect(screen.getByText('Machu Picchu')).toBeInTheDocument()
@@ -218,7 +236,11 @@ describe('Preguntas', () => {
 
   it('pagina los resultados y reinicia a la primera página al cambiar un filtro', async () => {
     const muchas = Array.from({ length: 12 }, (_, i) =>
-      pregunta({ id: `d-${i}`, nombreLugar: `Lugar ${String(i).padStart(2, '0')}` }),
+      pregunta({
+        id: `d-${i}`,
+        nombre: `Lugar ${String(i).padStart(2, '0')}`,
+        nombreLugar: `Lugar ${String(i).padStart(2, '0')}`,
+      }),
     )
     fetchPreguntas.mockResolvedValue(muchas)
     const user = userEvent.setup()
@@ -233,7 +255,7 @@ describe('Preguntas', () => {
     expect(await screen.findByText('Lugar 10')).toBeInTheDocument()
     expect(screen.queryByText('Lugar 00')).not.toBeInTheDocument()
 
-    await user.type(screen.getByPlaceholderText(/buscar por lugar/i), 'Lugar 0')
+    await user.type(screen.getByPlaceholderText(/buscar por nombre/i), 'Lugar 0')
     expect(await screen.findByText('Lugar 00')).toBeInTheDocument()
   })
 
@@ -244,7 +266,7 @@ describe('Preguntas', () => {
     renderPreguntas()
     await screen.findByText('Torre Eiffel')
 
-    await user.type(screen.getByPlaceholderText(/buscar por lugar/i), 'no-existe-nada')
+    await user.type(screen.getByPlaceholderText(/buscar por nombre/i), 'no-existe-nada')
 
     expect(await screen.findByText(/ninguna pregunta coincide/i)).toBeInTheDocument()
     const [limpiar] = screen.getAllByRole('button', { name: /limpiar filtros/i })

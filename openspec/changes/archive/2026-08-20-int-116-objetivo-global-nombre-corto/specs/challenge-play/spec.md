@@ -1,9 +1,4 @@
-# challenge-play Specification
-
-## Purpose
-TBD - created by archiving change int-95-vista-desafios-intento. Update Purpose after archive.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Vista `desafios_para_jugar` expone solo contenido de juego
 

@@ -42,6 +42,7 @@ const TEMATICAS = [
     orden: 1,
     activo: true,
     prompt_imagen: 'la bandera sobre fondo neutro',
+    objetivo_global: '¿De qué país es esta bandera?',
   },
   {
     id: 't-2',
@@ -50,6 +51,7 @@ const TEMATICAS = [
     orden: 2,
     activo: true,
     prompt_imagen: null,
+    objetivo_global: '¿Dónde está este paisaje?',
   },
 ]
 
@@ -75,6 +77,7 @@ describe('fetchTematicas', () => {
         activo: true,
         cantidadParadas: 2,
         promptImagen: 'la bandera sobre fondo neutro',
+        objetivoGlobal: '¿De qué país es esta bandera?',
       },
       {
         id: 't-2',
@@ -84,6 +87,7 @@ describe('fetchTematicas', () => {
         activo: true,
         cantidadParadas: 1,
         promptImagen: null,
+        objetivoGlobal: '¿Dónde está este paisaje?',
       },
     ])
   })
@@ -176,6 +180,7 @@ describe('guardarTematica', () => {
       archivo: null,
       imagenPortadaActual: 'https://example.test/existing.jpg',
       promptImagen: null,
+      objetivoGlobal: '¿Dónde está esto?',
     })
 
     expect(insert).toHaveBeenCalledWith(
@@ -200,6 +205,7 @@ describe('guardarTematica', () => {
       archivo: null,
       imagenPortadaActual: 'https://example.test/existing.jpg',
       promptImagen: null,
+      objetivoGlobal: '¿Dónde está esto?',
     })
 
     expect(update).toHaveBeenCalledWith(
@@ -226,6 +232,7 @@ describe('guardarTematica', () => {
       archivo: archivo('nueva.jpg', 'image/jpeg'),
       imagenPortadaActual: 'https://example.test/vieja.jpg',
       promptImagen: null,
+      objetivoGlobal: '¿Dónde está esto?',
     })
 
     expect(update).toHaveBeenCalledWith(
@@ -245,6 +252,7 @@ describe('guardarTematica', () => {
       archivo: null,
       imagenPortadaActual: 'https://example.test/existing.jpg',
       promptImagen: '  la bandera sobre fondo neutro  ',
+      objetivoGlobal: '¿De qué país es esta bandera?',
     })
 
     expect(update).toHaveBeenCalledWith(
@@ -264,9 +272,30 @@ describe('guardarTematica', () => {
       archivo: null,
       imagenPortadaActual: 'https://example.test/existing.jpg',
       promptImagen: '   ',
+      objetivoGlobal: '¿De qué país es esta bandera?',
     })
 
     expect(update).toHaveBeenCalledWith(expect.objectContaining({ prompt_imagen: null }))
+  })
+
+  it('guarda y recorta el objetivo global de la temática', async () => {
+    const eq = vi.fn().mockResolvedValue({ error: null })
+    const update = vi.fn().mockReturnValue({ eq })
+    from.mockReturnValue({ update })
+
+    await guardarTematica({
+      id: 't-1',
+      nombre: 'Banderas',
+      activo: true,
+      archivo: null,
+      imagenPortadaActual: 'https://example.test/existing.jpg',
+      promptImagen: null,
+      objetivoGlobal: '  ¿De qué país es esta bandera?  ',
+    })
+
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({ objetivo_global: '¿De qué país es esta bandera?' }),
+    )
   })
 
   it('lanza un error si no hay portada (ni nueva ni actual)', async () => {
@@ -278,6 +307,7 @@ describe('guardarTematica', () => {
         archivo: null,
         imagenPortadaActual: null,
         promptImagen: null,
+        objetivoGlobal: '¿Dónde está esto?',
       }),
     ).rejects.toThrow(/portada/i)
   })
