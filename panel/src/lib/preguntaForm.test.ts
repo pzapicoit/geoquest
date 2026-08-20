@@ -35,6 +35,7 @@ describe('fetchPregunta', () => {
         tipo: 'imagen',
         nombre_lugar: 'Torre Eiffel, París',
         pista: 'Se ilumina cada hora al anochecer',
+        pais: 'Francia',
         texto_pregunta: null,
         imagen_url: 'https://example.test/eiffel.jpg',
         video_url: null,
@@ -59,6 +60,7 @@ describe('fetchPregunta', () => {
       tipo: 'imagen',
       nombreLugar: 'Torre Eiffel, París',
       pista: 'Se ilumina cada hora al anochecer',
+      pais: 'Francia',
       textoPregunta: null,
       imagenUrl: 'https://example.test/eiffel.jpg',
       videoUrl: null,
@@ -174,6 +176,7 @@ describe('guardarPregunta', () => {
       tipo: 'pregunta_texto',
       nombreLugar: 'Machu Picchu, Perú',
       pista: '  Está a más de 2000 m de altitud  ',
+      pais: '  Perú  ',
       textoPregunta: '¿Ciudadela inca?',
       latReal: -13.1631,
       lngReal: -72.545,
@@ -198,6 +201,7 @@ describe('guardarPregunta', () => {
         texto_pregunta: '¿Ciudadela inca?',
         nombre_lugar: 'Machu Picchu, Perú',
         pista: 'Está a más de 2000 m de altitud',
+        pais: 'Perú',
         activo: true,
         tematica_id: 't-1',
         dificultad: 'normal',
@@ -214,6 +218,7 @@ describe('guardarPregunta', () => {
       tipo: 'pregunta_texto',
       nombreLugar: 'Machu Picchu, Perú',
       pista: '   ',
+      pais: null,
       textoPregunta: '¿Ciudadela inca?',
       latReal: -13.1631,
       lngReal: -72.545,
@@ -226,6 +231,54 @@ describe('guardarPregunta', () => {
     })
 
     expect(upsert).toHaveBeenCalledWith(expect.objectContaining({ pista: null }))
+  })
+
+  it('guarda el país vacío como null', async () => {
+    const upsert = mockUpsert()
+
+    await guardarPregunta({
+      id: null,
+      nombre: 'Machu Picchu',
+      tipo: 'pregunta_texto',
+      nombreLugar: 'Machu Picchu, Perú',
+      pista: null,
+      pais: '   ',
+      textoPregunta: '¿Ciudadela inca?',
+      latReal: -13.1631,
+      lngReal: -72.545,
+      activo: true,
+      tematicaId: 't-1',
+      dificultad: 'normal',
+      archivo: null,
+      imagenUrlActual: null,
+      videoUrlActual: null,
+    })
+
+    expect(upsert).toHaveBeenCalledWith(expect.objectContaining({ pais: null }))
+  })
+
+  it('guarda el país cuando se rellena', async () => {
+    const upsert = mockUpsert()
+
+    await guardarPregunta({
+      id: null,
+      nombre: 'Machu Picchu',
+      tipo: 'pregunta_texto',
+      nombreLugar: 'Machu Picchu, Perú',
+      pista: null,
+      pais: '  Perú  ',
+      textoPregunta: '¿Ciudadela inca?',
+      latReal: -13.1631,
+      lngReal: -72.545,
+      activo: true,
+      tematicaId: 't-1',
+      dificultad: 'normal',
+      archivo: null,
+      imagenUrlActual: null,
+      videoUrlActual: null,
+    })
+
+    expect(upsert).toHaveBeenCalledWith(expect.objectContaining({ pais: 'Perú' }))
   })
 
   it('crea una pregunta de tipo imagen subiendo el archivo con el id generado', async () => {
@@ -242,6 +295,7 @@ describe('guardarPregunta', () => {
       tipo: 'imagen',
       nombreLugar: 'Torre Eiffel, París',
       pista: null,
+      pais: null,
       textoPregunta: null,
       latReal: 48.8584,
       lngReal: 2.2945,
@@ -295,6 +349,7 @@ describe('guardarPregunta', () => {
         tipo: 'pregunta_texto',
         nombreLugar: 'X',
         pista: null,
+        pais: null,
         textoPregunta: 'Y',
         latReal: 0,
         lngReal: 0,

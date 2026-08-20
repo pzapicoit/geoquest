@@ -10,6 +10,7 @@ export interface PreguntaDetalle {
   tipo: TipoDesafio
   nombreLugar: string
   pista: string | null
+  pais: string | null
   textoPregunta: string | null
   imagenUrl: string | null
   videoUrl: string | null
@@ -26,6 +27,7 @@ interface DesafioDetalleRow {
   tipo: TipoDesafio
   nombre_lugar: string
   pista: string | null
+  pais: string | null
   texto_pregunta: string | null
   imagen_url: string | null
   video_url: string | null
@@ -40,7 +42,7 @@ export async function fetchPregunta(id: string): Promise<PreguntaDetalle> {
   const { data, error } = await supabase
     .from('desafios')
     .select(
-      'id, nombre, tipo, nombre_lugar, pista, texto_pregunta, imagen_url, video_url, lat_real, lng_real, activo, tematica_id, dificultad',
+      'id, nombre, tipo, nombre_lugar, pista, pais, texto_pregunta, imagen_url, video_url, lat_real, lng_real, activo, tematica_id, dificultad',
     )
     .eq('id', id)
     .single()
@@ -53,6 +55,7 @@ export async function fetchPregunta(id: string): Promise<PreguntaDetalle> {
     tipo: row.tipo,
     nombreLugar: row.nombre_lugar,
     pista: row.pista,
+    pais: row.pais,
     textoPregunta: row.texto_pregunta,
     imagenUrl: row.imagen_url,
     videoUrl: row.video_url,
@@ -143,6 +146,7 @@ export interface GuardarPreguntaInput {
   tipo: TipoDesafio
   nombreLugar: string
   pista: string | null
+  pais: string | null
   textoPregunta: string | null
   latReal: number
   lngReal: number
@@ -167,6 +171,7 @@ export async function guardarPregunta(input: GuardarPreguntaInput): Promise<{ id
   }
 
   const pista = input.pista?.trim() ? input.pista.trim() : null
+  const pais = input.pais?.trim() ? input.pais.trim() : null
 
   const { error } = await supabase.from('desafios').upsert({
     id,
@@ -179,6 +184,7 @@ export async function guardarPregunta(input: GuardarPreguntaInput): Promise<{ id
     lng_real: input.lngReal,
     nombre_lugar: input.nombreLugar,
     pista,
+    pais,
     activo: input.activo,
     tematica_id: input.tematicaId,
     dificultad: input.dificultad,

@@ -277,6 +277,7 @@ export function PreguntaForm() {
   const [lng, setLng] = useState('')
   const [nombreLugar, setNombreLugar] = useState('')
   const [pista, setPista] = useState('')
+  const [pais, setPais] = useState('')
   const [activo, setActivo] = useState(true)
   const [tematicaId, setTematicaId] = useState('')
   const [dificultad, setDificultad] = useState<Dificultad | ''>('')
@@ -307,6 +308,7 @@ export function PreguntaForm() {
           setLng(String(pregunta.lngReal))
           setNombreLugar(pregunta.nombreLugar)
           setPista(pregunta.pista ?? '')
+          setPais(pregunta.pais ?? '')
           setActivo(pregunta.activo)
           setTematicaId(pregunta.tematicaId)
           setDificultad(pregunta.dificultad)
@@ -432,6 +434,7 @@ export function PreguntaForm() {
         tipo,
         nombreLugar: nombreLugar.trim(),
         pista: pista.trim() ? pista.trim() : null,
+        pais: pais.trim() ? pais.trim() : null,
         textoPregunta: tipo === 'pregunta_texto' ? textoPregunta.trim() : null,
         latReal: latNum,
         lngReal: lngNum,
@@ -660,6 +663,23 @@ export function PreguntaForm() {
             />
             <span className="text-xs text-brand-night/45">
               Por ahora no se muestra en la app ni en el listado, solo aquí.
+            </span>
+          </label>
+
+          <label className="flex max-w-[440px] flex-col gap-1.5">
+            <span className="text-sm font-semibold text-brand-night">
+              País <span className="font-medium text-brand-night/40">· opcional</span>
+            </span>
+            <input
+              type="text"
+              value={pais}
+              onChange={(e) => setPais(e.target.value)}
+              placeholder="Ej. Francia"
+              className={CAMPO_BASE}
+            />
+            <span className="text-xs text-brand-night/45">
+              País real del objetivo. Lo revela el comodín de país en la app; si se deja vacío, ese
+              comodín no está disponible para esta pregunta.
             </span>
           </label>
 
