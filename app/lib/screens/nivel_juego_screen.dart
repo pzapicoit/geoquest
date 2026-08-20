@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:video_player/video_player.dart';
 
+import '../mapa/circulo_radio.dart';
 import '../mapa/mapa_mundi.dart';
 import '../mapa/mapa_mundi_controller.dart';
 import '../services/comodines_gateway.dart';
@@ -134,6 +135,17 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
     duration: _duracionDelRevelado,
   )..addListener(_alAvanzarLaCoreografia);
 
+  /// Acercamiento al usar un comodín de radio (INT-119 delta-2): animado y
+  /// corto, mismo patrón que `_acercamiento` de `_MapaMundiState` para el
+  /// doble toque — se lee como un movimiento de cámara, no como un salto.
+  late final AnimationController _zoomComodin = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 350),
+  )..addListener(_alAvanzarElZoomComodin);
+
+  CamaraMapa? _camaraAntesDelZoomComodin;
+  CamaraMapa? _camaraDelZoomComodin;
+
   late Future<IntentoNivel> _futuro;
 
   /// Posición dentro del intento: avanza al pulsar "Siguiente".
@@ -198,6 +210,7 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
     _temporizadorDelMensaje?.cancel();
     _cuentaAtras.dispose();
     _coreografia.dispose();
+    _zoomComodin.dispose();
     _mapa.dispose();
     super.dispose();
   }
@@ -297,7 +310,8 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
 
   /// Aplica el efecto propio de cada tipo: tiempo detiene el cronómetro por
   /// completo (delta-1: antes daba 15s extra), país se avisa en un toast y
-  /// los de radio dibujan el círculo en el mapa (grupo 7).
+  /// los de radio dibujan el círculo en el mapa y acercan la cámara a esa
+  /// zona (delta-2: antes solo dibujaba el círculo, sin mover la cámara).
   void _aplicarEfectoComodin(ResultadoUsoComodin resultado) {
     switch (resultado) {
       case ResultadoTiempo():
@@ -306,8 +320,35 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
       case ResultadoPais(:final pais):
         _avisar('El objetivo está en $pais');
       case ResultadoRadio(:final lat, :final lng, :final radioKm):
-        _mapa.mostrarRadio(Coordenada(latitud: lat, longitud: lng), radioKm);
+        final centro = Coordenada(latitud: lat, longitud: lng);
+        _mapa.mostrarRadio(centro, radioKm);
+        _zoomHaciaElRadio(centro, radioKm);
     }
+  }
+
+  /// Acerca la cámara para encuadrar el círculo del comodín de radio
+  /// (delta-2, feedback tras probar en dispositivo: "que haga zoom sobre la
+  /// zona"). Mismo patrón que `_acercamiento` de `_MapaMundiState` (INT-114):
+  /// una animación corta interpola entre la cámara actual y la que encuadra
+  /// el círculo entero, en vez de un salto.
+  void _zoomHaciaElRadio(Coordenada centro, double radioKm) {
+    if (!_mapa.listo) return;
+    final destino = _mapa.camaraPara(
+      puntosDelCirculo(centro, radioKm),
+      margenes: const EdgeInsets.all(56),
+    );
+    _camaraAntesDelZoomComodin = _mapa.camara;
+    _camaraDelZoomComodin = destino;
+    _zoomComodin.forward(from: 0);
+  }
+
+  void _alAvanzarElZoomComodin() {
+    final desde = _camaraAntesDelZoomComodin;
+    final hasta = _camaraDelZoomComodin;
+    if (desde == null || hasta == null) return;
+    _mapa.aplicarCamara(
+      CamaraMapa.interpolar(desde, hasta, _zoomComodin.value),
+    );
   }
 
   /// Mensaje del toast según por qué se rechazó el consumo (D5/D6 de
@@ -459,6 +500,12 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
   void _lanzarElRevelado() {
     final revelado = _revelado;
     if (revelado == null) return;
+
+    // Si el jugador confirma mientras el zoom de un comodín de radio (D2 del
+    // delta-2) todavía está animando, hay que pararlo antes de que la propia
+    // coreografía del revelado empiece a mover la cámara -- si no, las dos
+    // animaciones se pelearían por `_mapa.aplicarCamara` en el mismo frame.
+    _zoomComodin.stop();
 
     final origen = _camaraDelJugador ??= _mapa.camara;
     _mapa
@@ -1701,11 +1748,11 @@ class _MiniaturaDeLaPista extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFFFFFDF8), Color(0xFFE9F2F1)],
-        ),
+        // Fondo oscuro (feedback tras probar en dispositivo: el degradado
+        // claro que llevaba antes se veía como un borde blanco alrededor de
+        // la imagen, fuera de tono con el resto de la hoja de revelado
+        // (`_cardBg`).
+        color: Colors.white.withValues(alpha: 0.06),
       ),
       child: switch (desafio.tipo) {
         TipoDesafio.imagen => Image.network(
@@ -1925,33 +1972,29 @@ class _TarjetaDePuntos extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 9),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.baseline,
-                  textBaseline: TextBaseline.alphabetic,
-                  children: [
-                    Flexible(
-                      child: Text(
-                        '+${formatearPuntaje(puntos)}',
-                        key: const Key('nivel-juego-puntos-ganados'),
-                        maxLines: 1,
-                        style: GoogleFonts.baloo2(
-                          color: const Color(0xFFFFE9A8),
-                          fontSize: 34,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 5),
-                    Text(
-                      '/ ${formatearPuntaje(maximo)}',
-                      key: const Key('nivel-juego-puntos-maximos'),
-                      style: GoogleFonts.outfit(
-                        color: _gold.withValues(alpha: 0.6),
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
+                // Debajo del número grande, no al lado (feedback tras probar
+                // en dispositivo: en la misma línea, "/ 5.500" se leía junto
+                // al separador de millares y confundía el número completo de
+                // puntos con uno truncado).
+                Text(
+                  '+${formatearPuntaje(puntos)}',
+                  key: const Key('nivel-juego-puntos-ganados'),
+                  maxLines: 1,
+                  style: GoogleFonts.baloo2(
+                    color: const Color(0xFFFFE9A8),
+                    fontSize: 34,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '/ ${formatearPuntaje(maximo)}',
+                  key: const Key('nivel-juego-puntos-maximos'),
+                  style: GoogleFonts.outfit(
+                    color: _gold.withValues(alpha: 0.6),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ],
             ),
