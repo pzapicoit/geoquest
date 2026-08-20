@@ -25,6 +25,23 @@ Widget _pantalla(
 }
 
 void main() {
+  setUp(() {
+    // El botón "Obtener más comodines" se balancea en bucle (`gq-bob3` del
+    // mock); sin esto, pumpAndSettle() nunca terminaría de asentar. Mismo
+    // apaño que en `splash_screen_test.dart`.
+    TestWidgetsFlutterBinding
+        .instance
+        .platformDispatcher
+        .accessibilityFeaturesTestValue = const FakeAccessibilityFeatures(
+      disableAnimations: true,
+    );
+  });
+
+  tearDown(() {
+    TestWidgetsFlutterBinding.instance.platformDispatcher
+        .clearAccessibilityFeaturesTestValue();
+  });
+
   testWidgets('enseña las 4 tarjetas con su cantidad', (tester) async {
     final gateway = FakeComodinesGateway(
       inventario: inventarioDePrueba(tiempo: 2, pais: 0, km1000: 1, km500: 3),
@@ -33,29 +50,86 @@ void main() {
     await tester.pumpWidget(_pantalla(gateway));
     await tester.pumpAndSettle();
 
+    const esperadas = {
+      ComodinTipo.tiempo: '×2',
+      ComodinTipo.pais: '×0',
+      ComodinTipo.km1000: '×1',
+      ComodinTipo.km500: '×3',
+    };
+
     for (final tipo in ComodinTipo.values) {
+      // Con el arte a ancho completo del mock (132 px de alto por tarjeta) las
+      // cuatro no caben en el alto del test, así que se baja hasta cada una y
+      // se comprueba ahí mismo: al llegar a la última, la primera ya no está
+      // construida.
+      await tester.dragUntilVisible(
+        find.byKey(Key('comodines-tarjeta-${tipo.aTexto}')),
+        find.byKey(const Key('comodines-lista')),
+        const Offset(0, -120),
+      );
+
       expect(
         find.byKey(Key('comodines-tarjeta-${tipo.aTexto}')),
         findsOneWidget,
       );
+      expect(
+        tester
+            .widget<Text>(find.byKey(Key('comodines-cantidad-${tipo.aTexto}')))
+            .data,
+        esperadas[tipo],
+      );
     }
-    expect(
-      tester
-          .widget<Text>(find.byKey(const Key('comodines-cantidad-tiempo')))
-          .data,
-      'x2',
+  });
+
+  testWidgets('la cifra del radio se pinta sobre el arte, no viene en el PNG', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_pantalla(FakeComodinesGateway()));
+    await tester.pumpAndSettle();
+
+    // Los radios reales del backend (delta-1 de INT-119: 500 y 150 km). El
+    // arte `arte_km*.png` viene sin texto justo para esto — si alguien vuelve
+    // a meter la cifra en el PNG, este test no lo detecta, pero al menos deja
+    // claro de dónde tiene que salir.
+    for (final cifra in ['< 500 km', '< 150 km']) {
+      await tester.dragUntilVisible(
+        find.text(cifra),
+        find.byKey(const Key('comodines-lista')),
+        const Offset(0, -120),
+      );
+      expect(find.text(cifra), findsOneWidget);
+    }
+  });
+
+  testWidgets('un comodín sin unidades se marca como agotado', (tester) async {
+    final gateway = FakeComodinesGateway(
+      inventario: inventarioDePrueba(tiempo: 2, pais: 0, km1000: 1, km500: 3),
     );
-    expect(
-      tester
-          .widget<Text>(find.byKey(const Key('comodines-cantidad-pais')))
-          .data,
-      'x0',
+
+    await tester.pumpWidget(_pantalla(gateway));
+    await tester.pumpAndSettle();
+
+    // Etiquetas de unidades del mock, en mayúsculas: solo `pais` está a 0.
+    expect(find.text('AGOTADO'), findsOneWidget);
+    expect(find.text('1 UNIDAD'), findsOneWidget);
+    expect(find.text('2 UNIDADES'), findsOneWidget);
+  });
+
+  testWidgets('recuerda las reglas de uso al final de la lista', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_pantalla(FakeComodinesGateway()));
+    await tester.pumpAndSettle();
+
+    await tester.dragUntilVisible(
+      find.textContaining('Puedes usar un comodín por pregunta'),
+      find.byKey(const Key('comodines-lista')),
+      const Offset(0, -120),
     );
+
     expect(
-      tester
-          .widget<Text>(find.byKey(const Key('comodines-cantidad-km500')))
-          .data,
-      'x3',
+      find.textContaining('Puedes usar un comodín por pregunta'),
+      findsOneWidget,
     );
   });
 
@@ -69,7 +143,7 @@ void main() {
 
     expect(
       tester.widget<Text>(find.byKey(const Key('comodines-subtitulo'))).data,
-      '6 comodines en tu mochila',
+      '6 COMODINES EN TU MOCHILA',
     );
   });
 

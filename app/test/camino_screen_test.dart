@@ -896,6 +896,22 @@ void main() {
     });
 
     testWidgets('tocar el pill navega a la pantalla Comodines', (tester) async {
+      // El botón "Obtener más comodines" de ComodinesScreen se balancea en
+      // bucle (`gq-bob3` del mock), así que sin esto el pumpAndSettle() de
+      // después de navegar no asentaría nunca.
+      addTearDown(
+        TestWidgetsFlutterBinding
+            .instance
+            .platformDispatcher
+            .clearAccessibilityFeaturesTestValue,
+      );
+      TestWidgetsFlutterBinding
+          .instance
+          .platformDispatcher
+          .accessibilityFeaturesTestValue = const FakeAccessibilityFeatures(
+        disableAnimations: true,
+      );
+
       await tester.pumpWidget(
         MaterialApp(
           navigatorObservers: [routeObserver],
