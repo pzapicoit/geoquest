@@ -4,6 +4,7 @@ import 'package:geoquest/screens/nivel_juego_screen.dart';
 import 'package:geoquest/screens/resumen_nivel_screen.dart';
 import 'package:geoquest/services/nivel_juego_gateway.dart';
 
+import 'fakes/fake_comodines_gateway.dart';
 import 'fakes/fake_nivel_juego_gateway.dart';
 import 'fakes/mundo_de_prueba.dart';
 
@@ -73,6 +74,7 @@ ResumenNivelScreen _pantallaSuperada({
         FakeNivelJuegoGateway(
           const IntentoNivel(intentoId: 'i2', desafios: []),
         ),
+    comodinesGateway: FakeComodinesGateway(),
     cargadorDeMundo: cargarMundoDePrueba,
   );
 }
@@ -100,6 +102,7 @@ ResumenNivelScreen _pantallaNoSuperada({
         FakeNivelJuegoGateway(
           const IntentoNivel(intentoId: 'i2', desafios: []),
         ),
+    comodinesGateway: FakeComodinesGateway(),
     cargadorDeMundo: cargarMundoDePrueba,
   );
 }

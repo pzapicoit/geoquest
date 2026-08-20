@@ -5,8 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:geoquest/mapa/mapa_mundi.dart';
 import 'package:geoquest/screens/nivel_juego_screen.dart';
+import 'package:geoquest/services/comodines_gateway.dart';
 import 'package:geoquest/services/nivel_juego_gateway.dart';
 
+import 'fakes/fake_comodines_gateway.dart';
 import 'fakes/fake_nivel_juego_gateway.dart';
 import 'fakes/mundo_de_prueba.dart';
 
@@ -47,6 +49,7 @@ Widget _appConCamino(
   String? nivelNombre,
   DateTime Function()? ahora,
   bool reducirAnimaciones = false,
+  ComodinesGateway? comodinesGateway,
 }) {
   return MaterialApp(
     builder: reducirAnimaciones
@@ -65,6 +68,10 @@ Widget _appConCamino(
                   caminoId: 'nivel-1',
                   nivelNombre: nivelNombre,
                   gateway: gateway,
+                  // Sin comodinesGateway explícito, cada apertura recibe su
+                  // propio falso (semilla 1/1/1/0): así los tests que no
+                  // ejercitan la bandeja no dependen unos de otros.
+                  comodinesGateway: comodinesGateway ?? FakeComodinesGateway(),
                   cargadorDeMundo: cargarMundoDePrueba,
                   ahora: ahora,
                 ),
@@ -92,6 +99,7 @@ Future<void> _abrirNivel(
   NivelJuegoGateway gateway, {
   String? nivelNombre,
   bool reducirAnimaciones = false,
+  ComodinesGateway? comodinesGateway,
 }) async {
   tester.view.physicalSize = _movil;
   tester.view.devicePixelRatio = 1;
@@ -106,6 +114,7 @@ Future<void> _abrirNivel(
       // es el que avanza con `tester.pump`.
       ahora: () => tester.binding.clock.now(),
       reducirAnimaciones: reducirAnimaciones,
+      comodinesGateway: comodinesGateway,
     ),
   );
   await tester.tap(find.text('Ir al nivel'));
@@ -1527,6 +1536,219 @@ void main() {
 
       expect(find.text('4.301 puntos de precisión'), findsOneWidget);
       expect(find.byKey(const Key('nivel-juego-puntos-bonus')), findsNothing);
+    });
+  });
+
+  group('bandeja de comodines (INT-119)', () {
+    testWidgets('empieza plegada en la fase de adivinar', (tester) async {
+      await _abrirNivel(tester, _gatewayCon(const [_desafioTexto]));
+      await _cerrarPista(tester);
+
+      expect(
+        find.byKey(const Key('bandeja-comodines-pestana')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('bandeja-comodines-fila')), findsNothing);
+    });
+
+    testWidgets('no se enseña mientras la pista está abierta', (tester) async {
+      await _abrirNivel(tester, _gatewayCon(const [_desafioTexto]));
+
+      expect(find.byKey(const Key('bandeja-comodines-pestana')), findsNothing);
+    });
+
+    testWidgets('se despliega al tocar la pestaña, con los 4 tipos', (
+      tester,
+    ) async {
+      await _abrirNivel(tester, _gatewayCon(const [_desafioTexto]));
+      await _cerrarPista(tester);
+
+      await tester.tap(find.byKey(const Key('bandeja-comodines-pestana')));
+      await tester.pump();
+
+      expect(find.byKey(const Key('bandeja-comodines-fila')), findsOneWidget);
+      for (final tipo in ['tiempo', 'pais', 'km1000', 'km500']) {
+        expect(find.byKey(Key('bandeja-comodines-$tipo')), findsOneWidget);
+      }
+    });
+
+    testWidgets('tocar fuera repliega la bandeja desplegada', (tester) async {
+      await _abrirNivel(tester, _gatewayCon(const [_desafioTexto]));
+      await _cerrarPista(tester);
+      await tester.tap(find.byKey(const Key('bandeja-comodines-pestana')));
+      await tester.pump();
+
+      // Un punto lejos de la bandeja (que cuelga del borde derecho).
+      await tester.tapAt(const Offset(20, 300));
+      await tester.pump();
+
+      expect(find.byKey(const Key('bandeja-comodines-fila')), findsNothing);
+      expect(
+        find.byKey(const Key('bandeja-comodines-pestana')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('un comodín sin inventario no responde al toque', (
+      tester,
+    ) async {
+      final comodines = FakeComodinesGateway(
+        inventario: inventarioDePrueba(km500: 0),
+      );
+      await _abrirNivel(
+        tester,
+        _gatewayCon(const [_desafioTexto]),
+        comodinesGateway: comodines,
+      );
+      await _cerrarPista(tester);
+      await tester.tap(find.byKey(const Key('bandeja-comodines-pestana')));
+      await tester.pump();
+
+      await tester.tap(find.byKey(const Key('bandeja-comodines-km500')));
+      await tester.pump();
+
+      expect(comodines.usosEnviados, isEmpty);
+    });
+
+    testWidgets(
+      'usar un comodín deja el resto deshabilitados para el resto del intento',
+      (tester) async {
+        final comodines = FakeComodinesGateway()
+          ..resultadoUso = const ResultadoTiempo(extraSegundos: 15);
+        await _abrirNivel(
+          tester,
+          _gatewayCon(const [_desafioTexto]),
+          comodinesGateway: comodines,
+        );
+        await _cerrarPista(tester);
+        await tester.tap(find.byKey(const Key('bandeja-comodines-pestana')));
+        await tester.pump();
+
+        await tester.tap(find.byKey(const Key('bandeja-comodines-tiempo')));
+        await _asentar(tester);
+
+        expect(comodines.usosEnviados, hasLength(1));
+
+        // Reabrir y comprobar que el resto (con inventario) ya no responde.
+        await tester.tap(find.byKey(const Key('bandeja-comodines-pestana')));
+        await tester.pump();
+        await tester.tap(find.byKey(const Key('bandeja-comodines-km1000')));
+        await tester.pump();
+
+        expect(comodines.usosEnviados, hasLength(1));
+      },
+    );
+
+    testWidgets('usar el comodín tiempo extiende la cuenta atrás', (
+      tester,
+    ) async {
+      final comodines = FakeComodinesGateway()
+        ..resultadoUso = const ResultadoTiempo(extraSegundos: 15);
+      await _abrirNivel(
+        tester,
+        _gatewayCon(const [_desafioTexto]),
+        comodinesGateway: comodines,
+      );
+      await _cerrarPista(tester);
+
+      final antes = tester
+          .widget<Text>(
+            find.byKey(const Key('nivel-juego-cuenta-atras-etiqueta')),
+          )
+          .data;
+
+      await tester.tap(find.byKey(const Key('bandeja-comodines-pestana')));
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('bandeja-comodines-tiempo')));
+      await _asentar(tester);
+
+      final despues = tester
+          .widget<Text>(
+            find.byKey(const Key('nivel-juego-cuenta-atras-etiqueta')),
+          )
+          .data;
+
+      expect(comodines.usosEnviados.single.tipo, ComodinTipo.tiempo);
+      expect(despues, isNot(antes));
+    });
+
+    testWidgets('usar el comodín país avisa con el país recibido', (
+      tester,
+    ) async {
+      final comodines = FakeComodinesGateway()
+        ..resultadoUso = const ResultadoPais(pais: 'Perú');
+      await _abrirNivel(
+        tester,
+        _gatewayCon(const [_desafioTexto]),
+        comodinesGateway: comodines,
+      );
+      await _cerrarPista(tester);
+
+      await tester.tap(find.byKey(const Key('bandeja-comodines-pestana')));
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('bandeja-comodines-pais')));
+      await _asentar(tester);
+
+      expect(comodines.usosEnviados.single.tipo, ComodinTipo.pais);
+      expect(find.byKey(const Key('nivel-juego-aviso')), findsOneWidget);
+      expect(find.textContaining('Perú'), findsOneWidget);
+    });
+
+    testWidgets('usar un comodín de radio dibuja el círculo en el mapa', (
+      tester,
+    ) async {
+      final comodines = FakeComodinesGateway()
+        ..resultadoUso = const ResultadoRadio(
+          tipo: ComodinTipo.km1000,
+          lat: 41.8902,
+          lng: 12.4922,
+          radioKm: 1000,
+        );
+      await _abrirNivel(
+        tester,
+        _gatewayCon(const [_desafioTexto]),
+        comodinesGateway: comodines,
+      );
+      await _cerrarPista(tester);
+
+      expect(find.byKey(const Key('mapa-circulo-radio')), findsNothing);
+
+      await tester.tap(find.byKey(const Key('bandeja-comodines-pestana')));
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('bandeja-comodines-km1000')));
+      await _asentar(tester);
+
+      expect(comodines.usosEnviados.single.tipo, ComodinTipo.km1000);
+      expect(find.byKey(const Key('mapa-circulo-radio')), findsOneWidget);
+    });
+
+    testWidgets('un rechazo con motivo conocido avisa sin romper la pantalla', (
+      tester,
+    ) async {
+      final comodines = FakeComodinesGateway()
+        ..throwOnNextUsar = const ComodinRechazadoException(
+          MotivoRechazoComodin.paisNoDisponible,
+          'pais_no_disponible',
+        );
+      await _abrirNivel(
+        tester,
+        _gatewayCon(const [_desafioTexto]),
+        comodinesGateway: comodines,
+      );
+      await _cerrarPista(tester);
+
+      await tester.tap(find.byKey(const Key('bandeja-comodines-pestana')));
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('bandeja-comodines-pais')));
+      await _asentar(tester);
+
+      expect(find.textContaining('no tiene país registrado'), findsOneWidget);
+
+      // El rechazo por país no disponible no marca el intento como
+      // comodín-usado (D4/D5 de `design.md`): el resto sigue disponible.
+      await tester.tap(find.byKey(const Key('bandeja-comodines-pestana')));
+      await tester.pump();
+      expect(find.byKey(const Key('bandeja-comodines-tiempo')), findsOneWidget);
     });
   });
 }
