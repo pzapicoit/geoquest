@@ -1,13 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:geoquest/screens/comodines_screen.dart';
+import 'package:geoquest/services/anuncios_gateway.dart';
 import 'package:geoquest/services/comodines_gateway.dart';
 
+import 'fakes/fake_anuncios_gateway.dart';
 import 'fakes/fake_comodines_gateway.dart';
 
-Widget _pantalla(ComodinesGateway gateway, {int puntosTotales = 1240}) {
+Widget _pantalla(
+  ComodinesGateway gateway, {
+  int puntosTotales = 1240,
+  AnunciosGateway? anunciosGateway,
+}) {
   return MaterialApp(
-    home: ComodinesScreen(gateway: gateway, puntosTotales: puntosTotales),
+    home: ComodinesScreen(
+      gateway: gateway,
+      puntosTotales: puntosTotales,
+      // Sin fake, el getter interno construiría un AdMobAnunciosGateway
+      // real sobre Supabase.instance.client, que no está inicializado en
+      // tests (INT-117 delta-1).
+      anunciosGateway: anunciosGateway ?? FakeAnunciosGateway(),
+    ),
   );
 }
 
@@ -107,7 +120,7 @@ void main() {
   });
 
   group('hoja "Obtener más"', () {
-    testWidgets('muestra las 3 opciones, el anuncio deshabilitado', (
+    testWidgets('muestra las 3 opciones, el anuncio habilitado', (
       tester,
     ) async {
       await tester.pumpWidget(_pantalla(FakeComodinesGateway()));
@@ -122,19 +135,53 @@ void main() {
     });
 
     testWidgets(
-      'tocar "Ver un anuncio" avisa que está próximamente y no llama al RPC',
+      'tocar "Ver un anuncio" y ganar la recompensa concede el comodín '
+      '(INT-117 delta-1)',
       (tester) async {
-        final gateway = FakeComodinesGateway();
-        await tester.pumpWidget(_pantalla(gateway));
+        final gateway = FakeComodinesGateway()
+          ..tipoConcedido = ComodinTipo.pais;
+        final anunciosGateway = FakeAnunciosGateway(recompensaGanada: true);
+        await tester.pumpWidget(
+          _pantalla(gateway, anunciosGateway: anunciosGateway),
+        );
         await tester.pumpAndSettle();
 
         await tester.tap(find.byKey(const Key('comodines-obtener-mas')));
         await tester.pumpAndSettle();
         await tester.tap(find.byKey(const Key('comodines-opcion-anuncio')));
-        await tester.pump();
+        await tester.pumpAndSettle();
 
-        expect(find.textContaining('próximamente'), findsOneWidget);
+        expect(anunciosGateway.mostrarParaRecompensaCalls, 1);
+        expect(gateway.concederComodinPorAnuncioCalls, 1);
+        expect(
+          find.textContaining('Has ganado 1 comodín de País'),
+          findsOneWidget,
+        );
+      },
+    );
+
+    testWidgets(
+      'tocar "Ver un anuncio" sin ganar la recompensa avisa y no llama al '
+      'RPC (INT-117 delta-1)',
+      (tester) async {
+        final gateway = FakeComodinesGateway();
+        final anunciosGateway = FakeAnunciosGateway(recompensaGanada: false);
+        await tester.pumpWidget(
+          _pantalla(gateway, anunciosGateway: anunciosGateway),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byKey(const Key('comodines-obtener-mas')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('comodines-opcion-anuncio')));
+        await tester.pumpAndSettle();
+
+        expect(anunciosGateway.mostrarParaRecompensaCalls, 1);
         expect(gateway.concederComodinPorAnuncioCalls, 0);
+        expect(
+          find.byKey(const Key('comodines-anuncio-error')),
+          findsOneWidget,
+        );
       },
     );
 

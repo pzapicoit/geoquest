@@ -1,8 +1,13 @@
+#include? "Pods/Target Support Files/Pods-Runner/Pods-Runner.release.xcconfig"
 #include "Generated.xcconfig"
 
 // Ver Debug.xcconfig: la identidad de firma se redefine en `Local.xcconfig`,
 // no en el .pbxproj. Release y Profile comparten este fichero.
 GEOQUEST_DEVELOPMENT_TEAM = TYZG5ZZWXC
 GEOQUEST_BUNDLE_ID = es.intermarkit.geoquest
+
+// Ver Debug.xcconfig: App ID de AdMob, test oficial de Google hasta que
+// exista cuenta real (INT-117).
+GEOQUEST_ADMOB_APP_ID_IOS = ca-app-pub-3940256099942544~1712485313
 
 #include? "Local.xcconfig"

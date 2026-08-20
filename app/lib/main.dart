@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'config/app_config.dart';
@@ -27,6 +30,12 @@ Future<void> main() async {
     url: config.supabaseUrl,
     publishableKey: config.supabasePublishableKey,
   );
+
+  // INT-117: inicializa el SDK de Google Mobile Ads antes de que cualquier
+  // pantalla pueda pedir un RewardedInterstitialAd. No bloquea el arranque
+  // si tarda o falla (fail-open general de video-ads): no se espera aquí a
+  // que termine, solo se dispara.
+  unawaited(MobileAds.instance.initialize());
 
   runApp(GeoQuestApp(config: config));
 }
