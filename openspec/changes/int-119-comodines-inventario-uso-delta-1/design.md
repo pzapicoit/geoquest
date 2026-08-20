@@ -40,4 +40,4 @@
 
 ## Open Questions
 
-- ¿Se deja el desajuste de texto en el arte de km1000/km500 tal cual hasta encargar arte nuevo, o se superpone un texto por código con el radio real mientras tanto? (Pablo, pendiente de respuesta.)
+- ~~¿Se deja el desajuste de texto en el arte de km1000/km500 tal cual hasta encargar arte nuevo, o se superpone un texto por código con el radio real mientras tanto?~~ **Resuelto**: se deja tal cual — Pablo generará versiones nuevas de esos iconos más adelante. No se toca nada por código mientras tanto.
