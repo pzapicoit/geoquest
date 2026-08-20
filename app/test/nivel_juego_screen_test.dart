@@ -213,6 +213,32 @@ const _tealDeLaCuentaAtras = Color(0xFF2BC0A8);
 const _goldDeLaCuentaAtras = Color(0xFFFFC53D);
 const _rojoDeLaCuentaAtras = Color(0xFFFF5A5F);
 
+/// Comprueba que el widget encontrado es un [Text] con exactamente ese
+/// contenido. Frente a `find.text(...)`, ata la afirmación al widget concreto:
+/// el rótulo de ubicación del revelado (INT-122) sale del mismo texto que el
+/// rótulo del pin sobre el mapa, así que un `find.text` suelto no distingue
+/// cuál de los dos se está mirando.
+Matcher _conTexto(String esperado) => _TextoDelWidget(esperado);
+
+class _TextoDelWidget extends Matcher {
+  const _TextoDelWidget(this.esperado);
+
+  final String esperado;
+
+  @override
+  bool matches(Object? item, Map<Object?, Object?> state) {
+    if (item is! Finder) return false;
+    final encontrados = item.evaluate();
+    if (encontrados.length != 1) return false;
+    final widget = encontrados.single.widget;
+    return widget is Text && widget.data == esperado;
+  }
+
+  @override
+  Description describe(Description description) =>
+      description.add('un único Text con "$esperado"');
+}
+
 /// Etiqueta actual de la cuenta atrás ("m:ss"), leída del HUD.
 String _etiquetaDeLaCuentaAtras(WidgetTester tester) {
   return tester
@@ -469,30 +495,97 @@ void main() {
       expect(find.text('Charles Darwin'), findsNothing);
     });
 
-    testWidgets(
-      'el revelado muestra el nombre del desafío junto al lugar real',
-      (tester) async {
-        final gateway = _gatewayCon(const [_desafioImagen, _desafioVideo])
-          ..respuesta = respuestaDePrueba(nombreLugar: 'París, Francia');
+    testWidgets('el revelado muestra el nombre del desafío junto a la ciudad', (
+      tester,
+    ) async {
+      final gateway = _gatewayCon(const [_desafioImagen, _desafioVideo])
+        ..respuesta = respuestaDePrueba(
+          nombreLugar: 'Torre Eiffel, Campo de Marte, París, Francia',
+          ciudad: 'París',
+        );
 
-        await _abrirNivel(tester, gateway);
-        await _cerrarPista(tester);
-        await _colocarPin(tester);
-        await _confirmarYRevelar(tester);
+      await _abrirNivel(tester, gateway);
+      await _cerrarPista(tester);
+      await _colocarPin(tester);
+      await _confirmarYRevelar(tester);
 
-        expect(find.text('Torre Eiffel'), findsOneWidget);
-        expect(find.text('París, Francia'), findsOneWidget);
+      expect(find.text('Torre Eiffel'), findsOneWidget);
+      expect(find.byKey(const Key('nivel-juego-lugar')), _conTexto('París'));
+      // El lugar exacto ya no se rotula (INT-122): con una sola línea era
+      // justo la parte que localiza el objetivo la que se truncaba.
+      expect(
+        find.text('Torre Eiffel, Campo de Marte, París, Francia'),
+        findsNothing,
+      );
 
-        gateway.respuesta = respuestaDePrueba(nombreLugar: 'Roma, Italia');
-        await _avanzarDesdeElRevelado(tester);
-        await _cerrarPista(tester);
-        await _colocarPin(tester);
-        await _confirmarYRevelar(tester);
+      gateway.respuesta = respuestaDePrueba(
+        nombreLugar: 'Coliseo de Roma, Italia',
+        ciudad: 'Roma',
+      );
+      await _avanzarDesdeElRevelado(tester);
+      await _cerrarPista(tester);
+      await _colocarPin(tester);
+      await _confirmarYRevelar(tester);
 
-        expect(find.text('Coliseo de Roma'), findsOneWidget);
-        expect(find.text('Roma, Italia'), findsOneWidget);
-      },
-    );
+      expect(find.text('Coliseo de Roma'), findsOneWidget);
+      expect(find.byKey(const Key('nivel-juego-lugar')), _conTexto('Roma'));
+    });
+
+    testWidgets('sin ciudad registrada, el revelado cae al lugar exacto', (
+      tester,
+    ) async {
+      final gateway = _gatewayCon(const [_desafioImagen])
+        ..respuesta = respuestaDePrueba(
+          nombreLugar: 'Stonehenge, Inglaterra',
+          ciudad: null,
+        );
+
+      await _abrirNivel(tester, gateway);
+      await _cerrarPista(tester);
+      await _colocarPin(tester);
+      await _confirmarYRevelar(tester);
+
+      expect(
+        find.byKey(const Key('nivel-juego-lugar')),
+        _conTexto('Stonehenge, Inglaterra'),
+      );
+    });
+
+    testWidgets('el rótulo del pin real dice lo mismo que la hoja', (
+      tester,
+    ) async {
+      final gateway = _gatewayCon(const [_desafioImagen])
+        ..respuesta = respuestaDePrueba(
+          nombreLugar: 'Parque de bomberos Hook & Ladder 8, Tribeca',
+          ciudad: 'Nueva York',
+        );
+
+      await _abrirNivel(tester, gateway);
+      await _cerrarPista(tester);
+      await _colocarPin(tester);
+      await _confirmarYRevelar(tester);
+
+      // El mismo texto en los dos sitios: la hoja de resultado y el rótulo del
+      // pin sobre el mapa, que lo pinta en mayúsculas. Que salgan del mismo
+      // sitio es lo que evita que el mapa nombre el lugar de una manera y la
+      // hoja de otra (D4).
+      expect(
+        find.byKey(const Key('nivel-juego-lugar')),
+        _conTexto('Nueva York'),
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('mapa-pin-real')),
+          matching: find.byType(Text),
+        ),
+        _conTexto('NUEVA YORK'),
+      );
+      // Y en ninguno de los dos aparece el lugar exacto.
+      expect(
+        find.text('Parque de bomberos Hook & Ladder 8, Tribeca'),
+        findsNothing,
+      );
+    });
 
     testWidgets('la cabecera identifica tipo y número de pista', (
       tester,
@@ -807,10 +900,13 @@ void main() {
       },
     );
 
-    testWidgets('el lugar real se revela, sin sus coordenadas', (tester) async {
+    testWidgets('la ubicación real se revela, sin sus coordenadas', (
+      tester,
+    ) async {
       final gateway = _gatewayCon(const [_desafioTexto])
         ..respuesta = respuestaDePrueba(
           nombreLugar: 'Coliseo de Roma',
+          ciudad: 'Roma',
           latitudReal: 41.8902,
           longitudReal: 12.4922,
         );
@@ -821,7 +917,7 @@ void main() {
       await _confirmarYRevelar(tester);
 
       expect(find.text('Charles Darwin'), findsOneWidget);
-      expect(find.text('Coliseo de Roma'), findsOneWidget);
+      expect(find.byKey(const Key('nivel-juego-lugar')), _conTexto('Roma'));
       // Las coordenadas del lugar real ya no se enseñan (INT-121): el mapa
       // detrás dice dónde está.
       expect(

@@ -240,9 +240,17 @@ del borde de la hoja; si sobra, aleja el mapa sin motivo.
 
 Sobre el mapa, la pantalla SHALL mostrar una hoja de resultado con: una
 miniatura de la pista original del desafío, el `nombre` del desafío junto
-al rótulo de ubicación real con el `nombre_lugar`, la distancia recorrida
-entre el pin del jugador y el lugar real, y los puntos ganados en este
-desafío.
+al rótulo de ubicación real, la distancia recorrida entre el pin del jugador
+y el lugar real, y los puntos ganados en este desafío.
+
+El rótulo de ubicación real SHALL mostrar la **ciudad** del objetivo, no el
+lugar exacto: la hoja da una sola línea a ese texto, y `nombre_lugar` llega a
+ser tan largo (`Parque de bomberos Hook & Ladder 8, Tribeca, Nueva York`) que
+lo que se corta es precisamente dónde estaba. Cuando el desafío no tenga
+ciudad registrada, el rótulo SHALL caer a `nombre_lugar`, que es el
+comportamiento anterior. El mismo texto —ciudad, o `nombre_lugar` como
+respaldo— SHALL rotular el pin de la ubicación real sobre el mapa, para que
+mapa y hoja no nombren el sitio de dos maneras distintas.
 
 La hoja de resultado SHALL quedarse en esa información: NO SHALL mostrar las
 coordenadas del lugar real ni el máximo de puntos alcanzable, porque ninguno
@@ -288,12 +296,26 @@ sin recalcularse en la app.
 - **THEN** la hoja de resultado cabe entera en la franja inferior que el
   encuadre reserva para ella, y la franja no es mucho más alta que la hoja
 
-#### Scenario: Nombre del desafío y lugar real
+#### Scenario: Nombre del desafío y ciudad del objetivo
 
-- **WHEN** se muestra el revelado de un desafío cuyo `nombre` es "Charles
-  Darwin" y cuyo lugar real es "Shrewsbury, Inglaterra"
-- **THEN** la hoja de resultado muestra "Charles Darwin" junto al rótulo de
-  ubicación real "Shrewsbury, Inglaterra", sin las coordenadas del lugar
+- **WHEN** se muestra el revelado de un desafío cuyo `nombre` es
+  "Ghostbusters", cuyo `nombre_lugar` es "Parque de bomberos Hook & Ladder 8,
+  Tribeca, Nueva York" y cuya `ciudad` es "Nueva York"
+- **THEN** la hoja de resultado muestra "Ghostbusters" junto al rótulo de
+  ubicación real "Nueva York", sin el lugar exacto ni las coordenadas
+
+#### Scenario: Un desafío sin ciudad registrada cae al lugar exacto
+
+- **WHEN** se muestra el revelado de un desafío cuya `ciudad` es `null` y
+  cuyo `nombre_lugar` es "Naufragio del Titanic"
+- **THEN** el rótulo de ubicación real muestra "Naufragio del Titanic", sin
+  hueco vacío ni texto de relleno
+
+#### Scenario: El pin real se rotula igual que la hoja
+
+- **WHEN** se muestra el revelado de un desafío cuya `ciudad` es "Nueva York"
+- **THEN** el rótulo del pin de la ubicación real sobre el mapa muestra
+  también "Nueva York", el mismo texto que el rótulo de la hoja
 
 #### Scenario: Los puntos se muestran sin el máximo alcanzable
 

@@ -17,6 +17,11 @@ export const COSTE_APROX_POR_IMAGEN_USD = 0.04
 
 export interface CandidatoIA extends LugarComparable {
   descripcion: string
+  // Ciudad y país del objetivo (INT-122). `null` cuando el candidato no está
+  // dentro de ninguna localidad, o cuando el objetivo no tiene país real: es
+  // un valor legítimo, no un dato pendiente, así que no descarta al candidato.
+  ciudad: string | null
+  pais: string | null
 }
 
 const CODIGOS = [
@@ -103,6 +108,10 @@ export async function proponerLugares(peticion: PeticionCandidatos): Promise<Can
     nombre: lugar.nombre,
     lat: lugar.lat,
     lng: lugar.lng,
+    // Una función anterior a INT-122 no manda estas claves; se resuelven a
+    // `null`, que es exactamente lo que se guardaba antes.
+    ciudad: lugar.ciudad ?? null,
+    pais: lugar.pais ?? null,
     descripcion: lugar.descripcion,
   }))
 }

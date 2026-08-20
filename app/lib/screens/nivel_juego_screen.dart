@@ -113,6 +113,25 @@ class _Revelado {
     latitud: respuesta.latitudReal,
     longitud: respuesta.longitudReal,
   );
+
+  /// Con qué se nombra la ubicación real: la ciudad, y `nombre_lugar` solo
+  /// como respaldo (INT-122).
+  ///
+  /// La ciudad primero porque la hoja de resultado le da una sola línea desde
+  /// que se compactó (INT-121), y `nombre_lugar` llega a medir
+  /// "Parque de bomberos Hook & Ladder 8, Tribeca, Nueva York": lo que se
+  /// truncaba era justo la parte que localiza el objetivo. El respaldo no es
+  /// un caso degradado — para un yacimiento en descampado o un naufragio,
+  /// "Stonehenge, Inglaterra" es mejor rótulo que cualquier localidad cercana,
+  /// y por eso esos desafíos se guardan sin ciudad a propósito (D7 de
+  /// `design.md`).
+  ///
+  /// Se resuelve **aquí y solo aquí** (D4): lo consumen la hoja y el rótulo
+  /// del pin sobre el mapa, y resolverlo en cada punto de uso dejaría dos
+  /// sitios que pueden divergir. El síntoma sería el peor posible: el mapa
+  /// nombrando el sitio de una manera y la hoja de otra, a la vez y en la
+  /// misma pantalla.
+  String get rotuloDeUbicacion => respuesta.ciudad ?? respuesta.nombreLugar;
 }
 
 /// Precarga de verdad una imagen de desafío (INT-120), el valor por defecto de
@@ -652,7 +671,7 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
     if (_tramo(_pinRealDesde, _pinRealHasta) > 0 && _mapa.pinReal == null) {
       _mapa.revelarUbicacion(
         revelado.ubicacionReal,
-        nombre: revelado.respuesta.nombreLugar,
+        nombre: revelado.rotuloDeUbicacion,
       );
     }
 
@@ -1924,7 +1943,7 @@ class _LugarRevelado extends StatelessWidget {
         ),
         const SizedBox(height: 5),
         Text(
-          revelado.respuesta.nombreLugar,
+          revelado.rotuloDeUbicacion,
           key: const Key('nivel-juego-lugar'),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
@@ -1936,6 +1955,8 @@ class _LugarRevelado extends StatelessWidget {
         ),
         // Sin las coordenadas del lugar real (INT-121): el mapa detrás ya
         // enseña dónde está, y la línea costaba altura de hoja.
+        // La ciudad en vez del lugar exacto (INT-122): con una sola línea, el
+        // lugar exacto se truncaba justo por donde localiza el objetivo.
       ],
     );
   }

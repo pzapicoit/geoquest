@@ -45,8 +45,21 @@ const TEMATICAS = [
   },
 ]
 
-function candidato(nombre: string, lat = 41.8902, lng = 12.4922): CandidatoIA {
-  return { nombre, lat, lng, descripcion: `Se ve ${nombre.toLowerCase()} desde el aire` }
+function candidato(
+  nombre: string,
+  lat = 41.8902,
+  lng = 12.4922,
+  ciudad: string | null = 'Roma',
+  pais: string | null = 'Italia',
+): CandidatoIA {
+  return {
+    nombre,
+    lat,
+    lng,
+    ciudad,
+    pais,
+    descripcion: `Se ve ${nombre.toLowerCase()} desde el aire`,
+  }
 }
 
 const COLISEO = candidato('Coliseo, Roma')
@@ -242,7 +255,22 @@ describe('paso 2 · revisión de propuestas', () => {
     expect(within(filaColiseo).getByRole('checkbox')).toBeChecked()
     expect(within(filaColiseo).getByText('41.8902, 12.4922')).toBeInTheDocument()
     expect(within(filaColiseo).getByText(/Se ve coliseo/)).toBeInTheDocument()
+    expect(within(filaColiseo).getByText('Roma')).toBeInTheDocument()
+    expect(within(filaColiseo).getByText('Italia')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Generar imágenes \(2\)/ })).toBeEnabled()
+  })
+
+  it('un candidato sin ciudad se marca como tal y sigue seleccionable', async () => {
+    // La ciudad se revisa antes de ilustrar (INT-122, D11), pero no bloquea:
+    // hay objetivos que no están dentro de ninguna localidad.
+    const stonehenge = candidato('Stonehenge', 51.1789, -1.8262, null, 'Reino Unido')
+    await generarTanda([stonehenge])
+
+    const fila = screen.getByText('Stonehenge').closest('tr') as HTMLElement
+    expect(within(fila).getByText('sin ciudad')).toBeInTheDocument()
+    expect(within(fila).getByText('Reino Unido')).toBeInTheDocument()
+    expect(within(fila).getByRole('checkbox')).toBeChecked()
+    expect(screen.getByRole('button', { name: /Generar imágenes \(1\)/ })).toBeEnabled()
   })
 
   it('descartar un candidato lo saca de la cuenta', async () => {
@@ -517,6 +545,10 @@ describe('guardado del lote', () => {
     expect(guardarLoteIA).toHaveBeenCalledWith(
       expect.objectContaining({ tematicaId: 't-monumentos', dificultad: 'normal', activo: true }),
     )
+    const candidatosGuardados = (
+      guardarLoteIA.mock.calls[0][0] as { candidatos: { ciudad: string | null }[] }
+    ).candidatos
+    expect(candidatosGuardados.map((c) => c.ciudad)).toEqual(['Roma', 'Roma'])
     expect(await screen.findByText('2 preguntas guardadas en el banco')).toBeInTheDocument()
     expect(screen.getByText(/activas y listas para el camino/)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Ver en el banco' })).toHaveAttribute(

@@ -35,6 +35,7 @@ describe('fetchPregunta', () => {
         tipo: 'imagen',
         nombre_lugar: 'Torre Eiffel, París',
         pista: 'Se ilumina cada hora al anochecer',
+        ciudad: 'París',
         pais: 'Francia',
         texto_pregunta: null,
         imagen_url: 'https://example.test/eiffel.jpg',
@@ -60,6 +61,7 @@ describe('fetchPregunta', () => {
       tipo: 'imagen',
       nombreLugar: 'Torre Eiffel, París',
       pista: 'Se ilumina cada hora al anochecer',
+      ciudad: 'París',
       pais: 'Francia',
       textoPregunta: null,
       imagenUrl: 'https://example.test/eiffel.jpg',
@@ -176,6 +178,7 @@ describe('guardarPregunta', () => {
       tipo: 'pregunta_texto',
       nombreLugar: 'Machu Picchu, Perú',
       pista: '  Está a más de 2000 m de altitud  ',
+      ciudad: null,
       pais: '  Perú  ',
       textoPregunta: '¿Ciudadela inca?',
       latReal: -13.1631,
@@ -201,6 +204,7 @@ describe('guardarPregunta', () => {
         texto_pregunta: '¿Ciudadela inca?',
         nombre_lugar: 'Machu Picchu, Perú',
         pista: 'Está a más de 2000 m de altitud',
+        ciudad: null,
         pais: 'Perú',
         activo: true,
         tematica_id: 't-1',
@@ -218,6 +222,7 @@ describe('guardarPregunta', () => {
       tipo: 'pregunta_texto',
       nombreLugar: 'Machu Picchu, Perú',
       pista: '   ',
+      ciudad: null,
       pais: null,
       textoPregunta: '¿Ciudadela inca?',
       latReal: -13.1631,
@@ -242,6 +247,7 @@ describe('guardarPregunta', () => {
       tipo: 'pregunta_texto',
       nombreLugar: 'Machu Picchu, Perú',
       pista: null,
+      ciudad: null,
       pais: '   ',
       textoPregunta: '¿Ciudadela inca?',
       latReal: -13.1631,
@@ -257,6 +263,59 @@ describe('guardarPregunta', () => {
     expect(upsert).toHaveBeenCalledWith(expect.objectContaining({ pais: null }))
   })
 
+  it('guarda la ciudad cuando se rellena, sin los espacios de los lados', async () => {
+    const upsert = mockUpsert()
+
+    await guardarPregunta({
+      id: null,
+      nombre: 'Ghostbusters',
+      tipo: 'pregunta_texto',
+      nombreLugar: 'Parque de bomberos Hook & Ladder 8, Tribeca, Nueva York',
+      pista: null,
+      ciudad: '  Nueva York  ',
+      pais: 'Estados Unidos',
+      textoPregunta: '¿Dónde se rodó?',
+      latReal: 40.7197,
+      lngReal: -74.0067,
+      activo: true,
+      tematicaId: 't-1',
+      dificultad: 'normal',
+      archivo: null,
+      imagenUrlActual: null,
+      videoUrlActual: null,
+    })
+
+    expect(upsert).toHaveBeenCalledWith(expect.objectContaining({ ciudad: 'Nueva York' }))
+  })
+
+  it('guarda la ciudad en blanco como null, no como cadena vacía', async () => {
+    // La app distingue "sin ciudad" de "ciudad vacía" para decidir si rotula
+    // la ciudad o cae a nombre_lugar (INT-122, D10): un '' se rotularía como
+    // un hueco en blanco.
+    const upsert = mockUpsert()
+
+    await guardarPregunta({
+      id: null,
+      nombre: 'Stonehenge',
+      tipo: 'pregunta_texto',
+      nombreLugar: 'Stonehenge, Inglaterra',
+      pista: null,
+      ciudad: '   ',
+      pais: 'Reino Unido',
+      textoPregunta: '¿Dónde está?',
+      latReal: 51.1789,
+      lngReal: -1.8262,
+      activo: true,
+      tematicaId: 't-1',
+      dificultad: 'normal',
+      archivo: null,
+      imagenUrlActual: null,
+      videoUrlActual: null,
+    })
+
+    expect(upsert).toHaveBeenCalledWith(expect.objectContaining({ ciudad: null }))
+  })
+
   it('guarda el país cuando se rellena', async () => {
     const upsert = mockUpsert()
 
@@ -266,6 +325,7 @@ describe('guardarPregunta', () => {
       tipo: 'pregunta_texto',
       nombreLugar: 'Machu Picchu, Perú',
       pista: null,
+      ciudad: null,
       pais: '  Perú  ',
       textoPregunta: '¿Ciudadela inca?',
       latReal: -13.1631,
@@ -295,6 +355,7 @@ describe('guardarPregunta', () => {
       tipo: 'imagen',
       nombreLugar: 'Torre Eiffel, París',
       pista: null,
+      ciudad: null,
       pais: null,
       textoPregunta: null,
       latReal: 48.8584,
@@ -322,6 +383,7 @@ describe('guardarPregunta', () => {
       tipo: 'imagen',
       nombreLugar: 'Torre Eiffel, París (actualizado)',
       pista: null,
+      ciudad: null,
       pais: null,
       textoPregunta: null,
       latReal: 48.8584,
@@ -350,6 +412,7 @@ describe('guardarPregunta', () => {
         tipo: 'pregunta_texto',
         nombreLugar: 'X',
         pista: null,
+        ciudad: null,
         pais: null,
         textoPregunta: 'Y',
         latReal: 0,

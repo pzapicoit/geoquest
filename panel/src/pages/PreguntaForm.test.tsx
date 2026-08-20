@@ -30,6 +30,7 @@ const PREGUNTA_EXISTENTE: PreguntaDetalle = {
   tipo: 'imagen',
   nombreLugar: 'Torre Eiffel, París',
   pista: null,
+  ciudad: null,
   pais: null,
   textoPregunta: null,
   imagenUrl: 'https://cdn.test/imagen/d-eiffel.jpg',
@@ -232,6 +233,37 @@ describe('PreguntaForm — creación', () => {
     expect(guardarPregunta).toHaveBeenCalledWith(expect.objectContaining({ pais: 'Perú' }))
   })
 
+  it('guarda una ciudad opcional', async () => {
+    guardarPregunta.mockResolvedValue({ id: 'd-nueva' })
+    const user = userEvent.setup()
+    renderNueva()
+
+    await user.click(screen.getByText('Pregunta de texto'))
+    await user.type(screen.getByPlaceholderText(/ciudadela inca/i), '¿Ciudadela inca?')
+    await rellenarCamposComunes(user)
+    await user.type(screen.getByPlaceholderText(/ej\. parís/i), 'Cusco')
+
+    await user.click(screen.getByRole('button', { name: /guardar pregunta/i }))
+
+    await waitFor(() => expect(guardarPregunta).toHaveBeenCalledTimes(1))
+    expect(guardarPregunta).toHaveBeenCalledWith(expect.objectContaining({ ciudad: 'Cusco' }))
+  })
+
+  it('sin rellenar la ciudad, la pregunta se guarda igual', async () => {
+    guardarPregunta.mockResolvedValue({ id: 'd-nueva' })
+    const user = userEvent.setup()
+    renderNueva()
+
+    await user.click(screen.getByText('Pregunta de texto'))
+    await user.type(screen.getByPlaceholderText(/ciudadela inca/i), '¿Ciudadela inca?')
+    await rellenarCamposComunes(user)
+
+    await user.click(screen.getByRole('button', { name: /guardar pregunta/i }))
+
+    await waitFor(() => expect(guardarPregunta).toHaveBeenCalledTimes(1))
+    expect(guardarPregunta).toHaveBeenCalledWith(expect.objectContaining({ ciudad: null }))
+  })
+
   it('bloquea el guardado con una latitud fuera de rango', async () => {
     const user = userEvent.setup()
     renderNueva()
@@ -339,6 +371,28 @@ describe('PreguntaForm — edición', () => {
         dificultad: 'normal',
       }),
     )
+  })
+
+  it('precarga la ciudad de una pregunta que la tiene', async () => {
+    fetchPregunta.mockResolvedValue({ ...PREGUNTA_EXISTENTE, ciudad: 'París' })
+    renderEditar('d-eiffel')
+
+    await screen.findByText('Editar pregunta')
+    expect(screen.getByPlaceholderText(/ej\. parís/i)).toHaveValue('París')
+  })
+
+  it('vaciar la ciudad de una pregunta que la tenía la guarda como null', async () => {
+    fetchPregunta.mockResolvedValue({ ...PREGUNTA_EXISTENTE, ciudad: 'París' })
+    guardarPregunta.mockResolvedValue({ id: 'd-eiffel' })
+    const user = userEvent.setup()
+    renderEditar('d-eiffel')
+
+    await screen.findByText('Editar pregunta')
+    await user.clear(screen.getByPlaceholderText(/ej\. parís/i))
+    await user.click(screen.getByRole('button', { name: /guardar pregunta/i }))
+
+    await waitFor(() => expect(guardarPregunta).toHaveBeenCalledTimes(1))
+    expect(guardarPregunta).toHaveBeenCalledWith(expect.objectContaining({ ciudad: null }))
   })
 
   it('muestra un error de carga si la pregunta no existe', async () => {

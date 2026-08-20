@@ -15,6 +15,11 @@ export interface CandidatoParaGuardar {
   nombre: string
   lat: number
   lng: number
+  // INT-122: la ciudad es lo que la app rotula al revelar; el país es lo que
+  // revela el comodín de país (INT-119). Los dos nullable: un candidato sin
+  // ellos se guarda igual, solo se queda sin esa función.
+  ciudad: string | null
+  pais: string | null
   imagen: Blob | null
 }
 
@@ -67,6 +72,11 @@ export async function guardarLoteIA(lote: LoteIA): Promise<ResultadoGuardado[]> 
       lat_real: candidato.lat,
       lng_real: candidato.lng,
       nombre_lugar: candidato.nombre,
+      // `null` y no cadena vacía (D10): la app distingue "sin ciudad" de
+      // "ciudad en blanco" para decidir si rotula la ciudad o cae a
+      // nombre_lugar, y `usar_comodin` distingue lo mismo para el país.
+      ciudad: candidato.ciudad?.trim() ? candidato.ciudad.trim() : null,
+      pais: candidato.pais?.trim() ? candidato.pais.trim() : null,
       activo: lote.activo,
       tematica_id: lote.tematicaId,
       dificultad: lote.dificultad,

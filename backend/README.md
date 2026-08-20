@@ -147,6 +147,32 @@ manda sobre las reglas genéricas del prompt. Ejemplo real, para «Banderas»:
 Sin ese estilo, el modelo dibuja la bandera dentro de una escena de ciudad — que
 rompe la coherencia con el resto de la temática y da pistas de la respuesta.
 
+### Los tres textos que describen el objetivo de un desafío
+
+Se confunden con facilidad porque los tres suenan a «el sitio», y solo uno de
+ellos llega al jugador:
+
+| Columna | Papel | Ejemplo |
+|---|---|---|
+| `nombre` | qué se pregunta; identifica la fila en el panel | `Ghostbusters` |
+| `nombre_lugar` | el punto exacto de la respuesta; **no se muestra en la app** | `Parque de bomberos Hook & Ladder 8, Tribeca, Nueva York` |
+| `ciudad` | lo que la app rotula al revelar (INT-122) | `Nueva York` |
+
+`ciudad` es nullable, y `NULL` es una respuesta legítima, no un dato pendiente:
+el criterio es la localidad **dentro de la cual** está el objetivo, así que un
+yacimiento en descampado, un accidente natural o un naufragio se quedan sin ella
+—y la app cae a `nombre_lugar`, que para esos casos es el mejor rótulo posible
+(`Monte Fuji`, `Stonehenge, Inglaterra`)—. Rellenarla con la localidad más
+cercana sería afirmar algo falso. En el banco inicial son 10 de 135.
+
+`ciudad` y `pais` viajan **solo** en la respuesta de `responder_desafio`.
+`desafios_para_jugar` y `iniciar_intento_parada` no las exponen: antes de
+responder, la ciudad del objetivo es la respuesta.
+
+`proponer-lugares` devuelve las dos por candidato, con el mismo criterio de
+`NULL`, y la descripción que genera sigue sin poder nombrarlas — es la pista que
+lee el jugador.
+
 ### Calidad
 
 ```bash
