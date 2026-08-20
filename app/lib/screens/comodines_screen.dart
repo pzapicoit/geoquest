@@ -200,17 +200,14 @@ class _Cabecera extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(18, 8, 18, 14),
       child: Row(
         children: [
+          // Sin caja de fondo (feedback tras probar la primera versión): ya
+          // está sobre el fondo oscuro de la pantalla, no hace falta otra
+          // cápsula alrededor del icono.
           IconButton(
             key: const Key('comodines-boton-volver'),
             onPressed: () => Navigator.of(context).maybePop(),
-            style: IconButton.styleFrom(
-              backgroundColor: Colors.white.withValues(alpha: 0.06),
-              fixedSize: const Size(42, 42),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-              ),
-            ),
-            icon: const Icon(Icons.chevron_left, color: Colors.white),
+            style: IconButton.styleFrom(fixedSize: const Size(42, 42)),
+            icon: const Icon(Icons.chevron_left, color: Colors.white, size: 30),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -401,21 +398,20 @@ class _BotonInfo extends StatelessWidget {
         key: Key('comodines-info-${tipo.aTexto}'),
         onTap: onTap,
         customBorder: const CircleBorder(),
+        // Sin caja de fondo (feedback tras probar la primera versión): la
+        // tarjeta ya trae su propio degradado oscuro debajo, no hace falta
+        // otra cápsula alrededor del "?".
         child: Container(
           width: 32,
           height: 32,
           alignment: Alignment.center,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: Colors.white.withValues(alpha: 0.14),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.28)),
-          ),
           child: Text(
             '?',
             style: GoogleFonts.baloo2(
               color: Colors.white,
-              fontSize: 15,
+              fontSize: 17,
               fontWeight: FontWeight.w800,
+              shadows: const [Shadow(color: Color(0xB0000000), blurRadius: 6)],
             ),
           ),
         ),

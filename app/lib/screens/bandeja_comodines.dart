@@ -61,6 +61,13 @@ class BandejaComodines extends StatefulWidget {
 class _BandejaComodinesState extends State<BandejaComodines> {
   bool _desplegada = false;
 
+  /// Posición vertical de la bandeja, en fracción de `Alignment` (-1 arriba,
+  /// 1 abajo). Por debajo del centro (donde están los botones de zoom del
+  /// mapa, `_BotonesDeZoom` en `mapa_mundi.dart`) y arrastrable por el
+  /// jugador (feedback tras probar la primera versión: quedaba demasiado
+  /// arriba y fija).
+  double _fraccionY = 0.35;
+
   void _alternar() => setState(() => _desplegada = !_desplegada);
 
   void _cerrar() {
@@ -72,42 +79,53 @@ class _BandejaComodinesState extends State<BandejaComodines> {
     widget.onUsar(tipo);
   }
 
+  void _arrastrar(DragUpdateDetails detalles, double altoDisponible) {
+    if (altoDisponible <= 0) return;
+    setState(() {
+      _fraccionY = (_fraccionY + detalles.delta.dy / (altoDisponible / 2))
+          .clamp(-0.85, 0.85);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final inventario = widget.inventario;
     if (inventario == null) return const SizedBox.shrink();
 
-    return Stack(
-      children: [
-        // Tocar fuera de la bandeja la repliega (requirement "Bandeja de
-        // comodines sobre el mapa"): una capa transparente detrás de la
-        // pestaña/fila, solo mientras está desplegada -- plegada no debe
-        // robarle ningún toque al mapa que hay debajo.
-        if (_desplegada)
-          Positioned.fill(
-            child: GestureDetector(
-              behavior: HitTestBehavior.translucent,
-              onTap: _cerrar,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return Stack(
+          children: [
+            // Tocar fuera de la bandeja la repliega (requirement "Bandeja de
+            // comodines sobre el mapa"): una capa transparente detrás de la
+            // pestaña/fila, solo mientras está desplegada -- plegada no debe
+            // robarle ningún toque al mapa que hay debajo.
+            if (_desplegada)
+              Positioned.fill(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.translucent,
+                  onTap: _cerrar,
+                ),
+              ),
+            Align(
+              alignment: Alignment(1, _fraccionY),
+              child: GestureDetector(
+                onVerticalDragUpdate: (detalles) =>
+                    _arrastrar(detalles, constraints.maxHeight),
+                child: _desplegada
+                    ? _FilaDesplegada(
+                        inventario: inventario,
+                        usadoEnEsteIntento: widget.usadoEnEsteIntento,
+                        procesando: widget.procesando,
+                        onUsar: _usar,
+                        onCerrar: _cerrar,
+                      )
+                    : _PestanaPlegada(onTap: _alternar),
+              ),
             ),
-          ),
-        // Centrada un poco por encima de la mitad de la pantalla: los
-        // botones de zoom del mapa (`_BotonesDeZoom` en `mapa_mundi.dart`)
-        // ya ocupan el centro exacto del borde derecho, así que la bandeja
-        // se desplaza hacia arriba para no solaparse con ellos (decisión de
-        // esta tarea, sin mockup exacto que consultar para esta pantalla).
-        Align(
-          alignment: const Alignment(1, -0.42),
-          child: _desplegada
-              ? _FilaDesplegada(
-                  inventario: inventario,
-                  usadoEnEsteIntento: widget.usadoEnEsteIntento,
-                  procesando: widget.procesando,
-                  onUsar: _usar,
-                  onCerrar: _cerrar,
-                )
-              : _PestanaPlegada(onTap: _alternar),
-        ),
-      ],
+          ],
+        );
+      },
     );
   }
 }
@@ -218,6 +236,12 @@ class _IconoComodin extends StatelessWidget {
   final bool habilitado;
   final VoidCallback onTap;
 
+  /// Sin caja de fondo alrededor (feedback tras probar la primera versión:
+  /// con el asset ya sin fondo blanco propio, una caja encima sobraba) y más
+  /// grande que la primera versión (44px) para que se distinga bien sobre el
+  /// mapa.
+  static const double _tamano = 56;
+
   @override
   Widget build(BuildContext context) {
     return Semantics(
@@ -233,18 +257,11 @@ class _IconoComodin extends StatelessWidget {
           child: Stack(
             clipBehavior: Clip.none,
             children: [
-              Container(
-                width: 44,
-                height: 44,
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.06),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.14),
-                  ),
-                  borderRadius: BorderRadius.circular(13),
-                ),
-                child: Image.asset(_assetIcono(tipo), fit: BoxFit.contain),
+              Image.asset(
+                _assetIcono(tipo),
+                width: _tamano,
+                height: _tamano,
+                fit: BoxFit.contain,
               ),
               Positioned(
                 right: -6,
