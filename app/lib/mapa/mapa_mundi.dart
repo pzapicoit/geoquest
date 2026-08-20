@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show OverflowBoxFit;
 import 'package:google_fonts/google_fonts.dart';
 
+import 'circulo_radio.dart';
 import 'gran_circulo.dart';
 import 'guiones.dart';
 import 'mapa_mundi_controller.dart';
@@ -25,6 +26,8 @@ const Color _pinRealHalo = Color(0x382BC0A8);
 const Color _pinRealRotulo = Color(0xFF7FE3D2);
 const Color _pinBorde = Color(0xFFFFFDF8);
 const Color _lineaDelRevelado = Color(0xFFFFC53D);
+const Color _circuloRadioTrazo = Color(0xFF2BC0A8);
+const Color _circuloRadioRelleno = Color(0x1A2BC0A8);
 
 typedef CargadorDeMundo = Future<MundoGeometria> Function();
 
@@ -246,6 +249,8 @@ class _MapaMundiState extends State<MapaMundi>
                 final controller = widget.controller;
                 final pin = controller.pin;
                 final pinReal = controller.pinReal;
+                final centroRadio = controller.centroRadio;
+                final radioKm = controller.radioKm;
 
                 return Stack(
                   children: [
@@ -261,6 +266,20 @@ class _MapaMundiState extends State<MapaMundi>
                         ),
                       ),
                     ),
+                    if (centroRadio != null && radioKm != null)
+                      Positioned.fill(
+                        child: IgnorePointer(
+                          child: CustomPaint(
+                            key: const Key('mapa-circulo-radio'),
+                            painter: _PintorCirculoDeRadio(
+                              centro: centroRadio,
+                              radioKm: radioKm,
+                              camara: controller.camara,
+                            ),
+                            size: Size.infinite,
+                          ),
+                        ),
+                      ),
                     if (pin != null && pinReal != null)
                       Positioned.fill(
                         child: IgnorePointer(
@@ -576,6 +595,63 @@ class _PintorLineaDelRevelado extends CustomPainter {
       anterior.desde != desde ||
       anterior.hasta != hasta ||
       anterior.avance != avance ||
+      anterior.camara != camara;
+}
+
+/// Círculo de acierto de un comodín `km1000`/`km500` (INT-119, D7 de
+/// `design.md`): centrado en la posición real del objetivo, mientras el
+/// jugador sigue en la fase de adivinar de ese desafío.
+///
+/// Se pinta en espacio de pantalla, mismo motivo que
+/// [_PintorLineaDelRevelado]: el grosor del trazo no depende del zoom.
+class _PintorCirculoDeRadio extends CustomPainter {
+  const _PintorCirculoDeRadio({
+    required this.centro,
+    required this.radioKm,
+    required this.camara,
+  });
+
+  final Coordenada centro;
+  final double radioKm;
+  final CamaraMapa camara;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (camara.escala <= 0) return;
+
+    final tramos = partirEnElAntimeridiano(puntosDelCirculo(centro, radioKm));
+
+    // Con el círculo entero en un solo tramo (el caso normal, sin cruzar el
+    // antimeridiano) se puede cerrar el contorno y rellenarlo. Partido en
+    // varios tramos el relleno de cada trozo por separado no dibujaría el
+    // círculo sino una forma sin sentido, así que ahí se deja solo el trazo.
+    final relleno = tramos.length == 1;
+
+    for (final tramo in tramos) {
+      if (tramo.length < 2) continue;
+
+      final puntos = [
+        for (final coordenada in tramo) camara.puntoDe(coordenada),
+      ];
+      final trazado = Path()..addPolygon(puntos, relleno);
+
+      if (relleno) {
+        canvas.drawPath(trazado, Paint()..color = _circuloRadioRelleno);
+      }
+      canvas.drawPath(
+        trazado,
+        Paint()
+          ..color = _circuloRadioTrazo
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2.4,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_PintorCirculoDeRadio anterior) =>
+      anterior.centro != centro ||
+      anterior.radioKm != radioKm ||
       anterior.camara != camara;
 }
 

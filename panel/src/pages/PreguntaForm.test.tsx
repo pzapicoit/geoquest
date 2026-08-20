@@ -30,6 +30,7 @@ const PREGUNTA_EXISTENTE: PreguntaDetalle = {
   tipo: 'imagen',
   nombreLugar: 'Torre Eiffel, París',
   pista: null,
+  pais: null,
   textoPregunta: null,
   imagenUrl: 'https://cdn.test/imagen/d-eiffel.jpg',
   videoUrl: null,
@@ -213,6 +214,22 @@ describe('PreguntaForm — creación', () => {
     expect(guardarPregunta).toHaveBeenCalledWith(
       expect.objectContaining({ pista: 'Está a más de 2000 m de altitud' }),
     )
+  })
+
+  it('guarda un país opcional', async () => {
+    guardarPregunta.mockResolvedValue({ id: 'd-nueva' })
+    const user = userEvent.setup()
+    renderNueva()
+
+    await user.click(screen.getByText('Pregunta de texto'))
+    await user.type(screen.getByPlaceholderText(/ciudadela inca/i), '¿Ciudadela inca?')
+    await rellenarCamposComunes(user)
+    await user.type(screen.getByPlaceholderText(/ej\. francia/i), 'Perú')
+
+    await user.click(screen.getByRole('button', { name: /guardar pregunta/i }))
+
+    await waitFor(() => expect(guardarPregunta).toHaveBeenCalledTimes(1))
+    expect(guardarPregunta).toHaveBeenCalledWith(expect.objectContaining({ pais: 'Perú' }))
   })
 
   it('bloquea el guardado con una latitud fuera de rango', async () => {

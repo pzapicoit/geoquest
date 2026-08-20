@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../mapa/mapa_mundi.dart';
+import '../services/comodines_gateway.dart';
 import '../services/nivel_juego_gateway.dart';
 import 'nivel_juego_screen.dart' show NivelJuegoScreen, formatearPuntaje;
 
@@ -38,6 +39,7 @@ class ResumenNivelScreen extends StatefulWidget {
     required this.caminoId,
     required this.totalDesafios,
     required this.gateway,
+    this.comodinesGateway,
     this.nivelNombre,
     this.nivelOrden,
     this.tematicaNombre,
@@ -48,6 +50,9 @@ class ResumenNivelScreen extends StatefulWidget {
   final String caminoId;
   final int totalDesafios;
   final NivelJuegoGateway gateway;
+
+  /// Inyectable, reenviado a `NivelJuegoScreen` al reintentar (INT-119).
+  final ComodinesGateway? comodinesGateway;
   final String? nivelNombre;
   final int? nivelOrden;
   final String? tematicaNombre;
@@ -134,6 +139,7 @@ class _ResumenNivelScreenState extends State<ResumenNivelScreen> {
           nivelOrden: widget.nivelOrden,
           tematicaNombre: widget.tematicaNombre,
           gateway: widget.gateway,
+          comodinesGateway: widget.comodinesGateway,
           cargadorDeMundo: widget.cargadorDeMundo,
         ),
       ),

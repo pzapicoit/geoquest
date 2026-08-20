@@ -100,8 +100,10 @@ class CuentaAtrasDeDesafio extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Deja la cuenta atrás quieta donde esté: se confirmó la respuesta, o la
-  /// pantalla se va. Lo que ya se enseñaba sigue en pantalla hasta que entre el
+  /// Deja la cuenta atrás quieta donde esté: se confirmó la respuesta, la
+  /// pantalla se va, o el jugador consumió el comodín "tiempo" (INT-119
+  /// delta-1: deja la pregunta sin límite de tiempo, no solo un margen
+  /// extra). Lo que ya se enseñaba sigue en pantalla hasta que entre el
   /// revelado.
   void parar() {
     if (!_ticker.isActive) return;

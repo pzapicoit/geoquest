@@ -5,9 +5,12 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:video_player/video_player.dart';
 
+import '../mapa/circulo_radio.dart';
 import '../mapa/mapa_mundi.dart';
 import '../mapa/mapa_mundi_controller.dart';
+import '../services/comodines_gateway.dart';
 import '../services/nivel_juego_gateway.dart';
+import 'bandeja_comodines.dart';
 import 'cuenta_atras_de_desafio.dart';
 import 'resumen_nivel_screen.dart';
 
@@ -36,6 +39,7 @@ class NivelJuegoScreen extends StatefulWidget {
     this.nivelOrden,
     this.tematicaNombre,
     this.gateway,
+    this.comodinesGateway,
     this.cargadorDeMundo,
     this.ahora,
   });
@@ -55,6 +59,9 @@ class NivelJuegoScreen extends StatefulWidget {
 
   /// Inyectable para poder probar la pantalla sin salir a la red.
   final NivelJuegoGateway? gateway;
+
+  /// Inyectable, mismo motivo que [gateway] (INT-119: bandeja de comodines).
+  final ComodinesGateway? comodinesGateway;
 
   /// Inyectable para poder probar la pantalla sin leer el asset del mundo.
   final CargadorDeMundo? cargadorDeMundo;
@@ -117,12 +124,27 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
   late final NivelJuegoGateway _gateway =
       widget.gateway ?? SupabaseNivelJuegoGateway(Supabase.instance.client);
 
+  late final ComodinesGateway _comodinesGateway =
+      widget.comodinesGateway ??
+      SupabaseComodinesGateway(Supabase.instance.client);
+
   final MapaMundiController _mapa = MapaMundiController();
 
   late final AnimationController _coreografia = AnimationController(
     vsync: this,
     duration: _duracionDelRevelado,
   )..addListener(_alAvanzarLaCoreografia);
+
+  /// Acercamiento al usar un comodín de radio (INT-119 delta-2): animado y
+  /// corto, mismo patrón que `_acercamiento` de `_MapaMundiState` para el
+  /// doble toque — se lee como un movimiento de cámara, no como un salto.
+  late final AnimationController _zoomComodin = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 350),
+  )..addListener(_alAvanzarElZoomComodin);
+
+  CamaraMapa? _camaraAntesDelZoomComodin;
+  CamaraMapa? _camaraDelZoomComodin;
 
   late Future<IntentoNivel> _futuro;
 
@@ -160,10 +182,27 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
   /// animación (una rotación), ese encuadre hay que recalcularlo.
   Size? _tamanoDelRevelado;
 
+  /// Inventario de comodines del jugador (INT-119). `null` mientras se
+  /// carga por primera vez: la bandeja no se enseña hasta entonces (ver
+  /// `BandejaComodines`).
+  InventarioComodines? _inventarioComodines;
+
+  /// Ya se consumió un comodín (de cualquier tipo) en el intento en curso
+  /// (D2 de `design.md`): se deriva en el cliente porque cada intento nuevo
+  /// empieza sin restricción (se resetea en [_iniciarIntento]), y el
+  /// servidor es quien de verdad impone la regla de forma atómica —esta
+  /// bandera solo evita ofrecer un botón que `usar_comodin` fuera a
+  /// rechazar de todos modos.
+  bool _comodinUsadoEnEsteIntento = false;
+
+  /// Esperando la respuesta de `usar_comodin`.
+  bool _usandoComodin = false;
+
   @override
   void initState() {
     super.initState();
     _iniciarIntento();
+    _cargarInventarioComodines();
   }
 
   @override
@@ -171,6 +210,7 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
     _temporizadorDelMensaje?.cancel();
     _cuentaAtras.dispose();
     _coreografia.dispose();
+    _zoomComodin.dispose();
     _mapa.dispose();
     super.dispose();
   }
@@ -186,12 +226,149 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
     final futuro = _gateway.iniciarIntento(widget.caminoId);
     _futuro = futuro;
     futuro.then(_alCargarElIntento, onError: (Object _) {});
+    // Cada llamada crea una fila nueva en `intentos_nivel` (D2 de
+    // `design.md`): un intento nuevo no hereda la restricción de "como mucho
+    // 1 comodín" de uno anterior.
+    _comodinUsadoEnEsteIntento = false;
   }
 
   void _alCargarElIntento(IntentoNivel intento) {
     if (!mounted || intento.desafios.isEmpty) return;
     _arrancarCuentaAtras(intento, intento.desafios[_indice].id);
   }
+
+  /// Carga el inventario de comodines para pintar la bandeja (INT-119). El
+  /// error se traga a propósito, mismo motivo que [_arrancarCuentaAtras] con
+  /// `marcarDesafioMostrado`: un fallo aquí no debe bloquear la partida, solo
+  /// deja la bandeja sin enseñarse hasta que se pueda recargar.
+  void _cargarInventarioComodines() {
+    final Future<InventarioComodines> futuro;
+    try {
+      // Mismo motivo que `_CaminoScreenState._cargarComodines`: resolver el
+      // gateway (un `late final`) puede lanzar de forma síncrona si no hay
+      // ninguno inyectado y Supabase no está inicializado — no debe tumbar
+      // la pantalla de juego, solo dejar la bandeja sin datos.
+      futuro = _comodinesGateway.misComodines();
+    } catch (_) {
+      return;
+    }
+    futuro.then((inventario) {
+      if (mounted) setState(() => _inventarioComodines = inventario);
+    }, onError: (Object _) {});
+  }
+
+  /// Consume un comodín para el desafío actual y aplica su efecto (INT-119,
+  /// requirement "Estado de cada comodín en la bandeja" de
+  /// `app-game-screen/spec.md`).
+  Future<void> _usarComodin(IntentoNivel intento, ComodinTipo tipo) async {
+    if (_usandoComodin || _comodinUsadoEnEsteIntento) return;
+
+    setState(() => _usandoComodin = true);
+    try {
+      final resultado = await _comodinesGateway.usarComodin(
+        intentoId: intento.intentoId,
+        desafioId: intento.desafios[_indice].id,
+        tipo: tipo,
+      );
+      if (!mounted) return;
+
+      final inventarioAntes = _inventarioComodines;
+      setState(() {
+        _usandoComodin = false;
+        _comodinUsadoEnEsteIntento = true;
+        if (inventarioAntes != null) {
+          _inventarioComodines = InventarioComodines(
+            cantidades: {
+              for (final t in ComodinTipo.values)
+                t: t == tipo
+                    ? inventarioAntes.cantidadDe(t) - 1
+                    : inventarioAntes.cantidadDe(t),
+            },
+          );
+        }
+      });
+      _aplicarEfectoComodin(resultado);
+    } on ComodinRechazadoException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _usandoComodin = false;
+        // Autocorrección defensiva: si el servidor dice que ya había uno
+        // usado (p. ej. una carrera entre dos toques casi simultáneos, D5 de
+        // `design.md`), la bandera local se pone al día con la verdad del
+        // servidor aunque este intento local no fuera el que lo consumió.
+        if (e.motivo == MotivoRechazoComodin.comodinYaUsadoEnEsteIntento) {
+          _comodinUsadoEnEsteIntento = true;
+        }
+      });
+      _avisar(_mensajeDeRechazoComodin(e.motivo));
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _usandoComodin = false);
+      _avisar('No se pudo usar el comodín. Inténtalo de nuevo.');
+    }
+  }
+
+  /// Aplica el efecto propio de cada tipo: tiempo detiene el cronómetro por
+  /// completo (delta-1: antes daba 15s extra), país se avisa en un toast y
+  /// los de radio dibujan el círculo en el mapa y acercan la cámara a esa
+  /// zona (delta-2: antes solo dibujaba el círculo, sin mover la cámara).
+  void _aplicarEfectoComodin(ResultadoUsoComodin resultado) {
+    switch (resultado) {
+      case ResultadoTiempo():
+        _cuentaAtras.parar();
+        _avisar('Sin límite de tiempo para esta pregunta');
+      case ResultadoPais(:final pais):
+        _avisar('El objetivo está en $pais');
+      case ResultadoRadio(:final lat, :final lng, :final radioKm):
+        final centro = Coordenada(latitud: lat, longitud: lng);
+        _mapa.mostrarRadio(centro, radioKm);
+        _zoomHaciaElRadio(centro, radioKm);
+    }
+  }
+
+  /// Acerca la cámara para encuadrar el círculo del comodín de radio
+  /// (delta-2, feedback tras probar en dispositivo: "que haga zoom sobre la
+  /// zona"). Mismo patrón que `_acercamiento` de `_MapaMundiState` (INT-114):
+  /// una animación corta interpola entre la cámara actual y la que encuadra
+  /// el círculo entero, en vez de un salto.
+  void _zoomHaciaElRadio(Coordenada centro, double radioKm) {
+    if (!_mapa.listo) return;
+    final destino = _mapa.camaraPara(
+      puntosDelCirculo(centro, radioKm),
+      margenes: const EdgeInsets.all(56),
+    );
+    _camaraAntesDelZoomComodin = _mapa.camara;
+    _camaraDelZoomComodin = destino;
+    _zoomComodin.forward(from: 0);
+  }
+
+  void _alAvanzarElZoomComodin() {
+    final desde = _camaraAntesDelZoomComodin;
+    final hasta = _camaraDelZoomComodin;
+    if (desde == null || hasta == null) return;
+    _mapa.aplicarCamara(
+      CamaraMapa.interpolar(desde, hasta, _zoomComodin.value),
+    );
+  }
+
+  /// Mensaje del toast según por qué se rechazó el consumo (D5/D6 de
+  /// `design.md`). `pais_no_disponible` se enseña como un estado normal —no
+  /// como un error de programa—, mismo motivo que documenta
+  /// `BandejaComodines`.
+  String _mensajeDeRechazoComodin(MotivoRechazoComodin motivo) =>
+      switch (motivo) {
+        MotivoRechazoComodin.paisNoDisponible =>
+          'Este desafío no tiene país registrado todavía',
+        MotivoRechazoComodin.sinComodinesDisponibles =>
+          'Ya no te queda ese comodín',
+        MotivoRechazoComodin.comodinYaUsadoEnEsteIntento =>
+          'Ya has usado un comodín en este intento',
+        MotivoRechazoComodin.intentoODesafioInvalido =>
+          'No se pudo usar el comodín en este desafío',
+        MotivoRechazoComodin.topeDiarioAlcanzado =>
+          'Ya has alcanzado el máximo de comodines de hoy',
+        MotivoRechazoComodin.desconocido => 'No se pudo usar el comodín',
+      };
 
   void _cerrarPista() => setState(() => _pistaVisible = false);
 
@@ -324,9 +501,19 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
     final revelado = _revelado;
     if (revelado == null) return;
 
+    // Si el jugador confirma mientras el zoom de un comodín de radio (D2 del
+    // delta-2) todavía está animando, hay que pararlo antes de que la propia
+    // coreografía del revelado empiece a mover la cámara -- si no, las dos
+    // animaciones se pelearían por `_mapa.aplicarCamara` en el mismo frame.
+    _zoomComodin.stop();
+
     final origen = _camaraDelJugador ??= _mapa.camara;
     _mapa
       ..limpiarRevelado()
+      // El círculo de un comodín de radio (INT-119) solo tiene sentido en
+      // la fase de adivinar de este desafío; el revelado ya enseña la
+      // ubicación exacta.
+      ..limpiarRadio()
       ..aplicarCamara(origen);
     _calcularElEncuadreDelRevelado(revelado);
 
@@ -459,6 +646,7 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
             tematicaNombre: widget.tematicaNombre,
             totalDesafios: intento.desafios.length,
             gateway: _gateway,
+            comodinesGateway: widget.comodinesGateway,
             cargadorDeMundo: widget.cargadorDeMundo,
           ),
         ),
@@ -575,6 +763,17 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
                     objetivoGlobal: intento.objetivoGlobal,
                     posicion: _indice + 1,
                     onListo: _cerrarPista,
+                  ),
+                ),
+              // La bandeja solo se ofrece en la fase de adivinar (INT-119):
+              // ni durante el toast de pista ni durante el revelado.
+              if (!revelando && !_pistaVisible)
+                Positioned.fill(
+                  child: BandejaComodines(
+                    inventario: _inventarioComodines,
+                    usadoEnEsteIntento: _comodinUsadoEnEsteIntento,
+                    procesando: _usandoComodin,
+                    onUsar: (tipo) => _usarComodin(intento, tipo),
                   ),
                 ),
               if (revelando)
@@ -1549,11 +1748,11 @@ class _MiniaturaDeLaPista extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFFFFFDF8), Color(0xFFE9F2F1)],
-        ),
+        // Fondo oscuro (feedback tras probar en dispositivo: el degradado
+        // claro que llevaba antes se veía como un borde blanco alrededor de
+        // la imagen, fuera de tono con el resto de la hoja de revelado
+        // (`_cardBg`).
+        color: Colors.white.withValues(alpha: 0.06),
       ),
       child: switch (desafio.tipo) {
         TipoDesafio.imagen => Image.network(
@@ -1773,33 +1972,29 @@ class _TarjetaDePuntos extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 9),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.baseline,
-                  textBaseline: TextBaseline.alphabetic,
-                  children: [
-                    Flexible(
-                      child: Text(
-                        '+${formatearPuntaje(puntos)}',
-                        key: const Key('nivel-juego-puntos-ganados'),
-                        maxLines: 1,
-                        style: GoogleFonts.baloo2(
-                          color: const Color(0xFFFFE9A8),
-                          fontSize: 34,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 5),
-                    Text(
-                      '/ ${formatearPuntaje(maximo)}',
-                      key: const Key('nivel-juego-puntos-maximos'),
-                      style: GoogleFonts.outfit(
-                        color: _gold.withValues(alpha: 0.6),
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
+                // Debajo del número grande, no al lado (feedback tras probar
+                // en dispositivo: en la misma línea, "/ 5.500" se leía junto
+                // al separador de millares y confundía el número completo de
+                // puntos con uno truncado).
+                Text(
+                  '+${formatearPuntaje(puntos)}',
+                  key: const Key('nivel-juego-puntos-ganados'),
+                  maxLines: 1,
+                  style: GoogleFonts.baloo2(
+                    color: const Color(0xFFFFE9A8),
+                    fontSize: 34,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '/ ${formatearPuntaje(maximo)}',
+                  key: const Key('nivel-juego-puntos-maximos'),
+                  style: GoogleFonts.outfit(
+                    color: _gold.withValues(alpha: 0.6),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ],
             ),
