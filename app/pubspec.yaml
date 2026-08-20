@@ -79,6 +79,19 @@ flutter:
     # `dart run tool/build_world_asset.dart`; se commitea para que ni la
     # build ni los tests dependan de tener red.
     - assets/world/world_50m.bin
+    # Arte de comodines (INT-119), original en Recursos/comodines/ (0-8.png):
+    # genérico para el pill de Home/pestaña de la bandeja de juego, arte
+    # ancho para las tarjetas de la pantalla Comodines, icono cuadrado para
+    # la bandeja de la pantalla de juego.
+    - assets/comodines/generico.png
+    - assets/comodines/arte_tiempo.png
+    - assets/comodines/arte_pais.png
+    - assets/comodines/arte_km1000.png
+    - assets/comodines/arte_km500.png
+    - assets/comodines/icono_tiempo.png
+    - assets/comodines/icono_pais.png
+    - assets/comodines/icono_km1000.png
+    - assets/comodines/icono_km500.png
 
   # To add assets to your application, add an assets section, like this:
   # assets:
