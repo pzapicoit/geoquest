@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../services/anuncios_gateway.dart';
 import '../services/comodines_gateway.dart';
 
 const _bgTop = Color(0xFF102A38);
@@ -11,20 +12,6 @@ const _teal = Color(0xFF2BC0A8);
 const _blue = Color(0xFF1B6FA8);
 const _gold = Color(0xFFFFC53D);
 const _ink = Color(0xFF0E1620);
-
-/// Si el SDK de anuncios en vídeo (INT-117) ya está integrado en la app.
-///
-/// Hoy NO lo está: `false` a propósito (requirement "Obtención de comodines
-/// por vídeo publicitario" de `comodines/spec.md`, escenario "La vía de
-/// anuncio no está disponible todavía" — el botón SHALL mostrarse
-/// deshabilitado en vez de llamar al RPC y simular un visionado que nunca
-/// ocurrió). Cuando INT-117 integre el SDK real, este flag pasa a `true` (o
-/// se sustituye por la condición real de "hay un anuncio cargado y listo")
-/// y `_HojaObtenerMas._verAnuncio` empieza a llamar de verdad a
-/// `concederComodinPorAnuncio()` tras el callback de recompensa del SDK —el
-/// resto del cableado (gateway, manejo de errores, refresco del inventario)
-/// ya está escrito y probado, ver `comodines_gateway_test.dart`.
-const bool anuncioDisponible = false;
 
 String _nombre(ComodinTipo tipo) => switch (tipo) {
   ComodinTipo.tiempo => 'Sin límite de tiempo',
@@ -65,11 +52,16 @@ String _formatMiles(int n) {
 }
 
 /// Pantalla Comodines (INT-119): inventario real de los 4 tipos y la hoja
-/// "Obtener más" — hoy solo el vídeo publicitario tiene intención de ser
-/// funcional (ver [anuncioDisponible]); "canjear puntos" y "pack explorador"
-/// se enseñan sin acción real, con un aviso de "próximamente" al tocarlas.
+/// "Obtener más" — el vídeo publicitario es funcional (`RewardedAd` bajo
+/// demanda, INT-117 delta-1); "canjear puntos" y "pack explorador" se
+/// enseñan sin acción real, con un aviso de "próximamente" al tocarlas.
 class ComodinesScreen extends StatefulWidget {
-  const ComodinesScreen({super.key, required this.puntosTotales, this.gateway});
+  const ComodinesScreen({
+    super.key,
+    required this.puntosTotales,
+    this.gateway,
+    this.anunciosGateway,
+  });
 
   /// Puntos totales del jugador, ya cargados por quien navega aquí (mismo
   /// motivo que `RankingScreen.puntosTotales` en `camino_screen.dart`, D2 de
@@ -80,6 +72,10 @@ class ComodinesScreen extends StatefulWidget {
   /// Inyectable para poder probar la pantalla sin salir a la red.
   final ComodinesGateway? gateway;
 
+  /// Inyectable para el flujo de "Ver un anuncio" (INT-117 delta-1); se
+  /// reenvía desde `CaminoScreen`, igual que `gateway`.
+  final AnunciosGateway? anunciosGateway;
+
   @override
   State<ComodinesScreen> createState() => _ComodinesScreenState();
 }
@@ -87,6 +83,8 @@ class ComodinesScreen extends StatefulWidget {
 class _ComodinesScreenState extends State<ComodinesScreen> {
   late final ComodinesGateway _gateway =
       widget.gateway ?? SupabaseComodinesGateway(Supabase.instance.client);
+  late final AnunciosGateway _anunciosGateway =
+      widget.anunciosGateway ?? AdMobAnunciosGateway(Supabase.instance.client);
 
   late Future<InventarioComodines> _futuro;
 
@@ -113,7 +111,8 @@ class _ComodinesScreenState extends State<ComodinesScreen> {
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (_) => _HojaObtenerMas(gateway: _gateway),
+      builder: (_) =>
+          _HojaObtenerMas(gateway: _gateway, anunciosGateway: _anunciosGateway),
     );
     if (!mounted || concedido == null) return;
 
@@ -475,13 +474,14 @@ class _ErrorComodines extends StatelessWidget {
 }
 
 /// Hoja inferior "Obtener más comodines": 3 opciones, solo el vídeo
-/// publicitario con intención de ser funcional (ver [anuncioDisponible]).
-/// Devuelve (con `Navigator.pop`) el tipo concedido si el anuncio se
-/// completa con éxito, o `null` si se cierra sin conseguir nada.
+/// publicitario con intención de ser funcional. Devuelve (con
+/// `Navigator.pop`) el tipo concedido si el anuncio se completa con éxito,
+/// o `null` si se cierra sin conseguir nada.
 class _HojaObtenerMas extends StatefulWidget {
-  const _HojaObtenerMas({required this.gateway});
+  const _HojaObtenerMas({required this.gateway, required this.anunciosGateway});
 
   final ComodinesGateway gateway;
+  final AnunciosGateway anunciosGateway;
 
   @override
   State<_HojaObtenerMas> createState() => _HojaObtenerMasState();
@@ -500,22 +500,27 @@ class _HojaObtenerMasState extends State<_HojaObtenerMas> {
   }
 
   Future<void> _verAnuncio() async {
-    if (!anuncioDisponible) {
-      // INT-117 (AdMob) no está integrada todavía: sin un SDK real que
-      // confirme el visionado, llamar al RPC aquí estaría concediendo el
-      // comodín por un anuncio que nunca se vio (requirement "Obtención de
-      // comodines por vídeo publicitario", escenario "La vía de anuncio no
-      // está disponible todavía" de `comodines/spec.md`) — se muestra el
-      // aviso y no se toca el servidor.
-      _proximamente('Ver anuncios');
-      return;
-    }
-
     if (_cargando) return;
     setState(() {
       _cargando = true;
       _error = null;
     });
+
+    // Solo se concede si el jugador de verdad ganó la recompensa del
+    // anuncio (INT-117 delta-1, D2/D3 de design.md) — a diferencia del
+    // gating automático de INT-117 original, aquí no hay fail-open: si el
+    // anuncio no carga o no se completa, no hay nada que conceder.
+    final recompensaGanada = await widget.anunciosGateway
+        .mostrarParaRecompensa();
+    if (!mounted) return;
+    if (!recompensaGanada) {
+      setState(() {
+        _cargando = false;
+        _error = 'No se pudo mostrar el anuncio. Inténtalo de nuevo.';
+      });
+      return;
+    }
+
     try {
       final tipo = await widget.gateway.concederComodinPorAnuncio();
       if (!mounted) return;
@@ -566,10 +571,8 @@ class _HojaObtenerMasState extends State<_HojaObtenerMas> {
               clave: const Key('comodines-opcion-anuncio'),
               icono: Icons.play_circle_fill_rounded,
               titulo: 'Ver un anuncio',
-              subtitulo: anuncioDisponible
-                  ? 'Consigue 1 comodín aleatorio al terminar de verlo'
-                  : 'Próximamente',
-              habilitada: anuncioDisponible,
+              subtitulo: 'Consigue 1 comodín aleatorio al terminar de verlo',
+              habilitada: true,
               cargando: _cargando,
               onTap: _verAnuncio,
             ),

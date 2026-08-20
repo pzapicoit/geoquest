@@ -24,6 +24,12 @@
 	<string>????</string>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<!-- INT-117: App ID de AdMob, exigido por el SDK de Google Mobile Ads
+	     antes de mostrar cualquier anuncio. Valor real en GEOQUEST_ADMOB_APP_ID_IOS
+	     (Debug/Release.xcconfig), test oficial de Google hasta que exista
+	     cuenta AdMob real. -->
+	<key>GADApplicationIdentifier</key>
+	<string>$(GEOQUEST_ADMOB_APP_ID_IOS)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UIApplicationSceneManifest</key>

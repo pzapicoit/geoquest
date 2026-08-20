@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../route_observer.dart';
+import '../services/anuncios_gateway.dart';
 import '../services/camino_gateway.dart';
 import '../services/comodines_gateway.dart';
 import '../services/nivel_juego_gateway.dart';
@@ -96,17 +97,21 @@ class CaminoScreen extends StatefulWidget {
     this.nivelJuegoGateway,
     this.rankingGateway,
     this.comodinesGateway,
+    this.anunciosGateway,
   });
 
   /// Inyectables para poder probar la pantalla sin salir a la red ni al
   /// disco. `nivelJuegoGateway` se reenvía a `NivelJuegoScreen` al navegar
   /// a ella (INT-91); `rankingGateway` se reenvía a `RankingScreen` (INT-110);
-  /// `comodinesGateway` se reenvía a `ComodinesScreen` (INT-119).
+  /// `comodinesGateway` se reenvía a `ComodinesScreen` (INT-119);
+  /// `anunciosGateway` decide el anuncio antes de navegar a una parada
+  /// (INT-117), sin reenviarse — la pantalla de juego no lo necesita.
   final CaminoGateway? caminoGateway;
   final UsernameStorage? usernameStorage;
   final NivelJuegoGateway? nivelJuegoGateway;
   final RankingGateway? rankingGateway;
   final ComodinesGateway? comodinesGateway;
+  final AnunciosGateway? anunciosGateway;
 
   @override
   State<CaminoScreen> createState() => _CaminoScreenState();
@@ -120,6 +125,8 @@ class _CaminoScreenState extends State<CaminoScreen> with RouteAware {
   late final ComodinesGateway _comodinesGateway =
       widget.comodinesGateway ??
       SupabaseComodinesGateway(Supabase.instance.client);
+  late final AnunciosGateway _anunciosGateway =
+      widget.anunciosGateway ?? AdMobAnunciosGateway(Supabase.instance.client);
 
   final _controller = ScrollController();
 
@@ -134,6 +141,12 @@ class _CaminoScreenState extends State<CaminoScreen> with RouteAware {
   /// `0` mientras carga por primera vez, igual que `_nickname` parte de un
   /// valor por defecto hasta que resuelve su propia carga.
   int _totalComodines = 0;
+
+  /// Evita doble navegación mientras se resuelve `anuncio_debido` + el
+  /// posible anuncio (INT-117): sin esto, dos toques rápidos sobre la misma
+  /// parada podrían disparar dos `iniciar_intento_parada` antes de que el
+  /// primero devuelva.
+  bool _resolviendoAnuncio = false;
 
   @override
   void initState() {
@@ -273,6 +286,7 @@ class _CaminoScreenState extends State<CaminoScreen> with RouteAware {
         builder: (_) => ComodinesScreen(
           gateway: widget.comodinesGateway,
           puntosTotales: camino.puntosTotales,
+          anunciosGateway: _anunciosGateway,
         ),
       ),
     );
@@ -282,7 +296,19 @@ class _CaminoScreenState extends State<CaminoScreen> with RouteAware {
   /// `onTap: null` desde el `builder` (ver más abajo), así que su
   /// `GestureDetector` queda inerte y no SHALL responder a toques en
   /// absoluto.
-  void _onTapParada(ParadaCamino parada) {
+  ///
+  /// Antes de navegar, consulta si toca anuncio de desbloqueo/cadencia y lo
+  /// muestra (INT-117, `video-ads`): `AnunciosGateway.mostrarSiToca` nunca
+  /// lanza y nunca bloquea más allá de su propio timeout fail-open, así que
+  /// esto siempre termina por navegar con normalidad.
+  Future<void> _onTapParada(ParadaCamino parada) async {
+    if (_resolviendoAnuncio) return;
+
+    setState(() => _resolviendoAnuncio = true);
+    await _anunciosGateway.mostrarSiToca(parada.caminoId);
+    if (!mounted) return;
+    setState(() => _resolviendoAnuncio = false);
+
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => NivelJuegoScreen(
@@ -342,7 +368,9 @@ class _CaminoScreenState extends State<CaminoScreen> with RouteAware {
           child: _ParadaTile(
             parada: parada,
             puntosTotales: puntosTotales,
-            onTap: parada.desbloqueado ? () => _onTapParada(parada) : null,
+            onTap: parada.desbloqueado && !_resolviendoAnuncio
+                ? () => _onTapParada(parada)
+                : null,
           ),
         ),
       ),
@@ -536,7 +564,9 @@ class _CaminoScreenState extends State<CaminoScreen> with RouteAware {
                     child: _BotonJugar(
                       key: const Key('camino-boton-jugar'),
                       parada: paradaActual,
-                      onTap: () => _onTapParada(paradaActual!),
+                      onTap: () {
+                        if (!_resolviendoAnuncio) _onTapParada(paradaActual!);
+                      },
                     ),
                   ),
               ],

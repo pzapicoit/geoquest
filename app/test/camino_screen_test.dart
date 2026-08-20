@@ -4,11 +4,13 @@ import 'package:geoquest/route_observer.dart';
 import 'package:geoquest/screens/camino_screen.dart';
 import 'package:geoquest/screens/comodines_screen.dart';
 import 'package:geoquest/screens/nivel_juego_screen.dart';
+import 'package:geoquest/services/anuncios_gateway.dart';
 import 'package:geoquest/services/camino_gateway.dart';
 import 'package:geoquest/services/nivel_juego_gateway.dart';
 import 'package:geoquest/services/username_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'fakes/fake_anuncios_gateway.dart';
 import 'fakes/fake_camino_gateway.dart';
 import 'fakes/fake_comodines_gateway.dart';
 import 'fakes/fake_nivel_juego_gateway.dart';
@@ -73,15 +75,21 @@ final _caminoDePrueba = CaminoJugador(
   puntosTotales: 240,
 );
 
-Widget _pantalla(CaminoGateway gateway) => MaterialApp(
-  navigatorObservers: [routeObserver],
-  home: CaminoScreen(
-    caminoGateway: gateway,
-    usernameStorage: UsernameStorage(),
-    nivelJuegoGateway: _nivelJuegoGatewayDePrueba,
-    comodinesGateway: FakeComodinesGateway(),
-  ),
-);
+Widget _pantalla(CaminoGateway gateway, {AnunciosGateway? anunciosGateway}) =>
+    MaterialApp(
+      navigatorObservers: [routeObserver],
+      home: CaminoScreen(
+        caminoGateway: gateway,
+        usernameStorage: UsernameStorage(),
+        nivelJuegoGateway: _nivelJuegoGatewayDePrueba,
+        comodinesGateway: FakeComodinesGateway(),
+        // Sin fake, el getter interno construiría un AdMobAnunciosGateway
+        // real sobre Supabase.instance.client, que no está inicializado en
+        // tests (INT-117): por defecto no toca ningún anuncio, igual que
+        // hoy antes de este cambio.
+        anunciosGateway: anunciosGateway ?? FakeAnunciosGateway(),
+      ),
+    );
 
 /// Entra en la pantalla de juego tocando algo que navega a ella.
 ///
@@ -96,12 +104,16 @@ Future<void> _entrarEnElNivel(WidgetTester tester, Finder gatillo) async {
   await tester.pump(const Duration(milliseconds: 600));
 }
 
-Future<void> _pump(WidgetTester tester, CaminoGateway gateway) async {
+Future<void> _pump(
+  WidgetTester tester,
+  CaminoGateway gateway, {
+  AnunciosGateway? anunciosGateway,
+}) async {
   tester.view.physicalSize = const Size(390, 2000);
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.reset);
 
-  await tester.pumpWidget(_pantalla(gateway));
+  await tester.pumpWidget(_pantalla(gateway, anunciosGateway: anunciosGateway));
   await tester.pumpAndSettle();
 }
 
@@ -281,6 +293,74 @@ void main() {
     },
   );
 
+  testWidgets(
+    'sin anuncio pendiente, tocar la parada consulta y navega directamente '
+    '(INT-117)',
+    (tester) async {
+      final anunciosGateway = FakeAnunciosGateway();
+      await _pump(
+        tester,
+        FakeCaminoGateway(_caminoDePrueba),
+        anunciosGateway: anunciosGateway,
+      );
+
+      await _entrarEnElNivel(
+        tester,
+        find.byKey(const Key('parada-nivel-actual')),
+      );
+
+      expect(find.byType(NivelJuegoScreen), findsOneWidget);
+      expect(anunciosGateway.mostrarSiTocaCalls, 1);
+      expect(anunciosGateway.caminoIdsConsultados, ['nivel-actual']);
+    },
+  );
+
+  testWidgets(
+    'con anuncio pendiente, navega igual una vez que se resuelve (INT-117)',
+    (tester) async {
+      final anunciosGateway = FakeAnunciosGateway(
+        tipoPendiente: TipoAnuncioPendiente.desbloqueo,
+      );
+      await _pump(
+        tester,
+        FakeCaminoGateway(_caminoDePrueba),
+        anunciosGateway: anunciosGateway,
+      );
+
+      await _entrarEnElNivel(
+        tester,
+        find.byKey(const Key('parada-nivel-actual')),
+      );
+
+      expect(find.byType(NivelJuegoScreen), findsOneWidget);
+      expect(anunciosGateway.mostrarSiTocaCalls, 1);
+    },
+  );
+
+  testWidgets('un segundo toque mientras se resuelve el anuncio no dispara una '
+      'segunda navegación (INT-117)', (tester) async {
+    final anunciosGateway = FakeAnunciosGateway(
+      retraso: const Duration(milliseconds: 300),
+    );
+    await _pump(
+      tester,
+      FakeCaminoGateway(_caminoDePrueba),
+      anunciosGateway: anunciosGateway,
+    );
+
+    final parada = find.byKey(const Key('parada-nivel-actual'));
+    await tester.tap(parada);
+    await tester.pump();
+    // Todavía resolviendo mostrarSiToca: un segundo toque debe ser inerte.
+    await tester.tap(parada, warnIfMissed: false);
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600));
+
+    expect(find.byType(NivelJuegoScreen), findsOneWidget);
+    expect(anunciosGateway.mostrarSiTocaCalls, 1);
+  });
+
   testWidgets('volver de la pantalla de juego recarga el camino (INT-94)', (
     tester,
   ) async {
@@ -342,6 +422,7 @@ void main() {
             usernameStorage: UsernameStorage(),
             nivelJuegoGateway: nivelGateway,
             comodinesGateway: FakeComodinesGateway(),
+            anunciosGateway: FakeAnunciosGateway(),
           ),
         ),
       );
@@ -823,6 +904,7 @@ void main() {
             usernameStorage: UsernameStorage(),
             nivelJuegoGateway: _nivelJuegoGatewayDePrueba,
             comodinesGateway: FakeComodinesGateway(),
+            anunciosGateway: FakeAnunciosGateway(),
           ),
         ),
       );

@@ -1,3 +1,4 @@
+#include? "Pods/Target Support Files/Pods-Runner/Pods-Runner.debug.xcconfig"
 #include "Generated.xcconfig"
 
 // Identidad de firma del proyecto. El .pbxproj referencia estas dos variables
@@ -9,5 +10,13 @@
 //   GEOQUEST_BUNDLE_ID = es.loquesea.geoquest
 GEOQUEST_DEVELOPMENT_TEAM = TYZG5ZZWXC
 GEOQUEST_BUNDLE_ID = es.intermarkit.geoquest
+
+// App ID de AdMob (INT-117), leído por Info.plist vía GADApplicationIdentifier
+// — el SDK de Google Mobile Ads lo necesita antes de que arranque el motor
+// Dart, así que no puede viajar por --dart-define (eso solo llega a
+// String.fromEnvironment). Mismo mecanismo que GEOQUEST_BUNDLE_ID. Valor de
+// test oficial de Google mientras no exista cuenta AdMob real (INT-117 no
+// bloquea código en ello); sustituir aquí cuando exista.
+GEOQUEST_ADMOB_APP_ID_IOS = ca-app-pub-3940256099942544~1712485313
 
 #include? "Local.xcconfig"
