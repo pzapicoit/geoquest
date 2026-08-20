@@ -10,6 +10,7 @@ export interface PreguntaDetalle {
   tipo: TipoDesafio
   nombreLugar: string
   pista: string | null
+  ciudad: string | null
   pais: string | null
   textoPregunta: string | null
   imagenUrl: string | null
@@ -27,6 +28,7 @@ interface DesafioDetalleRow {
   tipo: TipoDesafio
   nombre_lugar: string
   pista: string | null
+  ciudad: string | null
   pais: string | null
   texto_pregunta: string | null
   imagen_url: string | null
@@ -42,7 +44,7 @@ export async function fetchPregunta(id: string): Promise<PreguntaDetalle> {
   const { data, error } = await supabase
     .from('desafios')
     .select(
-      'id, nombre, tipo, nombre_lugar, pista, pais, texto_pregunta, imagen_url, video_url, lat_real, lng_real, activo, tematica_id, dificultad',
+      'id, nombre, tipo, nombre_lugar, pista, ciudad, pais, texto_pregunta, imagen_url, video_url, lat_real, lng_real, activo, tematica_id, dificultad',
     )
     .eq('id', id)
     .single()
@@ -55,6 +57,7 @@ export async function fetchPregunta(id: string): Promise<PreguntaDetalle> {
     tipo: row.tipo,
     nombreLugar: row.nombre_lugar,
     pista: row.pista,
+    ciudad: row.ciudad,
     pais: row.pais,
     textoPregunta: row.texto_pregunta,
     imagenUrl: row.imagen_url,
@@ -146,6 +149,7 @@ export interface GuardarPreguntaInput {
   tipo: TipoDesafio
   nombreLugar: string
   pista: string | null
+  ciudad: string | null
   pais: string | null
   textoPregunta: string | null
   latReal: number
@@ -171,6 +175,10 @@ export async function guardarPregunta(input: GuardarPreguntaInput): Promise<{ id
   }
 
   const pista = input.pista?.trim() ? input.pista.trim() : null
+  // '' se guarda como NULL, no como cadena vacía (INT-122, D10): la app
+  // distingue "sin ciudad" de "ciudad en blanco" para decidir si rotula la
+  // ciudad o cae a nombre_lugar.
+  const ciudad = input.ciudad?.trim() ? input.ciudad.trim() : null
   const pais = input.pais?.trim() ? input.pais.trim() : null
 
   const { error } = await supabase.from('desafios').upsert({
@@ -184,6 +192,7 @@ export async function guardarPregunta(input: GuardarPreguntaInput): Promise<{ id
     lng_real: input.lngReal,
     nombre_lugar: input.nombreLugar,
     pista,
+    ciudad,
     pais,
     activo: input.activo,
     tematica_id: input.tematicaId,

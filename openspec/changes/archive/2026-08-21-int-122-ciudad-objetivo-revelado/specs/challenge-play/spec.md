@@ -1,9 +1,4 @@
-# challenge-play Specification
-
-## Purpose
-TBD - created by archiving change int-95-vista-desafios-intento. Update Purpose after archive.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Vista `desafios_para_jugar` expone solo contenido de juego
 
@@ -90,4 +85,3 @@ Dentro de esa misma transacción, la RPC SHALL recalcular las condiciones de anu
 
 - **WHEN** un usuario autenticado cuyo contador de cadencia está en 0 o 1 llama a `iniciar_intento_parada` para una parada que ya jugó antes
 - **THEN** el intento se crea con normalidad y `profiles.intentos_desde_ultimo_anuncio_cadencia` del usuario se incrementa en 1 tras la llamada
-

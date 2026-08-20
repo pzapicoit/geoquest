@@ -302,6 +302,8 @@ export function PreguntasGenerarIA() {
           nombre: candidato.nombre,
           lat: candidato.lat,
           lng: candidato.lng,
+          ciudad: candidato.ciudad,
+          pais: candidato.pais,
           imagen: candidato.estado === 'lista' ? candidato.imagen : null,
         })),
       })
@@ -648,6 +650,12 @@ export function PreguntasGenerarIA() {
                       Lugar
                     </th>
                     <th scope="col" className="px-3 py-3">
+                      Ciudad
+                    </th>
+                    <th scope="col" className="px-3 py-3">
+                      País
+                    </th>
+                    <th scope="col" className="px-3 py-3">
                       Coordenadas
                     </th>
                     <th scope="col" className="px-3 py-3">
@@ -682,6 +690,22 @@ export function PreguntasGenerarIA() {
                       </td>
                       <td className="px-3 py-3.5 text-[13px] font-semibold text-brand-night">
                         {candidato.nombre}
+                      </td>
+                      {/* La ciudad se revisa aquí, no solo se guarda (INT-122,
+                          D11): es lo que el jugador leerá al revelar, y la
+                          ilustración cuesta ~0,04 USD y ~24 s, así que el
+                          momento de cazar una ciudad equivocada es antes de
+                          gastarla. Sin ciudad no bloquea nada: se marca y el
+                          candidato sigue seleccionable. */}
+                      <td className="px-3 py-3.5 text-[12.5px] text-brand-night">
+                        {candidato.ciudad ?? (
+                          <span className="text-brand-night/35 italic">sin ciudad</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-3.5 text-[12.5px] text-brand-night">
+                        {candidato.pais ?? (
+                          <span className="text-brand-night/35 italic">sin país</span>
+                        )}
                       </td>
                       <td className="px-3 py-3.5 text-[12.5px] text-brand-night/60 tabular-nums">
                         {formatearCoordenadas(candidato.lat, candidato.lng)}

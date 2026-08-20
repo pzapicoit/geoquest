@@ -26,8 +26,14 @@ function errorConCodigo(codigo: string) {
   return { context: { json: () => Promise.resolve({ codigo }) } }
 }
 
-function lugar(nombre: string, lat: number, lng: number): CandidatoIA {
-  return { nombre, lat, lng, descripcion: `descripción de ${nombre}` }
+function lugar(
+  nombre: string,
+  lat: number,
+  lng: number,
+  ciudad: string | null = `ciudad de ${nombre}`,
+  pais: string | null = 'País de prueba',
+): CandidatoIA {
+  return { nombre, lat, lng, ciudad, pais, descripcion: `descripción de ${nombre}` }
 }
 
 beforeEach(() => {
@@ -62,6 +68,46 @@ describe('proponerLugares', () => {
       },
     })
     expect(candidatos).toEqual([lugar('Coliseo, Roma', 41.8902, 12.4922)])
+  })
+
+  it('arrastra la ciudad y el país de cada candidato', async () => {
+    invoke.mockResolvedValue({
+      data: { lugares: [lugar('Coliseo, Roma', 41.8902, 12.4922, 'Roma', 'Italia')] },
+      error: null,
+    })
+
+    const candidatos = await proponerLugares({
+      tematica: 'Monumentos',
+      dificultad: 'normal',
+      cantidad: 1,
+      existentes: [],
+      indicaciones: null,
+    })
+
+    expect(candidatos[0]).toMatchObject({ ciudad: 'Roma', pais: 'Italia' })
+  })
+
+  it('una función anterior a INT-122 deja la ciudad y el país en null', async () => {
+    // No manda esas claves. No es una respuesta inválida: es exactamente el
+    // comportamiento que había antes de este cambio.
+    invoke.mockResolvedValue({
+      data: {
+        lugares: [
+          { nombre: 'Coliseo, Roma', lat: 41.8902, lng: 12.4922, descripcion: 'anfiteatro' },
+        ],
+      },
+      error: null,
+    })
+
+    const candidatos = await proponerLugares({
+      tematica: 'Monumentos',
+      dificultad: 'normal',
+      cantidad: 1,
+      existentes: [],
+      indicaciones: null,
+    })
+
+    expect(candidatos[0]).toMatchObject({ ciudad: null, pais: null })
   })
 
   it('devuelve lista vacía si la función no trae lugares', async () => {

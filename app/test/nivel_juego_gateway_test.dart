@@ -169,6 +169,7 @@ void main() {
         'lat_real': 41.8902,
         'lng_real': 12.4922,
         'nombre_lugar': 'Coliseo de Roma',
+        'ciudad': 'Roma',
         'puntos_maximos': 5500,
       });
 
@@ -179,7 +180,62 @@ void main() {
       expect(respuesta.latitudReal, closeTo(41.8902, 1e-9));
       expect(respuesta.longitudReal, closeTo(12.4922, 1e-9));
       expect(respuesta.nombreLugar, 'Coliseo de Roma');
+      expect(respuesta.ciudad, 'Roma');
       expect(respuesta.puntosMaximos, 5500);
+    });
+
+    test('ciudad null es un desafío sin ciudad registrada, no un error', () {
+      // El backend guarda "sin ciudad real" como NULL a propósito (INT-122):
+      // un yacimiento en descampado, un naufragio en alta mar.
+      final respuesta = mapearRespuestaDesafio({
+        'distancia_km': 10.0,
+        'puntos': 100,
+        'puntos_distancia': 100,
+        'puntos_bonus': 0,
+        'lat_real': 51.1789,
+        'lng_real': -1.8262,
+        'nombre_lugar': 'Stonehenge, Inglaterra',
+        'ciudad': null,
+        'puntos_maximos': 5500,
+      });
+
+      expect(respuesta.ciudad, isNull);
+      expect(respuesta.nombreLugar, 'Stonehenge, Inglaterra');
+    });
+
+    test('ciudad ausente del todo también mapea a null', () {
+      // Una app con INT-122 contra un backend anterior: la clave no viaja.
+      // No es una respuesta incompleta, es la de siempre.
+      final respuesta = mapearRespuestaDesafio({
+        'distancia_km': 10.0,
+        'puntos': 100,
+        'puntos_distancia': 100,
+        'puntos_bonus': 0,
+        'lat_real': 41.8902,
+        'lng_real': 12.4922,
+        'nombre_lugar': 'Coliseo de Roma',
+        'puntos_maximos': 5500,
+      });
+
+      expect(respuesta.ciudad, isNull);
+    });
+
+    test('una ciudad en blanco se normaliza a null', () {
+      // No debería llegar —el panel guarda '' como NULL—, pero si llega, un
+      // rótulo en blanco es peor que caer a nombre_lugar.
+      final respuesta = mapearRespuestaDesafio({
+        'distancia_km': 10.0,
+        'puntos': 100,
+        'puntos_distancia': 100,
+        'puntos_bonus': 0,
+        'lat_real': 41.8902,
+        'lng_real': 12.4922,
+        'nombre_lugar': 'Coliseo de Roma',
+        'ciudad': '   ',
+        'puntos_maximos': 5500,
+      });
+
+      expect(respuesta.ciudad, isNull);
     });
 
     test('acepta una distancia serializada como texto', () {

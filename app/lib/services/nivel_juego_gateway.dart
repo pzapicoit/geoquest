@@ -89,8 +89,8 @@ class IntentoNivel {
 /// Desde INT-99, `responder_desafio` acepta una respuesta sin pin (tiempo
 /// agotado sin coordenadas): en ese caso el servidor no tiene distancia que
 /// calcular, así que [distanciaKm] llega `null` (D7/D13 de `design.md`). La
-/// ubicación real ([latitudReal]/[longitudReal]/[nombreLugar]) se sigue
-/// revelando igual, con o sin pin. También trae el desglose del puntaje
+/// ubicación real ([latitudReal]/[longitudReal]/[nombreLugar]/[ciudad]) se
+/// sigue revelando igual, con o sin pin. También trae el desglose del puntaje
 /// (D14): [puntosDistancia] es el componente de precisión y [puntosBonus]
 /// el bonus por rapidez (`puntos = puntosDistancia + puntosBonus`); ambos
 /// llegan en `0` cuando la respuesta es sin pin.
@@ -101,6 +101,7 @@ class RespuestaDesafio {
     required this.latitudReal,
     required this.longitudReal,
     required this.nombreLugar,
+    required this.ciudad,
     required this.puntosMaximos,
     required this.puntosDistancia,
     required this.puntosBonus,
@@ -113,6 +114,18 @@ class RespuestaDesafio {
   final double latitudReal;
   final double longitudReal;
   final String nombreLugar;
+
+  /// Ciudad real del objetivo (INT-122), el texto con el que se rotula la
+  /// ubicación en el revelado. `null` cuando el desafío no tiene ciudad
+  /// registrada —un yacimiento en descampado, un naufragio en alta mar—, y
+  /// también cuando la respuesta viene de un servidor anterior a INT-122 que
+  /// no manda la clave: en los dos casos el revelado cae a [nombreLugar].
+  ///
+  /// Se distingue `null` de cadena vacía a propósito: el backend guarda
+  /// "sin ciudad" como `NULL`, no como `''`, para que la ausencia sea
+  /// explícita en vez de un texto en blanco que la pantalla rotularía como
+  /// un hueco.
+  final String? ciudad;
 
   /// Puntos que se habrían conseguido con un acierto exacto e instantáneo,
   /// calculados por el servidor (D3 de `design.md` de INT-93, ampliado con
@@ -272,10 +285,12 @@ IntentoNivel mapearIntentoNivel(Map<String, dynamic> data) {
 /// extraída por el mismo motivo que [mapearIntentoNivel]: poder probar el
 /// mapeo sin red.
 ///
-/// `distancia_km` es el único campo que se relaja a opcional (INT-99): en
-/// una respuesta sin pin (tiempo agotado sin coordenadas) el servidor no
-/// tiene ninguna distancia que calcular y manda `null` a propósito, no por
-/// omisión. El resto de campos —incluidos `lat_real`/`lng_real`, que siguen
+/// `distancia_km` y `ciudad` son los dos únicos campos opcionales. El primero
+/// por INT-99: en una respuesta sin pin (tiempo agotado sin coordenadas) el
+/// servidor no tiene ninguna distancia que calcular y manda `null` a
+/// propósito, no por omisión. El segundo por INT-122: hay desafíos sin ciudad
+/// real, y una app nueva contra un backend anterior no recibe la clave
+/// siquiera. El resto de campos —incluidos `lat_real`/`lng_real`, que siguen
 /// revelando la ubicación real haya o no pin— se mantienen exigidos: si
 /// faltan, es una respuesta incompleta, no un caso sin pin.
 RespuestaDesafio mapearRespuestaDesafio(Map<String, dynamic> fila) {
@@ -285,6 +300,7 @@ RespuestaDesafio mapearRespuestaDesafio(Map<String, dynamic> fila) {
     latitudReal: _decimal(fila['lat_real'], 'lat_real'),
     longitudReal: _decimal(fila['lng_real'], 'lng_real'),
     nombreLugar: _texto(fila['nombre_lugar'], 'nombre_lugar'),
+    ciudad: _textoOpcional(fila['ciudad']),
     puntosMaximos: _entero(fila['puntos_maximos'], 'puntos_maximos'),
     puntosDistancia: _entero(fila['puntos_distancia'], 'puntos_distancia'),
     puntosBonus: _entero(fila['puntos_bonus'], 'puntos_bonus'),
@@ -337,6 +353,18 @@ int _entero(Object? valor, String campo) => switch (valor) {
 String _texto(Object? valor, String campo) => switch (valor) {
   final String texto => texto,
   _ => throw ArgumentError('$campo ausente en la respuesta'),
+};
+
+/// Igual que [_texto], pero sin lanzar cuando el campo llega `null` o no
+/// llega —el caso de `ciudad` en un desafío sin ciudad registrada, y el de una
+/// app nueva contra un backend anterior a INT-122—. Una cadena en blanco se
+/// normaliza a `null`: para quien lee esto, "vacío" y "ausente" tienen que ser
+/// la misma cosa, o el fallback a `nombre_lugar` acabaría comparando con `''`
+/// repartido por la UI.
+String? _textoOpcional(Object? valor) => switch (valor) {
+  null => null,
+  final String texto => texto.trim().isEmpty ? null : texto,
+  _ => throw ArgumentError('se esperaba texto u omisión, llegó: $valor'),
 };
 
 bool _booleano(Object? valor, String campo) => switch (valor) {

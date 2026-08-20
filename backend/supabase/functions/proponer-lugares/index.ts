@@ -45,6 +45,12 @@ interface Lugar {
   nombre: string
   lat: number
   lng: number
+  // INT-122: ciudad y pais del objetivo. Opcionales de verdad -- hay objetivos
+  // que no estan dentro de ninguna localidad (un yacimiento en descampado, un
+  // naufragio en alta mar) y forzar un valor obligaria al modelo a inventarse
+  // la localidad mas cercana.
+  ciudad: string | null
+  pais: string | null
   descripcion: string
 }
 
@@ -62,9 +68,14 @@ const ESQUEMA_RESPUESTA = {
             nombre: { type: 'string' },
             lat: { type: 'number' },
             lng: { type: 'number' },
+            // `strict: true` exige que todo lo declarado este tambien en
+            // `required`, asi que "opcional" se modela como union con null, no
+            // omitiendo la clave.
+            ciudad: { type: ['string', 'null'] },
+            pais: { type: ['string', 'null'] },
             descripcion: { type: 'string' },
           },
-          required: ['nombre', 'lat', 'lng', 'descripcion'],
+          required: ['nombre', 'lat', 'lng', 'ciudad', 'pais', 'descripcion'],
           additionalProperties: false,
         },
       },
@@ -150,9 +161,24 @@ function instrucciones(peticion: Peticion): string {
     '- "nombre": como se conoce la respuesta, en castellano, sin ambiguedad.',
     '- "lat" y "lng": coordenadas WGS84 reales, con al menos cuatro decimales,',
     '  del punto que representa esa respuesta en el mapa del juego.',
+    // INT-122: la ciudad es lo que la app rotula al revelar la respuesta, asi
+    // que tiene que corresponder a la coordenada y no al nombre. El caso que lo
+    // motiva ya aparecio en el banco: "Museo de Antioquia" tiene coordenadas de
+    // Antakya (Turquia), no de Medellin. Y null es una respuesta valida:
+    // rellenar con la localidad mas cercana seria afirmar algo falso.
+    '- "ciudad": la ciudad o localidad DENTRO de la cual esta ese punto, en',
+    '  castellano. Debe corresponder a "lat"/"lng", no a lo que sugiera el',
+    '  nombre. Pon null -- y no la localidad mas cercana -- si el punto no esta',
+    '  dentro de ninguna localidad: mar abierto, un yacimiento o un accidente',
+    '  natural en descampado, o una respuesta que es un pais entero sin un punto',
+    '  urbano propio.',
+    '- "pais": el pais al que pertenece ese punto, en castellano. null si no hay',
+    '  ninguno, como en aguas internacionales.',
     '- "descripcion": una sola frase de lo que se ve, SIN nombrar la respuesta y',
     '  SIN nombrar su pais, su ciudad ni su gentilicio. Es la pista que leera el',
-    '  jugador, asi que no debe delatar la respuesta.',
+    '  jugador, asi que no debe delatar la respuesta. Que ahora devuelvas la',
+    '  ciudad y el pais como campos aparte NO relaja esta regla: son justamente',
+    '  lo que el jugador tiene que deducir del mapa.',
   ]
     .filter(Boolean)
     .join('\n')
@@ -180,6 +206,10 @@ function extraerLugares(respuesta: unknown, cantidad: number): Lugar[] {
   // Coordenadas fuera de rango o campos vacios se descartan aqui: una fila de
   // desafios con lat 120 no la deja pasar el CHECK de la base, y es mejor que
   // el candidato no llegue a la revision que fallar al guardar el lote.
+  //
+  // `ciudad` y `pais` NO entran en este filtro (INT-122): son nullable en
+  // `desafios`, asi que un candidato sin ellos guarda igual. Descartarlo seria
+  // perder un lugar valido por un dato opcional.
   return lugares
     .filter((lugar): lugar is Lugar => {
       const l = lugar as Record<string, unknown>
@@ -202,8 +232,20 @@ function extraerLugares(respuesta: unknown, cantidad: number): Lugar[] {
       nombre: lugar.nombre.trim(),
       lat: lugar.lat,
       lng: lugar.lng,
+      ciudad: textoOpcional(lugar.ciudad),
+      pais: textoOpcional(lugar.pais),
       descripcion: lugar.descripcion.trim(),
     }))
+}
+
+// Un texto que puede no venir: null, ausente, o una cadena en blanco se
+// resuelven todos a null. La base guarda "sin ciudad" como NULL y no como ''
+// a proposito, para que la ausencia sea explicita en vez de un rotulo en
+// blanco.
+function textoOpcional(valor: unknown): string | null {
+  if (typeof valor !== 'string') return null
+  const limpio = valor.trim()
+  return limpio.length > 0 ? limpio : null
 }
 
 servirFuncionIa(async (cuerpo) => {

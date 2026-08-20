@@ -277,6 +277,7 @@ export function PreguntaForm() {
   const [lng, setLng] = useState('')
   const [nombreLugar, setNombreLugar] = useState('')
   const [pista, setPista] = useState('')
+  const [ciudad, setCiudad] = useState('')
   const [pais, setPais] = useState('')
   const [activo, setActivo] = useState(true)
   const [tematicaId, setTematicaId] = useState('')
@@ -308,6 +309,7 @@ export function PreguntaForm() {
           setLng(String(pregunta.lngReal))
           setNombreLugar(pregunta.nombreLugar)
           setPista(pregunta.pista ?? '')
+          setCiudad(pregunta.ciudad ?? '')
           setPais(pregunta.pais ?? '')
           setActivo(pregunta.activo)
           setTematicaId(pregunta.tematicaId)
@@ -434,6 +436,7 @@ export function PreguntaForm() {
         tipo,
         nombreLugar: nombreLugar.trim(),
         pista: pista.trim() ? pista.trim() : null,
+        ciudad: ciudad.trim() ? ciudad.trim() : null,
         pais: pais.trim() ? pais.trim() : null,
         textoPregunta: tipo === 'pregunta_texto' ? textoPregunta.trim() : null,
         latReal: latNum,
@@ -644,8 +647,8 @@ export function PreguntaForm() {
               className={`${CAMPO_BASE} ${errores.nombreLugar ? CAMPO_ERROR : ''}`}
             />
             <span className="text-xs text-brand-night/45">
-              El lugar real que se revela al jugador al terminar el desafío. No es el nombre de la
-              pregunta.
+              El punto exacto de la respuesta. No es el nombre de la pregunta, y ya no es lo que ve
+              el jugador: al revelar, la app muestra la ciudad de abajo.
             </span>
             <ErrorCampo mensaje={errores.nombreLugar} />
           </label>
@@ -663,6 +666,24 @@ export function PreguntaForm() {
             />
             <span className="text-xs text-brand-night/45">
               Por ahora no se muestra en la app ni en el listado, solo aquí.
+            </span>
+          </label>
+
+          <label className="flex max-w-[440px] flex-col gap-1.5">
+            <span className="text-sm font-semibold text-brand-night">
+              Ciudad <span className="font-medium text-brand-night/40">· opcional</span>
+            </span>
+            <input
+              type="text"
+              value={ciudad}
+              onChange={(e) => setCiudad(e.target.value)}
+              placeholder="Ej. París"
+              className={CAMPO_BASE}
+            />
+            <span className="text-xs text-brand-night/45">
+              Es lo que la app rotula como ubicación real al revelar la respuesta. Si se deja vacío,
+              muestra la respuesta real de arriba — que es lo preferible cuando el objetivo no está
+              en ninguna ciudad (un yacimiento en descampado, un naufragio).
             </span>
           </label>
 

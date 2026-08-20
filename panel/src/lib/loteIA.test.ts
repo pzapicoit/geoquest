@@ -20,11 +20,18 @@ vi.mock('./supabaseClient', () => ({
   },
 }))
 
-function candidato(nombre: string, conImagen = true): CandidatoParaGuardar {
+function candidato(
+  nombre: string,
+  conImagen = true,
+  ciudad: string | null = 'Roma',
+  pais: string | null = 'Italia',
+): CandidatoParaGuardar {
   return {
     nombre,
     lat: 41.8902,
     lng: 12.4922,
+    ciudad,
+    pais,
     imagen: conImagen ? new Blob(['imagen'], { type: 'image/webp' }) : null,
   }
 }
@@ -63,6 +70,8 @@ describe('guardarLoteIA', () => {
       texto_pregunta: null,
       video_url: null,
       nombre_lugar: 'Coliseo, Roma',
+      ciudad: 'Roma',
+      pais: 'Italia',
       lat_real: 41.8902,
       lng_real: 12.4922,
       activo: true,
@@ -73,6 +82,31 @@ describe('guardarLoteIA', () => {
     // la convención imagen/{desafio_id}.{extension}.
     expect(subirMediaDesafio).toHaveBeenNthCalledWith(1, fila.id, 'imagen', expect.anything())
     expect(fila.imagen_url).toContain(fila.id)
+  })
+
+  it('guarda como null la ciudad y el país que el candidato no trae', async () => {
+    // Un candidato cuyo objetivo no está dentro de ninguna localidad, o una
+    // función de propuesta anterior a INT-122. Se guarda igual, con NULL: la
+    // app distingue eso de una cadena vacía para decidir si rotula la ciudad.
+    await guardarLoteIA({
+      tematicaId: 'tematica-1',
+      dificultad: 'intermedio',
+      activo: true,
+      candidatos: [candidato('Stonehenge', true, null, null)],
+    })
+
+    expect(insert.mock.calls[0][0]).toMatchObject({ ciudad: null, pais: null })
+  })
+
+  it('normaliza a null una ciudad o un país en blanco', async () => {
+    await guardarLoteIA({
+      tematicaId: 'tematica-1',
+      dificultad: 'intermedio',
+      activo: true,
+      candidatos: [candidato('Stonehenge', true, '   ', '  ')],
+    })
+
+    expect(insert.mock.calls[0][0]).toMatchObject({ ciudad: null, pais: null })
   })
 
   it('guarda como inactivas cuando el lote no se publica', async () => {

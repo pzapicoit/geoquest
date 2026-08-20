@@ -66,13 +66,17 @@ se agotó sin pin colocado — ver `challenge-timer`), calcule distancia,
 tiempo transcurrido y puntaje en el servidor, los persista en
 `respuestas_desafio` y devuelva, junto con la respuesta registrada, el
 revelado del desafío que se acaba de responder: su coordenada real, el
-nombre del lugar y el puntaje máximo alcanzable.
+nombre del lugar, la ciudad del objetivo y el puntaje máximo alcanzable.
+
+La ciudad SHALL viajar tal cual está en `desafios.ciudad`, incluido `NULL`
+cuando ese desafío no tiene ciudad registrada: distinguir "sin ciudad" de
+"ciudad vacía" es lo que permite a la app decidir qué rotular.
 
 El revelado SHALL entregarse únicamente como resultado de registrar la
 jugada. La RPC SHALL no ofrecer ninguna vía para consultar la coordenada
 real de un desafío sin responderlo, y el resto de superficies de lectura
 (`desafios`, `desafios_para_jugar`, `iniciar_intento_parada`) SHALL seguir
-sin exponerla.
+sin exponer ni la coordenada real, ni `nombre_lugar`, ni `ciudad`.
 
 #### Scenario: Un jugador responde a un desafío de su propio intento
 - **WHEN** un usuario autenticado llama a la RPC con un `intento_id` que le
@@ -83,9 +87,15 @@ sin exponerla.
 
 #### Scenario: La respuesta revela la ubicación del desafío respondido
 - **WHEN** un usuario autenticado registra su respuesta a un desafío
-- **THEN** la respuesta de la RPC incluye `lat_real`, `lng_real` y
-  `nombre_lugar` de ese desafío, más el puntaje máximo que se podía
-  conseguir (incluido el bonus por rapidez)
+- **THEN** la respuesta de la RPC incluye `lat_real`, `lng_real`,
+  `nombre_lugar` y `ciudad` de ese desafío, más el puntaje máximo que se
+  podía conseguir (incluido el bonus por rapidez)
+
+#### Scenario: La respuesta de un desafío sin ciudad registrada
+- **WHEN** un usuario autenticado registra su respuesta a un desafío cuya
+  `ciudad` es `NULL`
+- **THEN** la respuesta de la RPC incluye `ciudad` en `null`, y el resto del
+  revelado llega igual que en cualquier otra respuesta
 
 #### Scenario: La respuesta desglosa el puntaje en precisión y bonus
 - **WHEN** un usuario autenticado registra su respuesta con un pin colocado
@@ -112,10 +122,10 @@ sin exponerla.
 
 #### Scenario: La ubicación real sigue oculta fuera de la jugada
 - **WHEN** un jugador (incluida una sesión anónima) intenta leer la
-  coordenada real de un desafío por cualquier otra vía —`select` sobre
-  `desafios`, `desafios_para_jugar` o la respuesta de
-  `iniciar_intento_parada`—
-- **THEN** no la obtiene por ninguna de ellas
+  coordenada real, el `nombre_lugar` o la `ciudad` de un desafío por
+  cualquier otra vía —`select` sobre `desafios`, `desafios_para_jugar` o la
+  respuesta de `iniciar_intento_parada`—
+- **THEN** no los obtiene por ninguna de ellas
 
 ### Requirement: Persistencia de distancia, tiempo y puntaje siempre calculados por el servidor
 Toda fila insertada en `respuestas_desafio` SHALL tener, sin importar la

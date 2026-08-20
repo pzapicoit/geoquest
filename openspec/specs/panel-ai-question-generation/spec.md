@@ -81,15 +81,26 @@ opcionales en texto libre. Ninguna de estas acciones SHALL llamar a la IA.
 
 Tras pedir la propuesta, la pantalla SHALL mostrar los candidatos devueltos en
 una tabla con, por fila: la descripción del lugar generada por la IA, el nombre
-del lugar, sus coordenadas y su dificultad. Cada fila SHALL poder marcarse y
-desmarcarse, y todas SHALL empezar marcadas. La pantalla SHALL ofrecer
-"marcar/desmarcar todas", pedir otra tanda y descartar la tanda actual.
+del lugar, su ciudad y su país, sus coordenadas y su dificultad. Cada fila SHALL
+poder marcarse y desmarcarse, y todas SHALL empezar marcadas. La pantalla SHALL
+ofrecer "marcar/desmarcar todas", pedir otra tanda y descartar la tanda actual.
+
+La ciudad SHALL ser visible en esta revisión, no solo persistirse en silencio:
+es lo que el jugador leerá al revelar la respuesta, así que una ciudad
+equivocada tiene que poderse detectar antes de gastar la ilustración. Un
+candidato sin ciudad SHALL mostrarse como tal, sin bloquear su selección.
 
 #### Scenario: Llegan los candidatos
 
 - **WHEN** la IA devuelve 10 candidatos para la tanda pedida
-- **THEN** la tabla muestra 10 filas, todas marcadas, con lugar, coordenadas y
-  dificultad de cada una
+- **THEN** la tabla muestra 10 filas, todas marcadas, con lugar, ciudad, país,
+  coordenadas y dificultad de cada una
+
+#### Scenario: Un candidato sin ciudad se revisa igual
+
+- **WHEN** uno de los candidatos devueltos llega sin ciudad
+- **THEN** su fila lo indica y sigue marcable, seleccionable e ilustrable como
+  cualquier otra
 
 #### Scenario: El admin descarta un candidato
 
@@ -243,17 +254,28 @@ tarjeta SHALL permitir rehacer su imagen.
 
 Al guardar, la pantalla SHALL crear una fila en `desafios` por cada candidato
 marcado **que tenga imagen lista**, con `tipo = 'imagen'`, la temática y
-dificultad elegidas, el nombre del lugar, sus coordenadas, y la imagen subida a
-`challenge-media` bajo `imagen/{desafio_id}.{extension}`. El estado `activo` de
-las filas creadas SHALL venir del toggle "Publicar activas" de la barra de
-guardado. Al terminar, la pantalla SHALL confirmar cuántas preguntas se han
-creado y en qué estado, y ofrecer volver al banco.
+dificultad elegidas, el nombre del lugar, su ciudad y su país, sus coordenadas, y
+la imagen subida a `challenge-media` bajo `imagen/{desafio_id}.{extension}`. El
+estado `activo` de las filas creadas SHALL venir del toggle "Publicar activas" de
+la barra de guardado. Al terminar, la pantalla SHALL confirmar cuántas preguntas
+se han creado y en qué estado, y ofrecer volver al banco.
+
+La ciudad y el país de un candidato sin ese dato SHALL persistirse como `NULL`,
+no como cadena vacía: la app distingue una cosa de la otra para decidir qué
+rotula el revelado, y el comodín de país para decidir si está disponible.
 
 #### Scenario: Se guarda un lote completo
 
 - **WHEN** un admin guarda 8 candidatos con sus 8 imágenes listas
 - **THEN** el banco tiene 8 desafíos nuevos de tipo `imagen` de esa temática y
-  dificultad, cada uno con su imagen en `imagen/{id}.{extension}`
+  dificultad, cada uno con su imagen en `imagen/{id}.{extension}` y con la
+  ciudad y el país que traía su candidato
+
+#### Scenario: Se guarda un candidato sin ciudad
+
+- **WHEN** un admin guarda un candidato que llegó sin ciudad
+- **THEN** la fila creada en `desafios` tiene `ciudad` a `NULL`, y no una cadena
+  vacía
 
 #### Scenario: Guardar con "Publicar activas" desactivado
 
