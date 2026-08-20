@@ -322,6 +322,7 @@ describe('guardarPregunta', () => {
       tipo: 'imagen',
       nombreLugar: 'Torre Eiffel, París (actualizado)',
       pista: null,
+      pais: null,
       textoPregunta: null,
       latReal: 48.8584,
       lngReal: 2.2945,
