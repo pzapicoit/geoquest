@@ -135,6 +135,13 @@ class MapaMundiController extends ChangeNotifier {
   /// Cuánto de la línea entre los dos pines está trazado, de 0 a 1.
   double _progresoDeLaLinea = 0;
 
+  /// Centro del círculo de acierto de un comodín `km1000`/`km500` (INT-119,
+  /// D7 de `design.md`). `null` cuando no hay ningún radio que enseñar.
+  Coordenada? _centroRadio;
+
+  /// Radio del círculo, en km (1000 o 500 según el comodín consumido).
+  double? _radioKm;
+
   Size get tamano => _tamano;
   double get escala => _escala;
   Offset get desplazamiento => _desplazamiento;
@@ -142,6 +149,8 @@ class MapaMundiController extends ChangeNotifier {
   Coordenada? get pinReal => _pinReal;
   String? get nombrePinReal => _nombrePinReal;
   double get progresoDeLaLinea => _progresoDeLaLinea;
+  Coordenada? get centroRadio => _centroRadio;
+  double? get radioKm => _radioKm;
   bool get tienePin => _pin != null;
   bool get listo => _tamano.width > 0 && _tamano.height > 0;
 
@@ -282,6 +291,33 @@ class MapaMundiController extends ChangeNotifier {
     _pinReal = null;
     _nombrePinReal = null;
     _progresoDeLaLinea = 0;
+    notifyListeners();
+  }
+
+  /// Enseña el círculo de acierto de un comodín `km1000`/`km500` (INT-119,
+  /// D7 de `design.md`): centrado en la posición real del objetivo, con el
+  /// radio que corresponda al tipo consumido. No revela `nombre_lugar` —eso
+  /// solo lo hace [revelarUbicacion], al responder—.
+  void mostrarRadio(Coordenada centro, double radioKm) {
+    _centroRadio = Coordenada(
+      latitud: centro.latitud.clamp(
+        -Mercator.latitudMaxima,
+        Mercator.latitudMaxima,
+      ),
+      longitud: Mercator.normalizarLongitud(centro.longitud),
+    );
+    _radioKm = radioKm;
+    notifyListeners();
+  }
+
+  /// Quita el círculo de acierto. Se llama al avanzar de desafío o al entrar
+  /// en el revelado: el radio solo tiene sentido mientras el jugador sigue
+  /// en la fase de adivinar de ese desafío concreto (requirement "Overlay de
+  /// radio en el mapa" de `app-game-screen/spec.md`).
+  void limpiarRadio() {
+    if (_centroRadio == null && _radioKm == null) return;
+    _centroRadio = null;
+    _radioKm = null;
     notifyListeners();
   }
 

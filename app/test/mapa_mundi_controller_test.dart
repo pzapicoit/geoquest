@@ -618,4 +618,57 @@ void main() {
       expect(avisos, 0);
     });
   });
+
+  group('radio de comodín (INT-119)', () {
+    test('mostrarRadio fija el centro y el radio', () {
+      final controlador = _controlador();
+
+      controlador.mostrarRadio(
+        const Coordenada(latitud: 41.8902, longitud: 12.4922),
+        1000,
+      );
+
+      expect(controlador.centroRadio!.latitud, closeTo(41.8902, 1e-9));
+      expect(controlador.centroRadio!.longitud, closeTo(12.4922, 1e-9));
+      expect(controlador.radioKm, 1000);
+    });
+
+    test('el centro se acota y se normaliza como el pin', () {
+      final controlador = _controlador();
+
+      controlador.mostrarRadio(
+        const Coordenada(latitud: 89, longitud: 200),
+        500,
+      );
+
+      expect(controlador.centroRadio!.longitud, closeTo(-160, 1e-9));
+      expect(
+        controlador.centroRadio!.latitud,
+        closeTo(Mercator.latitudMaxima, 1e-9),
+      );
+    });
+
+    test('limpiarRadio quita el centro y el radio', () {
+      final controlador = _controlador();
+      controlador.mostrarRadio(
+        const Coordenada(latitud: 41.8902, longitud: 12.4922),
+        1000,
+      );
+
+      controlador.limpiarRadio();
+
+      expect(controlador.centroRadio, isNull);
+      expect(controlador.radioKm, isNull);
+    });
+
+    test('limpiar un radio que no existe no avisa a nadie', () {
+      final controlador = _controlador();
+      var avisos = 0;
+      controlador.addListener(() => avisos++);
+
+      controlador.limpiarRadio();
+
+      expect(avisos, 0);
+    });
+  });
 }
