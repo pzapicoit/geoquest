@@ -572,6 +572,7 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
                 Positioned.fill(
                   child: _ToastPista(
                     desafio: desafioActual,
+                    objetivoGlobal: intento.objetivoGlobal,
                     posicion: _indice + 1,
                     onListo: _cerrarPista,
                   ),
@@ -1594,6 +1595,18 @@ class _LugarRevelado extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
+          revelado.desafio.nombre,
+          key: const Key('nivel-juego-nombre-desafio'),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: GoogleFonts.baloo2(
+            color: Colors.white,
+            fontSize: 19,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
           'UBICACIÓN REAL',
           style: GoogleFonts.outfit(
             color: _teal.withValues(alpha: 0.95),
@@ -2084,11 +2097,13 @@ class _ModalSalir extends StatelessWidget {
 class _ToastPista extends StatelessWidget {
   const _ToastPista({
     required this.desafio,
+    required this.objetivoGlobal,
     required this.posicion,
     required this.onListo,
   });
 
   final DesafioJuego desafio;
+  final String objetivoGlobal;
   final int posicion;
   final VoidCallback onListo;
 
@@ -2138,6 +2153,7 @@ class _ToastPista extends StatelessWidget {
                       ),
                       child: _TarjetaDePista(
                         desafio: desafio,
+                        objetivoGlobal: objetivoGlobal,
                         posicion: posicion,
                         onListo: onListo,
                       ),
@@ -2156,11 +2172,13 @@ class _ToastPista extends StatelessWidget {
 class _TarjetaDePista extends StatelessWidget {
   const _TarjetaDePista({
     required this.desafio,
+    required this.objetivoGlobal,
     required this.posicion,
     required this.onListo,
   });
 
   final DesafioJuego desafio;
+  final String objetivoGlobal;
   final int posicion;
   final VoidCallback onListo;
 
@@ -2188,6 +2206,19 @@ class _TarjetaDePista extends StatelessWidget {
             desafio: desafio,
             posicion: posicion,
             onCerrar: onListo,
+          ),
+          const SizedBox(height: 10),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Text(
+              objetivoGlobal,
+              key: const Key('nivel-juego-objetivo-global'),
+              style: GoogleFonts.outfit(
+                color: Colors.white.withValues(alpha: 0.6),
+                fontSize: 13,
+                height: 1.3,
+              ),
+            ),
           ),
           const SizedBox(height: 13),
           _ContenidoPista(desafio: desafio),

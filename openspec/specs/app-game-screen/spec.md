@@ -47,10 +47,14 @@ el campo `tipo` del desafío: una imagen a buen tamaño cuando `tipo` es
 la pregunta en tamaño grande cuando `tipo` es `pregunta_texto`.
 
 El toast SHALL llevar una cabecera que identifique el tipo de pista y su
-número dentro del intento, un botón de cerrar en esa cabecera, un pie
-explicativo de qué se le pide al jugador, y el botón "Listo, voy a
-adivinar". Tocar el fondo oscurecido SHALL cerrar el toast igual que
-cualquiera de sus botones de cierre.
+número dentro del intento, un botón de cerrar en esa cabecera, el
+`objetivo_global` de la temática de la parada, un pie explicativo de qué
+se le pide al jugador, y el botón "Listo, voy a adivinar". El toast SHALL
+NOT mostrar el `nombre` del desafío — revelaría la respuesta antes de que
+el jugador adivine; `nombre` se muestra en la tarjeta de revelado (ver
+`El revelado muestra el resultado del desafío respondido`). Tocar el fondo
+oscurecido SHALL cerrar el toast igual que cualquiera de sus botones de
+cierre.
 
 #### Scenario: Desafío de tipo imagen
 
@@ -81,6 +85,15 @@ cualquiera de sus botones de cierre.
   es `video`
 - **THEN** la cabecera del toast lo identifica como pista de vídeo y como
   la número 3
+
+#### Scenario: El toast muestra el objetivo global de la temática, sin el nombre del desafío
+
+- **WHEN** se muestra el toast de un desafío cuyo `nombre` es "Torre
+  Eiffel" en una parada cuya temática tiene `objetivo_global = '¿Dónde
+  está este monumento?'`
+- **THEN** el toast muestra ese `objetivo_global`, para cualquiera de los
+  tres tipos de contenido (imagen, vídeo o pregunta de texto), sin
+  mostrar en ningún sitio el texto "Torre Eiffel"
 
 #### Scenario: Cerrar tocando el fondo
 
@@ -220,10 +233,10 @@ el revelado SHALL alejar por debajo de él lo justo para mostrar los dos,
 aunque eso deje franjas de fondo mientras dura.
 
 Sobre el mapa, la pantalla SHALL mostrar una hoja de resultado con: una
-miniatura de la pista original del desafío, el rótulo de ubicación real con
-el nombre del lugar y sus coordenadas, la distancia recorrida entre el pin
-del jugador y el lugar real, y los puntos ganados en este desafío junto al
-máximo alcanzable.
+miniatura de la pista original del desafío, el `nombre` del desafío junto
+al rótulo de ubicación real con el `nombre_lugar` y sus coordenadas, la
+distancia recorrida entre el pin del jugador y el lugar real, y los puntos
+ganados en este desafío junto al máximo alcanzable.
 
 La distancia y los puntos mostrados SHALL ser los que devuelve el servidor,
 sin recalcularse en la app.
@@ -258,12 +271,13 @@ sin recalcularse en la app.
 - **THEN** el mapa vuelve al encuadre de partida, con el mundo cubriendo el
   área visible
 
-#### Scenario: Nombre del lugar y coordenadas reales
+#### Scenario: Nombre del desafío, lugar real y coordenadas
 
-- **WHEN** se muestra el revelado de un desafío cuyo lugar real es "Coliseo
-  de Roma"
-- **THEN** la hoja de resultado muestra ese nombre como ubicación real,
-  junto a sus coordenadas en grados con su hemisferio
+- **WHEN** se muestra el revelado de un desafío cuyo `nombre` es "Charles
+  Darwin" y cuyo lugar real es "Shrewsbury, Inglaterra"
+- **THEN** la hoja de resultado muestra "Charles Darwin" junto al rótulo de
+  ubicación real "Shrewsbury, Inglaterra" y sus coordenadas en grados con
+  su hemisferio
 
 #### Scenario: Puntos sobre el máximo alcanzable
 

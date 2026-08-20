@@ -256,6 +256,7 @@ void main() {
           desafios: [
             DesafioJuego(
               id: 'd1',
+              nombre: 'Lugar de prueba',
               tipo: TipoDesafio.preguntaTexto,
               activo: true,
               textoPregunta: '¿Dónde está esto?',

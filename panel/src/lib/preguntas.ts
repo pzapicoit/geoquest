@@ -5,6 +5,7 @@ export type TipoDesafio = 'imagen' | 'pregunta_texto' | 'video'
 
 export interface Pregunta {
   id: string
+  nombre: string
   tipo: TipoDesafio
   nombreLugar: string
   textoPregunta: string | null
@@ -17,6 +18,7 @@ export interface Pregunta {
 
 interface DesafioRow {
   id: string
+  nombre: string
   tipo: TipoDesafio
   nombre_lugar: string
   texto_pregunta: string | null
@@ -37,7 +39,7 @@ export async function fetchPreguntas(): Promise<Pregunta[]> {
       supabase
         .from('desafios')
         .select(
-          'id, tipo, nombre_lugar, texto_pregunta, imagen_url, activo, dificultad, tematica_id',
+          'id, nombre, tipo, nombre_lugar, texto_pregunta, imagen_url, activo, dificultad, tematica_id',
         ),
       supabase.from('tematicas').select('id, nombre'),
     ])
@@ -50,6 +52,7 @@ export async function fetchPreguntas(): Promise<Pregunta[]> {
 
   return ((desafios ?? []) as DesafioRow[]).map((desafio) => ({
     id: desafio.id,
+    nombre: desafio.nombre,
     tipo: desafio.tipo,
     nombreLugar: desafio.nombre_lugar,
     textoPregunta: desafio.texto_pregunta,

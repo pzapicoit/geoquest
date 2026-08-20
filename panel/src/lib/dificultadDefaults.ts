@@ -5,26 +5,18 @@ export interface DificultadDefault {
   dificultad: Dificultad
   preguntasPorPartida: number
   segundosPorDesafio: number
-  puntajeMinimoSuperar: number
-  umbralEstrella2: number
-  umbralEstrella3: number
 }
 
 interface DificultadDefaultRow {
   dificultad: Dificultad
   preguntas_por_partida: number
   segundos_por_desafio: number
-  puntaje_minimo_superar: number
-  umbral_estrella_2: number
-  umbral_estrella_3: number
 }
 
 export async function fetchDificultadDefaults(): Promise<DificultadDefault[]> {
   const { data, error } = await supabase
     .from('dificultad_defaults')
-    .select(
-      'dificultad, preguntas_por_partida, segundos_por_desafio, puntaje_minimo_superar, umbral_estrella_2, umbral_estrella_3',
-    )
+    .select('dificultad, preguntas_por_partida, segundos_por_desafio')
   if (error) throw new Error(error.message)
 
   const porDificultad = new Map(
@@ -38,9 +30,6 @@ export async function fetchDificultadDefaults(): Promise<DificultadDefault[]> {
       dificultad: fila.dificultad,
       preguntasPorPartida: fila.preguntas_por_partida,
       segundosPorDesafio: fila.segundos_por_desafio,
-      puntajeMinimoSuperar: fila.puntaje_minimo_superar,
-      umbralEstrella2: fila.umbral_estrella_2,
-      umbralEstrella3: fila.umbral_estrella_3,
     }
   })
 }
@@ -49,9 +38,6 @@ export interface GuardarDificultadDefaultInput {
   dificultad: Dificultad
   preguntasPorPartida: number
   segundosPorDesafio: number
-  puntajeMinimoSuperar: number
-  umbralEstrella2: number
-  umbralEstrella3: number
 }
 
 function enteroPositivo(n: number): boolean {
@@ -64,21 +50,6 @@ export function validarDificultadDefault(input: GuardarDificultadDefaultInput): 
   }
   if (!enteroPositivo(input.segundosPorDesafio)) {
     return 'Los segundos por desafío deben ser un entero positivo.'
-  }
-  if (!enteroPositivo(input.puntajeMinimoSuperar)) {
-    return 'La puntuación mínima debe ser un entero positivo.'
-  }
-  if (!enteroPositivo(input.umbralEstrella2)) {
-    return 'El umbral de 2 estrellas debe ser un entero positivo.'
-  }
-  if (!enteroPositivo(input.umbralEstrella3)) {
-    return 'El umbral de 3 estrellas debe ser un entero positivo.'
-  }
-  if (
-    input.puntajeMinimoSuperar > input.umbralEstrella2 ||
-    input.umbralEstrella2 > input.umbralEstrella3
-  ) {
-    return 'Los umbrales deben ser ascendentes: mínimo ≤ 2 estrellas ≤ 3 estrellas.'
   }
   return null
 }
@@ -94,10 +65,47 @@ export async function guardarDificultadDefault(
     .update({
       preguntas_por_partida: input.preguntasPorPartida,
       segundos_por_desafio: input.segundosPorDesafio,
-      puntaje_minimo_superar: input.puntajeMinimoSuperar,
-      umbral_estrella_2: input.umbralEstrella2,
-      umbral_estrella_3: input.umbralEstrella3,
     })
     .eq('dificultad', input.dificultad)
   if (error) throw new Error(error.message)
+}
+
+export interface UmbralesParada {
+  maximo: number
+  minimo: number
+  umbralEstrella2: number
+  umbralEstrella3: number
+}
+
+interface UmbralesParadaRow {
+  maximo: number
+  minimo: number
+  umbral_estrella_2: number
+  umbral_estrella_3: number
+}
+
+// Deriva el máximo alcanzable y los tres umbrales de estrellas para una
+// dificultad y un número de preguntas por partida dados. Se pide siempre al
+// backend (RPC `umbrales_parada`) en vez de replicar el máximo por desafío en
+// TypeScript: ese máximo sale de `calcular_puntaje` y no debe existir como
+// literal fuera de esa función.
+export async function fetchUmbralesParada(
+  dificultad: Dificultad,
+  preguntasPorPartida: number,
+): Promise<UmbralesParada> {
+  const { data, error } = await supabase
+    .rpc('umbrales_parada', {
+      p_dificultad: dificultad,
+      p_preguntas_por_partida: preguntasPorPartida,
+    })
+    .single()
+  if (error) throw new Error(error.message)
+
+  const fila = data as UmbralesParadaRow
+  return {
+    maximo: fila.maximo,
+    minimo: fila.minimo,
+    umbralEstrella2: fila.umbral_estrella_2,
+    umbralEstrella3: fila.umbral_estrella_3,
+  }
 }
