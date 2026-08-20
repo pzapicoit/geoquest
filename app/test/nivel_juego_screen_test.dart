@@ -145,8 +145,9 @@ Future<void> _abrirNivel(
   bool reducirAnimaciones = false,
   ComodinesGateway? comodinesGateway,
   Future<void> Function(BuildContext, String)? precargarImagen,
+  Size tamano = _movil,
 }) async {
-  tester.view.physicalSize = _movil;
+  tester.view.physicalSize = tamano;
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
 
@@ -795,13 +796,18 @@ void main() {
 
         expect(find.text('247'), findsOneWidget);
         expect(find.text('+520'), findsOneWidget);
-        expect(find.text('/ 5.000'), findsOneWidget);
+        // Sin el máximo alcanzable debajo (INT-121).
+        expect(
+          find.byKey(const Key('nivel-juego-puntos-maximos')),
+          findsNothing,
+        );
+        expect(find.text('/ 5.000'), findsNothing);
         // Y el puntaje del intento en el HUD ya cuenta esos puntos.
         expect(find.text('520'), findsOneWidget);
       },
     );
 
-    testWidgets('el lugar real y sus coordenadas se revelan', (tester) async {
+    testWidgets('el lugar real se revela, sin sus coordenadas', (tester) async {
       final gateway = _gatewayCon(const [_desafioTexto])
         ..respuesta = respuestaDePrueba(
           nombreLugar: 'Coliseo de Roma',
@@ -814,11 +820,15 @@ void main() {
       await _colocarPin(tester);
       await _confirmarYRevelar(tester);
 
+      expect(find.text('Charles Darwin'), findsOneWidget);
       expect(find.text('Coliseo de Roma'), findsOneWidget);
-      final coordenadas = tester.widget<Text>(
+      // Las coordenadas del lugar real ya no se enseñan (INT-121): el mapa
+      // detrás dice dónde está.
+      expect(
         find.byKey(const Key('nivel-juego-coordenadas-reales')),
+        findsNothing,
       );
-      expect(coordenadas.data, '41,9° N · 12,5° E');
+      expect(find.text('41,9° N · 12,5° E'), findsNothing);
     });
 
     testWidgets('la miniatura enseña la imagen de la pista', (tester) async {
@@ -1002,9 +1012,9 @@ void main() {
       );
     });
 
-    testWidgets('repetir la animación no vuelve a llamar al servidor', (
-      tester,
-    ) async {
+    // 3.2 (INT-121): la hoja se quedó sin "Repetir animación" y el botón de
+    // continuar es su única acción.
+    testWidgets('el revelado no ofrece repetir la animación', (tester) async {
       final gateway = _gatewayCon(const [_desafioTexto, _desafioImagen])
         ..respuesta = respuestaDePrueba(distanciaKm: 247.4, puntos: 1200);
 
@@ -1013,18 +1023,9 @@ void main() {
       await _colocarPin(tester);
       await _confirmarYRevelar(tester);
 
-      await tester.tap(find.byKey(const Key('nivel-juego-repetir')));
-      await tester.pump();
-
-      // Los contadores vuelven a empezar y el servidor no se toca.
-      expect(gateway.respuestasEnviadas, hasLength(1));
-      expect(find.text('+0'), findsOneWidget);
-
-      await tester.pump(const Duration(milliseconds: 5600));
-
-      // Y al acabar el puntaje del intento sigue siendo el de una jugada.
-      expect(find.text('+1.200'), findsOneWidget);
-      expect(find.text('1.200'), findsOneWidget);
+      expect(find.byKey(const Key('nivel-juego-repetir')), findsNothing);
+      expect(find.text('Repetir animación'), findsNothing);
+      expect(find.byKey(const Key('nivel-juego-siguiente')), findsOneWidget);
     });
   });
 
@@ -1528,6 +1529,12 @@ void main() {
           findsNothing,
         );
         expect(find.byKey(const Key('nivel-juego-puntos-bonus')), findsNothing);
+        // La otra mitad de la tarea 3.2 de INT-121: el revelado sin pin
+        // tampoco ofrece repetir la animación. Vive aquí, y no en un test
+        // propio, porque llegar a un revelado sin pin es agotar la cuenta
+        // atrás, que es justo lo que este test ya monta.
+        expect(find.byKey(const Key('nivel-juego-repetir')), findsNothing);
+        expect(find.text('Repetir animación'), findsNothing);
       },
     );
 
@@ -1564,6 +1571,34 @@ void main() {
 
       expect(find.text('4.301 puntos de precisión'), findsOneWidget);
       expect(find.text('+80 por rapidez'), findsOneWidget);
+    });
+
+    testWidgets('precisión y bonus comparten línea cuando caben', (
+      tester,
+    ) async {
+      final gateway = _gatewayCon(const [_desafioTexto])
+        ..respuesta = respuestaDePrueba(
+          distanciaKm: 12,
+          puntos: 4381,
+          puntosDistancia: 4301,
+          puntosBonus: 80,
+        );
+
+      // Con más ancho del móvil a propósito: la fuente de `flutter_test`
+      // pinta cada glifo como una caja del tamaño de la fuente, así que las
+      // dos cadenas ocupan ahí casi el doble que con la Outfit de verdad y en
+      // 390 px no caben ni con el `Wrap` bien puesto. Lo que este test
+      // comprueba es la dirección del `Wrap` (INT-121, D3): con sitio, van en
+      // la misma línea — un `Column` no lo haría a ningún ancho.
+      await _abrirNivel(tester, gateway, tamano: const Size(900, 844));
+      await _cerrarPista(tester);
+      await _colocarPin(tester);
+      await _confirmarYRevelar(tester);
+
+      expect(
+        tester.getCenter(find.text('4.301 puntos de precisión')).dy,
+        tester.getCenter(find.text('+80 por rapidez')).dy,
+      );
     });
 
     testWidgets('no muestra línea de bonus cuando es 0', (tester) async {
@@ -1962,6 +1997,41 @@ void main() {
         miniatura.image,
         const NetworkImage('https://example.com/foto.jpg'),
       );
+    });
+  });
+
+  group('franja que el encuadre reserva para la hoja (INT-121)', () {
+    testWidgets('cubre la hoja de resultado y no reserva de más', (
+      tester,
+    ) async {
+      // La hoja más alta: con pin (lleva tarjeta de distancia) y con bonus
+      // (lleva desglose).
+      final gateway = _gatewayCon(const [_desafioTexto])
+        ..respuesta = respuestaDePrueba(
+          distanciaKm: 247.4,
+          puntos: 4381,
+          puntosDistancia: 4301,
+          puntosBonus: 80,
+        );
+
+      await _abrirNivel(tester, gateway);
+      await _cerrarPista(tester);
+      await _colocarPin(tester);
+      await _confirmarYRevelar(tester);
+
+      final hoja = tester.getSize(
+        find.byKey(const Key('nivel-juego-revelado')),
+      );
+      // La franja de `_margenesDelRevelado`, con la barra inferior del
+      // sistema a 0 como en test. Sale de la constante del código, no de una
+      // copia: así un cambio del factor no puede pasar de largo por aquí.
+      const franja = 844 * fraccionDeLaHojaDeRevelado;
+
+      // Si la franja se queda corta, el encuadre puede dejar un pin detrás
+      // del borde de la hoja.
+      expect(hoja.height, lessThanOrEqualTo(franja));
+      // Y si sobra mucha, el encuadre aleja el mapa sin motivo.
+      expect(franja - hoja.height, lessThan(45));
     });
   });
 }

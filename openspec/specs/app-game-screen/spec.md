@@ -232,11 +232,21 @@ encuadre: con una respuesta tan lejana que no quepa en el encuadre de juego,
 el revelado SHALL alejar por debajo de él lo justo para mostrar los dos,
 aunque eso deje franjas de fondo mientras dura.
 
+El área útil SHALL ser la parte del mapa que el HUD y la hoja de resultado no
+tapan: la franja que el encuadre reserva abajo SHALL cubrir la altura que la
+hoja ocupa de verdad, incluido lo que crece por la barra inferior del sistema,
+sin pasarse mucho. Si se queda corta, el encuadre puede dejar un pin detrás
+del borde de la hoja; si sobra, aleja el mapa sin motivo.
+
 Sobre el mapa, la pantalla SHALL mostrar una hoja de resultado con: una
 miniatura de la pista original del desafío, el `nombre` del desafío junto
-al rótulo de ubicación real con el `nombre_lugar` y sus coordenadas, la
-distancia recorrida entre el pin del jugador y el lugar real, y los puntos
-ganados en este desafío junto al máximo alcanzable.
+al rótulo de ubicación real con el `nombre_lugar`, la distancia recorrida
+entre el pin del jugador y el lugar real, y los puntos ganados en este
+desafío.
+
+La hoja de resultado SHALL quedarse en esa información: NO SHALL mostrar las
+coordenadas del lugar real ni el máximo de puntos alcanzable, porque ninguno
+de los dos hace falta para leer el resultado y ambos restan mapa visible.
 
 La distancia y los puntos mostrados SHALL ser los que devuelve el servidor,
 sin recalcularse en la app.
@@ -271,19 +281,25 @@ sin recalcularse en la app.
 - **THEN** el mapa vuelve al encuadre de partida, con el mundo cubriendo el
   área visible
 
-#### Scenario: Nombre del desafío, lugar real y coordenadas
+#### Scenario: La franja reservada para la hoja cubre la hoja
+
+- **WHEN** se muestra el revelado de una respuesta con pin colocado, con el
+  desglose de puntaje visible (el caso en que la hoja es más alta)
+- **THEN** la hoja de resultado cabe entera en la franja inferior que el
+  encuadre reserva para ella, y la franja no es mucho más alta que la hoja
+
+#### Scenario: Nombre del desafío y lugar real
 
 - **WHEN** se muestra el revelado de un desafío cuyo `nombre` es "Charles
   Darwin" y cuyo lugar real es "Shrewsbury, Inglaterra"
 - **THEN** la hoja de resultado muestra "Charles Darwin" junto al rótulo de
-  ubicación real "Shrewsbury, Inglaterra" y sus coordenadas en grados con
-  su hemisferio
+  ubicación real "Shrewsbury, Inglaterra", sin las coordenadas del lugar
 
-#### Scenario: Puntos sobre el máximo alcanzable
+#### Scenario: Los puntos se muestran sin el máximo alcanzable
 
 - **WHEN** el servidor devuelve 520 puntos y un máximo alcanzable de 5000
-- **THEN** la hoja de resultado presenta los 520 puntos ganados como parte
-  de ese máximo
+- **THEN** la hoja de resultado muestra los 520 puntos ganados y ninguna
+  referencia a ese máximo
 
 #### Scenario: Miniatura de una pista de imagen
 
@@ -320,9 +336,9 @@ deshabilitado para no cerrar el mismo intento dos veces; si falla, la
 pantalla SHALL avisar del fallo y conservar el revelado en pantalla para
 reintentar.
 
-El revelado SHALL ofrecer además una acción para repetir la animación, que
-relance la secuencia completa desde el principio sin volver a llamar al
-servidor.
+Ese botón SHALL ser la única acción de la hoja de resultado: bajo él no
+SHALL haber ninguna otra, para no gastar altura de hoja en algo que no sea
+seguir jugando.
 
 #### Scenario: Avanzar al siguiente desafío
 
@@ -351,12 +367,11 @@ servidor.
 - **THEN** la pantalla avisa del fallo, mantiene el revelado del último
   desafío en pantalla y vuelve a habilitar "Ver resultados"
 
-#### Scenario: Repetir la animación
+#### Scenario: El revelado no ofrece repetir la animación
 
-- **WHEN** el jugador pulsa la acción de repetir la animación
-- **THEN** la secuencia vuelve a correr desde el principio, con los
-  contadores otra vez desde 0, sin llamar de nuevo a `responder_desafio` ni
-  a `cerrar_intento_parada`, y sin alterar el puntaje acumulado del intento
+- **WHEN** se muestra el revelado, con o sin pin colocado
+- **THEN** bajo el botón de continuar no hay ninguna acción para relanzar la
+  secuencia del revelado
 
 ### Requirement: Reabrir la pista del desafío actual
 
@@ -515,11 +530,17 @@ el bonus por rapidez por separado (p. ej. "+80 por rapidez"), además del
 total. Cuando el bonus es 0, la hoja SHALL mostrar solo el puntaje de
 precisión, sin una línea de bonus vacía o en cero.
 
+Precisión y bonus SHALL compartir una misma línea, distinguibles entre sí,
+en vez de ocupar dos líneas apiladas. Si con el tamaño de fuente del sistema
+no caben en una línea, SHALL replegarse a dos antes que recortar cualquiera
+de los dos textos.
+
 #### Scenario: El revelado muestra un bonus por rapidez positivo
 - **WHEN** se muestra el revelado de una respuesta con pin colocado cuyo
   `puntos_bonus` es mayor que 0
-- **THEN** la hoja de resultado muestra el puntaje de precisión y una línea
-  de bonus con el valor de `puntos_bonus`, además del total
+- **THEN** la hoja de resultado muestra, en una sola línea, el puntaje de
+  precisión y el valor de `puntos_bonus` como bonus por rapidez, además del
+  total
 
 #### Scenario: El revelado no muestra una línea de bonus si no hubo bonus
 - **WHEN** se muestra el revelado de una respuesta con pin colocado cuyo
