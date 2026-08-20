@@ -4,9 +4,11 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../route_observer.dart';
 import '../services/camino_gateway.dart';
+import '../services/comodines_gateway.dart';
 import '../services/nivel_juego_gateway.dart';
 import '../services/ranking_gateway.dart';
 import '../services/username_storage.dart';
+import 'comodines_screen.dart';
 import 'nivel_juego_screen.dart';
 import 'ranking_screen.dart';
 
@@ -93,15 +95,18 @@ class CaminoScreen extends StatefulWidget {
     this.usernameStorage,
     this.nivelJuegoGateway,
     this.rankingGateway,
+    this.comodinesGateway,
   });
 
   /// Inyectables para poder probar la pantalla sin salir a la red ni al
   /// disco. `nivelJuegoGateway` se reenvía a `NivelJuegoScreen` al navegar
-  /// a ella (INT-91); `rankingGateway` se reenvía a `RankingScreen` (INT-110).
+  /// a ella (INT-91); `rankingGateway` se reenvía a `RankingScreen` (INT-110);
+  /// `comodinesGateway` se reenvía a `ComodinesScreen` (INT-119).
   final CaminoGateway? caminoGateway;
   final UsernameStorage? usernameStorage;
   final NivelJuegoGateway? nivelJuegoGateway;
   final RankingGateway? rankingGateway;
+  final ComodinesGateway? comodinesGateway;
 
   @override
   State<CaminoScreen> createState() => _CaminoScreenState();
@@ -112,6 +117,9 @@ class _CaminoScreenState extends State<CaminoScreen> with RouteAware {
       widget.caminoGateway ?? SupabaseCaminoGateway(Supabase.instance.client);
   late final UsernameStorage _usernameStorage =
       widget.usernameStorage ?? UsernameStorage();
+  late final ComodinesGateway _comodinesGateway =
+      widget.comodinesGateway ??
+      SupabaseComodinesGateway(Supabase.instance.client);
 
   final _controller = ScrollController();
 
@@ -121,11 +129,18 @@ class _CaminoScreenState extends State<CaminoScreen> with RouteAware {
   bool _mostrarBotonMiNivel = false;
   double _offsetObjetivo = 0;
 
+  /// Suma de los 4 tipos de comodín (INT-119, requirement "Pill de
+  /// comodines en la cabecera del camino" de `app-player-path-home/spec.md`).
+  /// `0` mientras carga por primera vez, igual que `_nickname` parte de un
+  /// valor por defecto hasta que resuelve su propia carga.
+  int _totalComodines = 0;
+
   @override
   void initState() {
     super.initState();
     _futuro = _cargar();
     _controller.addListener(_onScroll);
+    _cargarComodines();
   }
 
   @override
@@ -158,12 +173,33 @@ class _CaminoScreenState extends State<CaminoScreen> with RouteAware {
     setState(() {
       _futuro = _cargar();
     });
+    // El inventario puede haber cambiado al volver de jugar (un comodín
+    // consumido) o de la propia pantalla Comodines (uno concedido por
+    // anuncio): se recarga siempre, mismo motivo que el camino.
+    _cargarComodines();
   }
 
   Future<CaminoJugador> _cargar() async {
     final nombre = await _usernameStorage.read();
     if (mounted && nombre != null) setState(() => _nickname = nombre);
     return _caminoGateway.fetchCamino();
+  }
+
+  void _cargarComodines() {
+    final Future<InventarioComodines> futuro;
+    try {
+      // Resolver `_comodinesGateway` (un `late final`) puede lanzar en el
+      // momento de este primer acceso si no hay un gateway inyectado y
+      // Supabase no está inicializado todavía (p. ej. algún test que monta
+      // esta pantalla sin ejercitar comodines) — se traga igual que un
+      // fallo de red, sin tumbar la Home.
+      futuro = _comodinesGateway.misComodines();
+    } catch (_) {
+      return;
+    }
+    futuro.then((inventario) {
+      if (mounted) setState(() => _totalComodines = inventario.total);
+    }, onError: (Object _) {});
   }
 
   void _onScroll() {
@@ -226,6 +262,22 @@ class _CaminoScreenState extends State<CaminoScreen> with RouteAware {
     );
   }
 
+  /// Navega a la pantalla Comodines (INT-119, requirement "Se navega a la
+  /// pantalla de Comodines" de `app-player-path-home/spec.md`). Mismo motivo
+  /// que [_onTapRanking] para reenviar `puntosTotales` ya cargado: evita
+  /// repetir `CaminoGateway.fetchCamino()` solo para el badge de la
+  /// cabecera de esa pantalla.
+  void _onTapComodines(CaminoJugador camino) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ComodinesScreen(
+          gateway: widget.comodinesGateway,
+          puntosTotales: camino.puntosTotales,
+        ),
+      ),
+    );
+  }
+
   /// Solo se invoca para paradas desbloqueadas: una bloqueada recibe
   /// `onTap: null` desde el `builder` (ver más abajo), así que su
   /// `GestureDetector` queda inerte y no SHALL responder a toques en
@@ -244,6 +296,7 @@ class _CaminoScreenState extends State<CaminoScreen> with RouteAware {
           nivelOrden: parada.orden,
           tematicaNombre: parada.tematicaNombre,
           gateway: widget.nivelJuegoGateway,
+          comodinesGateway: widget.comodinesGateway,
         ),
       ),
     );
@@ -461,7 +514,9 @@ class _CaminoScreenState extends State<CaminoScreen> with RouteAware {
                   child: _BarraSuperior(
                     nickname: _nickname,
                     camino: camino,
+                    totalComodines: _totalComodines,
                     onTapRanking: () => _onTapRanking(camino),
+                    onTapComodines: () => _onTapComodines(camino),
                   ),
                 ),
                 if (_mostrarBotonMiNivel)
@@ -497,12 +552,16 @@ class _BarraSuperior extends StatelessWidget {
   const _BarraSuperior({
     required this.nickname,
     required this.camino,
+    required this.totalComodines,
     required this.onTapRanking,
+    required this.onTapComodines,
   });
 
   final String nickname;
   final CaminoJugador camino;
+  final int totalComodines;
   final VoidCallback onTapRanking;
+  final VoidCallback onTapComodines;
 
   @override
   Widget build(BuildContext context) {
@@ -569,6 +628,8 @@ class _BarraSuperior extends StatelessWidget {
                   ],
                 ),
               ),
+              const SizedBox(width: 8),
+              _PildoraComodines(total: totalComodines, onTap: onTapComodines),
               const SizedBox(width: 8),
               _PildoraPuntos(puntos: camino.puntosTotales),
             ],
@@ -682,6 +743,66 @@ class _PildoraPuntos extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Pill de comodines de la cabecera (INT-119): icono genérico, el total
+/// sumado de los 4 tipos y un "+" que insinúa "obtener más" antes de tocarlo.
+/// Navega a `ComodinesScreen`.
+class _PildoraComodines extends StatelessWidget {
+  const _PildoraComodines({required this.total, required this.onTap});
+
+  final int total;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: 'Comodines: $total. Ver mochila de comodines',
+      child: InkWell(
+        key: const Key('camino-comodines-boton'),
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+          decoration: BoxDecoration(
+            color: _teal.withValues(alpha: 0.16),
+            border: Border.all(color: _teal.withValues(alpha: 0.5), width: 1.5),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Image.asset(
+                'assets/comodines/generico.png',
+                width: 18,
+                height: 18,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                '$total',
+                key: const Key('camino-comodines-total'),
+                style: GoogleFonts.baloo2(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(width: 2),
+              Text(
+                '+',
+                style: GoogleFonts.baloo2(
+                  color: _teal,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

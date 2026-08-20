@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:geoquest/route_observer.dart';
 import 'package:geoquest/screens/camino_screen.dart';
+import 'package:geoquest/screens/comodines_screen.dart';
 import 'package:geoquest/screens/nivel_juego_screen.dart';
 import 'package:geoquest/services/camino_gateway.dart';
 import 'package:geoquest/services/nivel_juego_gateway.dart';
@@ -9,6 +10,7 @@ import 'package:geoquest/services/username_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'fakes/fake_camino_gateway.dart';
+import 'fakes/fake_comodines_gateway.dart';
 import 'fakes/fake_nivel_juego_gateway.dart';
 import 'fakes/fake_ranking_gateway.dart';
 
@@ -77,6 +79,7 @@ Widget _pantalla(CaminoGateway gateway) => MaterialApp(
     caminoGateway: gateway,
     usernameStorage: UsernameStorage(),
     nivelJuegoGateway: _nivelJuegoGatewayDePrueba,
+    comodinesGateway: FakeComodinesGateway(),
   ),
 );
 
@@ -338,6 +341,7 @@ void main() {
             caminoGateway: caminoGateway,
             usernameStorage: UsernameStorage(),
             nivelJuegoGateway: nivelGateway,
+            comodinesGateway: FakeComodinesGateway(),
           ),
         ),
       );
@@ -455,6 +459,7 @@ void main() {
           home: CaminoScreen(
             caminoGateway: FakeCaminoGateway(caminoLargo),
             usernameStorage: UsernameStorage(),
+            comodinesGateway: FakeComodinesGateway(),
           ),
         ),
       );
@@ -558,6 +563,7 @@ void main() {
               const CaminoJugador(entradas: [unica], puntosTotales: 0),
             ),
             usernameStorage: UsernameStorage(),
+            comodinesGateway: FakeComodinesGateway(),
           ),
         ),
       );
@@ -670,6 +676,7 @@ void main() {
           home: CaminoScreen(
             caminoGateway: FakeCaminoGateway(caminoLargo),
             usernameStorage: UsernameStorage(),
+            comodinesGateway: FakeComodinesGateway(),
           ),
         ),
       );
@@ -767,6 +774,7 @@ void main() {
             usernameStorage: UsernameStorage(),
             nivelJuegoGateway: _nivelJuegoGatewayDePrueba,
             rankingGateway: FakeRankingGateway(),
+            comodinesGateway: FakeComodinesGateway(),
           ),
         ),
       );
@@ -778,4 +786,53 @@ void main() {
       expect(find.text('Clasificación'), findsOneWidget);
     },
   );
+
+  group('pill de comodines (INT-119)', () {
+    testWidgets('la cabecera muestra la suma de los 4 tipos', (tester) async {
+      final comodines = FakeComodinesGateway(
+        inventario: inventarioDePrueba(tiempo: 2, pais: 1, km1000: 3, km500: 0),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          navigatorObservers: [routeObserver],
+          home: CaminoScreen(
+            caminoGateway: FakeCaminoGateway(_caminoDePrueba),
+            usernameStorage: UsernameStorage(),
+            nivelJuegoGateway: _nivelJuegoGatewayDePrueba,
+            comodinesGateway: comodines,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        tester
+            .widget<Text>(find.byKey(const Key('camino-comodines-total')))
+            .data,
+        '6',
+      );
+    });
+
+    testWidgets('tocar el pill navega a la pantalla Comodines', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          navigatorObservers: [routeObserver],
+          home: CaminoScreen(
+            caminoGateway: FakeCaminoGateway(_caminoDePrueba),
+            usernameStorage: UsernameStorage(),
+            nivelJuegoGateway: _nivelJuegoGatewayDePrueba,
+            comodinesGateway: FakeComodinesGateway(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('camino-comodines-boton')));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ComodinesScreen), findsOneWidget);
+      expect(find.text('Comodines'), findsOneWidget);
+    });
+  });
 }
