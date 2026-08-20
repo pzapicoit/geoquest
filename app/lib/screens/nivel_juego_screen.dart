@@ -213,6 +213,13 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
   /// animación (una rotación), ese encuadre hay que recalcularlo.
   Size? _tamanoDelRevelado;
 
+  /// Hueco de la barra inferior del sistema cuando se calculó
+  /// [_camaraDelRevelado]. Entra en el margen del encuadre
+  /// ([_margenesDelRevelado]), así que si cambia a media animación —un Split
+  /// View, o Android cambiando de barra de navegación a gestos— ese encuadre
+  /// también hay que recalcularlo, aunque el mapa siga midiendo lo mismo.
+  double? _barraInferiorDelRevelado;
+
   /// Inventario de comodines del jugador (INT-119). `null` mientras se
   /// carga por primera vez: la bandeja no se enseña hasta entonces (ver
   /// `BandejaComodines`).
@@ -563,17 +570,37 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
     }
   }
 
+  /// Cuánto mide la barra inferior del sistema para el mapa: es lo que el
+  /// `SafeArea` de la hoja de resultado le añade de alto, así que entra en el
+  /// margen del encuadre. Se lee de `padding` y no de `viewPadding` porque es
+  /// justo lo que consume ese `SafeArea`.
+  double get _barraInferior => MediaQuery.paddingOf(context).bottom;
+
   /// Márgenes que el encuadre del revelado tiene que respetar: arriba el HUD,
-  /// abajo la hoja de resultado. Son las proporciones del diseño (20 % y 48 %
-  /// de la altura), no píxeles fijos, para que en una pantalla pequeña la hoja
-  /// tampoco tape un pin.
+  /// abajo la hoja de resultado. Son proporciones de la altura, no píxeles
+  /// fijos, para que en una pantalla pequeña la hoja tampoco tape un pin.
   EdgeInsets get _margenesDelRevelado {
     final alto = _mapa.tamano.height;
-    return EdgeInsets.fromLTRB(62, alto * 0.2, 62, alto * 0.48);
+    // La franja de abajo tiene que cubrir la hoja de resultado entera: si se
+    // queda corta, el encuadre puede dejar un pin justo detrás de su borde
+    // superior. La barra inferior del sistema se suma en píxeles, no dentro
+    // de la proporción, para no castigar a los móviles que no la tienen.
+    //
+    // Leer el `MediaQuery` aquí no registra dependencia (esto no es un
+    // `build`), pero el valor que se usó queda apuntado en
+    // [_barraInferiorDelRevelado] y `_alAvanzarLaCoreografia` recalcula el
+    // encuadre si cambia a media animación.
+    return EdgeInsets.fromLTRB(
+      62,
+      alto * 0.2,
+      62,
+      alto * fraccionDeLaHojaDeRevelado + _barraInferior,
+    );
   }
 
-  /// Lanza —o relanza— la coreografía del revelado. Repetirla no vuelve a
-  /// llamar al servidor: todo lo que hace falta está ya en [_revelado] (D11).
+  /// Lanza la coreografía del revelado. Solo la disparan confirmar y agotar
+  /// el tiempo: desde INT-121 la hoja no ofrece repetirla. Correrla no llama
+  /// al servidor: todo lo que hace falta está ya en [_revelado] (D11).
   void _lanzarElRevelado() {
     final revelado = _revelado;
     if (revelado == null) return;
@@ -599,6 +626,7 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
 
   void _calcularElEncuadreDelRevelado(_Revelado revelado) {
     _tamanoDelRevelado = _mapa.tamano;
+    _barraInferiorDelRevelado = _barraInferior;
     _camaraDelRevelado = _mapa.camaraPara([
       // Sin pin, el encuadre solo tiene que enseñar la ubicación real: no
       // hay un segundo punto que encajar junto a ella (D13).
@@ -633,7 +661,8 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
     // el encuadre de destino que se calculó al arrancar ya no sirve: se
     // recalcula y se sale desde donde esté la cámara ahora. Llegar bien a un
     // encuadre nuevo importa más que la suavidad del tramo que quedaba.
-    if (_tamanoDelRevelado != _mapa.tamano) {
+    if (_tamanoDelRevelado != _mapa.tamano ||
+        _barraInferiorDelRevelado != _barraInferior) {
       _camaraDelJugador = _mapa.camara;
       _calcularElEncuadreDelRevelado(revelado);
     }
@@ -696,6 +725,7 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
       _camaraDelJugador = null;
       _camaraDelRevelado = null;
       _tamanoDelRevelado = null;
+      _barraInferiorDelRevelado = null;
     });
     _arrancarCuentaAtras(intento, intento.desafios[siguiente].id);
   }
@@ -870,7 +900,6 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
                       avanceDelDestello: _avanceDeLosPuntos,
                       cerrando: _cerrando,
                       onContinuar: () => _avanzarDesdeElRevelado(intento),
-                      onRepetir: _lanzarElRevelado,
                     ),
                   ),
                 ),
@@ -1561,6 +1590,21 @@ class _PildoraDeIndicacion extends StatelessWidget {
 }
 
 /// "40,4° N · 3,7° O", con coma decimal y hemisferio, como el mockup.
+/// Qué parte del alto de la pantalla reserva el encuadre del revelado para la
+/// hoja de resultado, sin contar la barra inferior del sistema (que se suma
+/// aparte, en píxeles).
+///
+/// Medida a 390×844, la hoja más alta (con pin, con desglose) ocupa 373 px
+/// tras la poda de INT-121 — antes 465 px, con lo que el 0,48 de entonces se
+/// quedaba unos 90 px corto y el encuadre podía dejar un pin detrás del borde
+/// de la hoja. Este 0,46 son 388 px: la cubre con holgura para las
+/// diferencias de métrica de fuente entre plataformas.
+///
+/// Es público porque el test que vigila que la franja siga cuadrando con la
+/// hoja mide contra este mismo número: duplicarlo en el test dejaría pasar un
+/// cambio hecho en un solo lado.
+const double fraccionDeLaHojaDeRevelado = 0.46;
+
 String formatearCoordenadas(Coordenada coordenada) {
   String grados(double valor, String positivo, String negativo) {
     final texto = valor.abs().toStringAsFixed(1).replaceAll('.', ',');
@@ -1636,7 +1680,6 @@ class _HojaDeRevelado extends StatelessWidget {
     required this.avanceDelDestello,
     required this.cerrando,
     required this.onContinuar,
-    required this.onRepetir,
   });
 
   final _Revelado revelado;
@@ -1655,8 +1698,10 @@ class _HojaDeRevelado extends StatelessWidget {
   /// "Ver resultados" del último desafío (INT-94).
   final bool cerrando;
 
+  /// Única acción de la hoja: bajo el botón de continuar no hay ninguna otra
+  /// (INT-121), para no gastar altura de hoja en algo que no sea seguir
+  /// jugando.
   final VoidCallback onContinuar;
-  final VoidCallback onRepetir;
 
   @override
   Widget build(BuildContext context) {
@@ -1716,7 +1761,6 @@ class _HojaDeRevelado extends StatelessWidget {
                         Expanded(
                           child: _TarjetaDePuntos(
                             puntos: puntos,
-                            maximo: revelado.respuesta.puntosMaximos,
                             avanceDelDestello: avanceDelDestello,
                           ),
                         ),
@@ -1726,7 +1770,6 @@ class _HojaDeRevelado extends StatelessWidget {
                 else
                   _TarjetaDePuntos(
                     puntos: puntos,
-                    maximo: revelado.respuesta.puntosMaximos,
                     avanceDelDestello: avanceDelDestello,
                   ),
                 // El desglose de precisión/bonus solo tiene sentido con un
@@ -1782,20 +1825,6 @@ class _HojaDeRevelado extends StatelessWidget {
                                 fontWeight: FontWeight.w800,
                               ),
                             ),
-                    ),
-                  ),
-                ),
-                Align(
-                  child: TextButton(
-                    key: const Key('nivel-juego-repetir'),
-                    onPressed: onRepetir,
-                    child: Text(
-                      'Repetir animación',
-                      style: GoogleFonts.outfit(
-                        color: Colors.white.withValues(alpha: 0.42),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
                     ),
                   ),
                 ),
@@ -1905,17 +1934,8 @@ class _LugarRevelado extends StatelessWidget {
             fontWeight: FontWeight.w800,
           ),
         ),
-        const SizedBox(height: 3),
-        Text(
-          formatearCoordenadas(revelado.ubicacionReal),
-          key: const Key('nivel-juego-coordenadas-reales'),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: GoogleFonts.outfit(
-            color: Colors.white.withValues(alpha: 0.55),
-            fontSize: 13,
-          ),
-        ),
+        // Sin las coordenadas del lugar real (INT-121): el mapa detrás ya
+        // enseña dónde está, y la línea costaba altura de hoja.
       ],
     );
   }
@@ -1999,12 +2019,10 @@ class _TarjetaDeDistancia extends StatelessWidget {
 class _TarjetaDePuntos extends StatelessWidget {
   const _TarjetaDePuntos({
     required this.puntos,
-    required this.maximo,
     required this.avanceDelDestello,
   });
 
   final int puntos;
-  final int maximo;
   final double avanceDelDestello;
 
   @override
@@ -2051,10 +2069,13 @@ class _TarjetaDePuntos extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 9),
-                // Debajo del número grande, no al lado (feedback tras probar
-                // en dispositivo: en la misma línea, "/ 5.500" se leía junto
-                // al separador de millares y confundía el número completo de
-                // puntos con uno truncado).
+                // Solo los puntos ganados: el máximo alcanzable no hace falta
+                // para leer el resultado y costaba una línea de hoja
+                // (INT-121). La referencia de "qué tal lo he hecho" la da el
+                // resumen del nivel, con el umbral para superarlo y las
+                // estrellas. `RespuestaDesafio.puntosMaximos` se queda en el
+                // modelo —el RPC lo devuelve y el parseo estricto avisa si el
+                // contrato cambia—, pero ya no se pinta en ninguna pantalla.
                 Text(
                   '+${formatearPuntaje(puntos)}',
                   key: const Key('nivel-juego-puntos-ganados'),
@@ -2063,16 +2084,6 @@ class _TarjetaDePuntos extends StatelessWidget {
                     color: const Color(0xFFFFE9A8),
                     fontSize: 34,
                     fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  '/ ${formatearPuntaje(maximo)}',
-                  key: const Key('nivel-juego-puntos-maximos'),
-                  style: GoogleFonts.outfit(
-                    color: _gold.withValues(alpha: 0.6),
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ],
@@ -2092,6 +2103,9 @@ class _TarjetaDePuntos extends StatelessWidget {
 /// `design.md`), para que el jugador entienda de dónde sale el total en vez
 /// de ver solo una cifra. Solo se enseña con un pin colocado: sin pin ambos
 /// componentes son 0 y no hay nada que desglosar.
+///
+/// Los dos componentes van en la misma línea desde INT-121: apilados costaban
+/// una línea de hoja que tapaba mapa sin añadir nada.
 class _DesgloseDePuntaje extends StatelessWidget {
   const _DesgloseDePuntaje({
     required this.puntosDistancia,
@@ -2105,9 +2119,15 @@ class _DesgloseDePuntaje extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(top: 10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
+      // `Wrap` y no `Row` (D3 de `design.md`): en una línea con un `Row`
+      // habría que elegir entre desbordar o recortar con `ellipsis`, y con
+      // las fuentes de accesibilidad grandes el recorte se comería justo la
+      // cifra. Así, en el caso normal van en una línea y en el extremo
+      // vuelven a dos, que es lo que había antes.
+      child: Wrap(
+        spacing: 7,
+        runSpacing: 2,
+        crossAxisAlignment: WrapCrossAlignment.center,
         children: [
           Text(
             '${formatearPuntaje(puntosDistancia)} puntos de precisión',
@@ -2118,22 +2138,29 @@ class _DesgloseDePuntaje extends StatelessWidget {
               fontWeight: FontWeight.w600,
             ),
           ),
-          // Sin línea de bonus cuando es 0: tiempo agotado, o precisión ya
-          // en el suelo de la curva (requirement "El revelado muestra el
-          // desglose del bonus por rapidez").
-          if (puntosBonus > 0)
-            Padding(
-              padding: const EdgeInsets.only(top: 3),
-              child: Text(
-                '+${formatearPuntaje(puntosBonus)} por rapidez',
-                key: const Key('nivel-juego-puntos-bonus'),
-                style: GoogleFonts.outfit(
-                  color: _teal,
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w700,
-                ),
+          // Sin bonus cuando es 0: tiempo agotado, o precisión ya en el
+          // suelo de la curva (requirement "El revelado muestra el desglose
+          // del bonus por rapidez"). El separador va aparte para no tocar el
+          // copy de ninguno de los dos textos.
+          if (puntosBonus > 0) ...[
+            Text(
+              '·',
+              style: GoogleFonts.outfit(
+                color: Colors.white.withValues(alpha: 0.3),
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
               ),
             ),
+            Text(
+              '+${formatearPuntaje(puntosBonus)} por rapidez',
+              key: const Key('nivel-juego-puntos-bonus'),
+              style: GoogleFonts.outfit(
+                color: _teal,
+                fontSize: 12.5,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
         ],
       ),
     );
