@@ -42,6 +42,7 @@ class NivelJuegoScreen extends StatefulWidget {
     this.comodinesGateway,
     this.cargadorDeMundo,
     this.ahora,
+    this.precargarImagen,
   });
 
   final String caminoId;
@@ -70,6 +71,15 @@ class NivelJuegoScreen extends StatefulWidget {
   /// porque `flutter_test` no falsea el reloj global (D2 de `design.md`): sin
   /// esto no hay forma de provocar que se agote el tiempo en un test.
   final DateTime Function()? ahora;
+
+  /// Cómo se precarga la imagen de un desafío (INT-120). Inyectable, mismo
+  /// motivo que [ahora] y por el mismo patrón —una función, no un servicio,
+  /// porque es una sola operación sin estado (D6 de `design.md`)—: en
+  /// `flutter_test` no hay red, así que toda imagen falla y nunca entra nada
+  /// en el `ImageCache` global; sin poder inyectar aquí no habría forma de
+  /// distinguir en un test "precargué" de "no precargué".
+  final Future<void> Function(BuildContext context, String url)?
+  precargarImagen;
 
   @override
   State<NivelJuegoScreen> createState() => _NivelJuegoScreenState();
@@ -105,6 +115,24 @@ class _Revelado {
   );
 }
 
+/// Precarga de verdad una imagen de desafío (INT-120), el valor por defecto de
+/// [NivelJuegoScreen.precargarImagen].
+///
+/// El provider es `NetworkImage(url)` a pelo, sin `cacheWidth`, `cacheHeight`,
+/// `scale` propio ni `size`: eso es exactamente lo que construye
+/// `Image.network(url)`, y el provider *es* la clave del `ImageCache`. Cambiar
+/// cualquiera de esos parámetros dejaría la precarga en red gastada sin
+/// acierto de caché (D5 de `design.md`).
+///
+/// El `onError` vacío no es una precaución, es obligatorio: `precacheImage`
+/// siempre completa su futuro con éxito y entrega el fallo por `onError`, y si
+/// no se le pasa ninguno lo manda a `FlutterError.reportError` — pantalla roja
+/// en debug y test fallado en `flutter_test`, donde ninguna imagen de red
+/// puede cargar (D4 de `design.md`).
+Future<void> _precargarImagenDeRed(BuildContext context, String url) {
+  return precacheImage(NetworkImage(url), context, onError: (_, _) {});
+}
+
 class _NivelJuegoScreenState extends State<NivelJuegoScreen>
     with TickerProviderStateMixin {
   /// Coreografía del revelado, con los tiempos del diseño (D4 de
@@ -127,6 +155,9 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
   late final ComodinesGateway _comodinesGateway =
       widget.comodinesGateway ??
       SupabaseComodinesGateway(Supabase.instance.client);
+
+  late final Future<void> Function(BuildContext, String) _precargarImagen =
+      widget.precargarImagen ?? _precargarImagenDeRed;
 
   final MapaMundiController _mapa = MapaMundiController();
 
@@ -235,6 +266,52 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
   void _alCargarElIntento(IntentoNivel intento) {
     if (!mounted || intento.desafios.isEmpty) return;
     _arrancarCuentaAtras(intento, intento.desafios[_indice].id);
+    // Sin `await` a propósito (D1 de `design.md`): la partida no espera a la
+    // precarga, que corre de fondo mientras el jugador juega.
+    _precargarImagenesDelIntento(intento);
+  }
+
+  /// Deja en caché las imágenes de todos los desafíos del intento (INT-120,
+  /// requirement "Precarga de las imágenes del intento" de
+  /// `app-game-screen/spec.md`), para que llegar a una parada de imagen sea un
+  /// acierto de caché en vez de una espera de red con la cuenta atrás ya
+  /// corriendo.
+  ///
+  /// De una en una y en orden de juego (D2 de `design.md`): el problema que
+  /// esto arregla es de ancho de banda escaso, no de latencia. En paralelo, las
+  /// N descargas competirían entre sí y con la del desafío que el jugador está
+  /// mirando ahora mismo, y en una red lenta llegarían todas tarde. En serie,
+  /// lo que se está bajando en cada momento es siempre lo siguiente que hará
+  /// falta.
+  ///
+  /// El primer desafío no se salta (D3): su petición ya está en vuelo desde
+  /// `_PistaImagen`, y al compartir clave de `ImageCache` la precarga se
+  /// engancha a ella en vez de duplicarla. Cuesta cero y ahorra un caso
+  /// especial.
+  Future<void> _precargarImagenesDelIntento(IntentoNivel intento) async {
+    for (final desafio in intento.desafios) {
+      final url = desafio.imagenUrl;
+      // Los desafíos de vídeo y de pregunta de texto no tienen nada que
+      // precargar. La URL vacía es defensiva —`_ContenidoPista` hace
+      // `imagenUrl!` y petaría antes—, pero en un bucle de fondo lo correcto
+      // es saltar el dato malo, no reventar (D8 de `design.md`).
+      if (desafio.tipo != TipoDesafio.imagen || url == null || url.isEmpty) {
+        continue;
+      }
+      // Dentro del bucle, no solo una vez arriba: en la segunda vuelta y
+      // siguientes venimos de un `await`, y hay que revalidar antes de volver
+      // a pasar `context` (D7 de `design.md`). Si el jugador ya salió del
+      // nivel, además, no hay nada que precargar.
+      if (!mounted) return;
+      try {
+        await _precargarImagen(context, url);
+      } catch (_) {
+        // Una URL rota no puede dejar sin precarga a las paradas siguientes,
+        // así que el bucle no aborta (D4 de `design.md`). El desafío afectado
+        // se cargará a demanda al llegar a él, con su `errorBuilder` de
+        // siempre, igual que antes de existir esta precarga.
+      }
+    }
   }
 
   /// Carga el inventario de comodines para pintar la bandeja (INT-119). El
@@ -1755,6 +1832,8 @@ class _MiniaturaDeLaPista extends StatelessWidget {
         color: Colors.white.withValues(alpha: 0.06),
       ),
       child: switch (desafio.tipo) {
+        // Mismo provider a pelo que `_PistaImagen`, por el mismo motivo de
+        // clave de caché compartida con la precarga (D5 de `design.md`).
         TipoDesafio.imagen => Image.network(
           desafio.imagenUrl!,
           key: const Key('nivel-juego-miniatura-imagen'),
@@ -2591,6 +2670,13 @@ class _PistaImagen extends StatelessWidget {
       borderRadius: BorderRadius.circular(20),
       child: AspectRatio(
         aspectRatio: 4 / 3,
+        // `Image.network(url)` sin `cacheWidth`/`cacheHeight` a propósito: el
+        // provider que construye (`NetworkImage(url)`) es la clave del
+        // `ImageCache`, y tiene que ser el mismo que precarga
+        // `_precargarImagenDeRed` para que llegar aquí sea un acierto de caché
+        // (D5 de `design.md`, INT-120). Añadir cualquiera de esos parámetros
+        // no rompería nada de forma visible: solo devolvería el salto de carga
+        // en red lenta, así que habría que añadirlo también allí.
         child: Image.network(
           url,
           key: const Key('nivel-juego-imagen'),
