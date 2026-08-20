@@ -21,4 +21,4 @@
 - [x] 4.1 `flutter analyze` limpio, `dart format --set-exit-if-changed` sin cambios.
 - [x] 4.2 `flutter test` — 367/367 en verde.
 - [x] 4.3 `.devplugin/architecture.md` actualizado (filas `backend/` y `app/`).
-- [ ] 4.4 Sincronizar spec (`app-game-screen`) al archivar.
+- [x] 4.4 Spec sincronizada: `app-game-screen`, requirement "Overlay de radio en el mapa" gana el encuadre de cámara y su escenario de solape con el revelado.
