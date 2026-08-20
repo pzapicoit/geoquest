@@ -20,6 +20,16 @@ const _desafioImagen = DesafioJuego(
   imagenUrl: 'https://example.com/foto.jpg',
 );
 
+/// Segundo desafío de imagen, para poder comprobar el orden de la precarga
+/// del intento (INT-120).
+const _desafioImagen2 = DesafioJuego(
+  id: 'd4',
+  nombre: 'Gran Muralla',
+  tipo: TipoDesafio.imagen,
+  activo: true,
+  imagenUrl: 'https://example.com/foto-2.jpg',
+);
+
 const _desafioVideo = DesafioJuego(
   id: 'd2',
   nombre: 'Coliseo de Roma',
@@ -42,6 +52,35 @@ const _sobreElMapa = Offset(195, 422);
 
 const _movil = Size(390, 844);
 
+/// Espía de la precarga de imágenes del intento (INT-120): apunta las URLs
+/// que la pantalla pide, en orden, y puede hacerlas fallar o dejarlas
+/// colgadas.
+///
+/// Hace falta porque en `flutter_test` no hay red: toda imagen falla y nunca
+/// entra nada en el `ImageCache`, así que mirar la caché no distinguiría
+/// "precargué" de "no precargué" (D6 de `design.md`).
+class _PrecargasEspiadas {
+  /// Las URLs pedidas, en el orden en que se pidieron.
+  final List<String> urls = [];
+
+  /// URLs cuya precarga debe fallar, para comprobar que un fallo no rompe la
+  /// partida ni corta el resto de la precarga.
+  final Set<String> fallan = {};
+
+  /// Deja cada precarga colgada hasta que el test complete el `Completer`,
+  /// para poder mirar la pantalla con la precarga en curso. Mismo motivo que
+  /// `FakeNivelJuegoGateway.pausaAlIniciar`.
+  Completer<void>? pausa;
+
+  Future<void> precargar(BuildContext context, String url) async {
+    urls.add(url);
+    await pausa?.future;
+    if (fallan.contains(url)) {
+      throw Exception('precarga fallida a propósito: $url');
+    }
+  }
+}
+
 /// La pantalla de juego se abre siempre desde el camino, así que los tests la
 /// montan igual: con una pantalla previa a la que poder volver.
 Widget _appConCamino(
@@ -50,6 +89,7 @@ Widget _appConCamino(
   DateTime Function()? ahora,
   bool reducirAnimaciones = false,
   ComodinesGateway? comodinesGateway,
+  Future<void> Function(BuildContext, String)? precargarImagen,
 }) {
   return MaterialApp(
     builder: reducirAnimaciones
@@ -74,6 +114,10 @@ Widget _appConCamino(
                   comodinesGateway: comodinesGateway ?? FakeComodinesGateway(),
                   cargadorDeMundo: cargarMundoDePrueba,
                   ahora: ahora,
+                  // Sin espía explícito se deja la precarga real (INT-120):
+                  // así los tests que no la ejercitan comprueban de paso que
+                  // no revienta cuando la imagen no puede cargar.
+                  precargarImagen: precargarImagen,
                 ),
               ),
             ),
@@ -100,6 +144,7 @@ Future<void> _abrirNivel(
   String? nivelNombre,
   bool reducirAnimaciones = false,
   ComodinesGateway? comodinesGateway,
+  Future<void> Function(BuildContext, String)? precargarImagen,
 }) async {
   tester.view.physicalSize = _movil;
   tester.view.devicePixelRatio = 1;
@@ -115,6 +160,7 @@ Future<void> _abrirNivel(
       ahora: () => tester.binding.clock.now(),
       reducirAnimaciones: reducirAnimaciones,
       comodinesGateway: comodinesGateway,
+      precargarImagen: precargarImagen,
     ),
   );
   await tester.tap(find.text('Ir al nivel'));
@@ -1755,6 +1801,167 @@ void main() {
       await tester.tap(find.byKey(const Key('bandeja-comodines-pestana')));
       await tester.pump();
       expect(find.byKey(const Key('bandeja-comodines-tiempo')), findsOneWidget);
+    });
+  });
+
+  group('precarga de imágenes del intento (INT-120)', () {
+    const foto1 = 'https://example.com/foto.jpg';
+    const foto2 = 'https://example.com/foto-2.jpg';
+
+    testWidgets('precarga las imágenes de todos los desafíos en orden de '
+        'juego, incluida la del primero', (tester) async {
+      final precargas = _PrecargasEspiadas();
+
+      await _abrirNivel(
+        tester,
+        _gatewayCon(const [_desafioImagen, _desafioTexto, _desafioImagen2]),
+        precargarImagen: precargas.precargar,
+      );
+
+      // En orden de juego, no el del primero saltado: comparte clave de
+      // `ImageCache` con la petición que ya está en vuelo, así que cuesta
+      // cero (D3 de `design.md`).
+      expect(precargas.urls, [foto1, foto2]);
+    });
+
+    testWidgets('los desafíos de vídeo y de texto no generan precarga', (
+      tester,
+    ) async {
+      final precargas = _PrecargasEspiadas();
+
+      await _abrirNivel(
+        tester,
+        _gatewayCon(const [_desafioTexto, _desafioVideo]),
+        precargarImagen: precargas.precargar,
+      );
+
+      expect(precargas.urls, isEmpty);
+    });
+
+    testWidgets('la partida no espera a la precarga', (tester) async {
+      final gateway = _gatewayCon(const [_desafioImagen, _desafioImagen2]);
+      final precargas = _PrecargasEspiadas()..pausa = Completer<void>();
+
+      await _abrirNivel(tester, gateway, precargarImagen: precargas.precargar);
+
+      // Con la precarga colgada en la primera URL, el primer desafío ya está
+      // en pantalla y su cuenta atrás en marcha.
+      expect(precargas.urls, [foto1]);
+      expect(find.byKey(const Key('nivel-juego-imagen')), findsOneWidget);
+      expect(gateway.desafiosMarcadosMostrados, ['d1']);
+
+      // Y es jugable: se puede cerrar la pista y poner el pin sin que la
+      // precarga se haya resuelto.
+      await _cerrarPista(tester);
+      await _colocarPin(tester);
+      expect(find.byKey(const Key('nivel-juego-confirmar')), findsOneWidget);
+
+      // Al resolverse, sigue con la siguiente.
+      precargas.pausa!.complete();
+      await _asentar(tester);
+      expect(precargas.urls, [foto1, foto2]);
+    });
+
+    testWidgets('una imagen que falla no rompe la partida ni corta el resto '
+        'de la precarga', (tester) async {
+      final precargas = _PrecargasEspiadas()..fallan.add(foto1);
+
+      await _abrirNivel(
+        tester,
+        _gatewayCon(const [_desafioImagen, _desafioImagen2]),
+        precargarImagen: precargas.precargar,
+      );
+
+      // El bucle no aborta: la parada siguiente se precarga igual (D4 de
+      // `design.md`).
+      expect(precargas.urls, [foto1, foto2]);
+
+      // Y el jugador no se entera: ni aviso ni pantalla de error, la pista
+      // del desafío afectado se pinta como siempre.
+      expect(find.byKey(const Key('nivel-juego-aviso')), findsNothing);
+      expect(find.byKey(const Key('nivel-juego-imagen')), findsOneWidget);
+    });
+
+    testWidgets('salir del nivel con precargas pendientes no provoca error', (
+      tester,
+    ) async {
+      final precargas = _PrecargasEspiadas()..pausa = Completer<void>();
+
+      await _abrirNivel(
+        tester,
+        _gatewayCon(const [_desafioImagen, _desafioImagen2]),
+        precargarImagen: precargas.precargar,
+      );
+      expect(precargas.urls, [foto1]);
+
+      await tester.tap(find.byKey(const Key('nivel-juego-salir')));
+      await _asentar(tester);
+      await tester.tap(find.byKey(const Key('nivel-juego-salir-confirmar')));
+      await _asentar(tester);
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(find.text('Ir al nivel'), findsOneWidget);
+
+      // La precarga que quedaba en vuelo se resuelve con la pantalla ya
+      // desmontada: se corta sin tocar estado ni lanzar (D7 de `design.md`).
+      precargas.pausa!.complete();
+      await tester.pump();
+      expect(precargas.urls, [foto1]);
+    });
+
+    testWidgets('la precarga real no tumba la partida aunque la imagen no '
+        'pueda cargar', (tester) async {
+      // Sin espía inyectado corre `_precargarImagenDeRed`. En `flutter_test`
+      // no hay red, así que `precacheImage` falla siempre — y su `onError`
+      // vacío es justo lo que evita que ese fallo acabe en
+      // `FlutterError.reportError` y tumbe este test (D4 de `design.md`).
+      await _abrirNivel(
+        tester,
+        _gatewayCon(const [_desafioImagen, _desafioImagen2]),
+      );
+
+      expect(find.byKey(const Key('nivel-juego-imagen')), findsOneWidget);
+    });
+
+    testWidgets('la pista usa el mismo provider que se precarga, para que sea '
+        'un acierto de caché', (tester) async {
+      await _abrirNivel(
+        tester,
+        _gatewayCon(const [_desafioImagen]),
+        precargarImagen: _PrecargasEspiadas().precargar,
+      );
+
+      // `NetworkImage(url)` a pelo, que es la clave del `ImageCache` y lo que
+      // precarga la pantalla. Un `cacheWidth`/`cacheHeight` lo envolvería en
+      // un `ResizeImage` y dejaría la precarga sin acierto, sin que nada
+      // fallara de forma visible (D5 de `design.md`).
+      final imagen = tester.widget<Image>(
+        find.byKey(const Key('nivel-juego-imagen')),
+      );
+      expect(imagen.image, const NetworkImage('https://example.com/foto.jpg'));
+    });
+
+    testWidgets('la miniatura del revelado usa el mismo provider', (
+      tester,
+    ) async {
+      final gateway = _gatewayCon(const [_desafioImagen])
+        ..respuesta = respuestaDePrueba(distanciaKm: 12, puntos: 1200);
+
+      await _abrirNivel(
+        tester,
+        gateway,
+        precargarImagen: _PrecargasEspiadas().precargar,
+      );
+      await _cerrarPista(tester);
+      await _colocarPin(tester);
+      await _confirmarYRevelar(tester);
+
+      final miniatura = tester.widget<Image>(
+        find.byKey(const Key('nivel-juego-miniatura-imagen')),
+      );
+      expect(
+        miniatura.image,
+        const NetworkImage('https://example.com/foto.jpg'),
+      );
     });
   });
 }
