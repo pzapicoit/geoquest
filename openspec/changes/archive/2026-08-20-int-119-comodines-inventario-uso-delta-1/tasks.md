@@ -27,4 +27,4 @@
 - [x] 5.2 `flutter test` — 367/367 en verde (371 originales − 4 tests de `extender` retirados + 0 netos nuevos, ya contados en los grupos anteriores).
 - [x] 5.3 `supabase db lint --linked` sin avisos en las funciones tocadas por este delta (queda un aviso pre-existente y no relacionado en `conceder_comodin_por_anuncio`, fuera de alcance).
 - [x] 5.4 `.devplugin/architecture.md` actualizado (filas `backend/` y `app/`) con el cambio de efecto y los radios nuevos.
-- [ ] 5.5 Sincronizar specs (`comodines`, `challenge-timer`) a los ficheros principales al archivar el delta.
+- [x] 5.5 Specs sincronizadas: `comodines` (efecto tiempo, radios) y `challenge-timer` (requisito de extensión sustituido por el de detención completa).
