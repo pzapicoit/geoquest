@@ -53,12 +53,12 @@ sealed class ResultadoUsoComodin {
   const ResultadoUsoComodin();
 }
 
-/// `tiempo`: cuántos segundos extender el margen antes del auto-envío
-/// (`CuentaAtrasDeDesafio.extender`, D3 de `design.md`).
+/// `tiempo`: detiene el cronómetro del desafío en curso por completo
+/// (`CuentaAtrasDeDesafio.parar`, delta-1 — antes daba 15s extra, ahora deja
+/// la pregunta sin límite de tiempo). Sin datos propios: el efecto es el
+/// mismo siempre que se consuma con éxito.
 class ResultadoTiempo extends ResultadoUsoComodin {
-  const ResultadoTiempo({required this.extraSegundos});
-
-  final int extraSegundos;
+  const ResultadoTiempo();
 }
 
 /// `pais`: el nombre del país real del objetivo, sin `nombre_lugar` ni
@@ -244,9 +244,7 @@ InventarioComodines mapearInventario(List<Map<String, dynamic>> filas) {
 ResultadoUsoComodin mapearResultadoUsoComodin(Map<String, dynamic> data) {
   final tipo = ComodinTipo.fromString(data['tipo'] as String);
   return switch (tipo) {
-    ComodinTipo.tiempo => ResultadoTiempo(
-      extraSegundos: _entero(data['extra_segundos'], 'extra_segundos'),
-    ),
+    ComodinTipo.tiempo => const ResultadoTiempo(),
     ComodinTipo.pais => ResultadoPais(pais: _texto(data['pais'], 'pais')),
     ComodinTipo.km1000 || ComodinTipo.km500 => ResultadoRadio(
       tipo: tipo,

@@ -27,21 +27,21 @@ const _ink = Color(0xFF0E1620);
 const bool anuncioDisponible = false;
 
 String _nombre(ComodinTipo tipo) => switch (tipo) {
-  ComodinTipo.tiempo => 'Tiempo extra',
+  ComodinTipo.tiempo => 'Sin límite de tiempo',
   ComodinTipo.pais => 'País',
-  ComodinTipo.km1000 => 'Radio 1000 km',
-  ComodinTipo.km500 => 'Radio 500 km',
+  ComodinTipo.km1000 => 'Radio 500 km',
+  ComodinTipo.km500 => 'Radio 150 km',
 };
 
 String _descripcion(ComodinTipo tipo) => switch (tipo) {
   ComodinTipo.tiempo =>
-    'Añade 15 segundos al margen antes de que tu respuesta se envíe sola.',
+    'Detiene el cronómetro: respondes esta pregunta sin límite de tiempo.',
   ComodinTipo.pais =>
     'Revela el país real del objetivo, sin desvelar el lugar exacto.',
   ComodinTipo.km1000 =>
-    'Dibuja en el mapa un círculo de 1000 km alrededor del objetivo real.',
-  ComodinTipo.km500 =>
     'Dibuja en el mapa un círculo de 500 km alrededor del objetivo real.',
+  ComodinTipo.km500 =>
+    'Dibuja en el mapa un círculo de 150 km alrededor del objetivo real.',
 };
 
 String _assetArte(ComodinTipo tipo) => switch (tipo) {

@@ -48,7 +48,7 @@ class FakeComodinesGateway implements ComodinesGateway {
 
   /// Lo que devuelve `usarComodin`; los tests que ejercitan un tipo concreto
   /// la cambian antes de usar el comodín.
-  ResultadoUsoComodin resultadoUso = const ResultadoTiempo(extraSegundos: 15);
+  ResultadoUsoComodin resultadoUso = const ResultadoTiempo();
 
   /// Excepción a lanzar en la próxima llamada a `usarComodin`.
   Object? throwOnNextUsar;

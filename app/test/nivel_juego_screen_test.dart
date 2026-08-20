@@ -1614,7 +1614,7 @@ void main() {
       'usar un comodín deja el resto deshabilitados para el resto del intento',
       (tester) async {
         final comodines = FakeComodinesGateway()
-          ..resultadoUso = const ResultadoTiempo(extraSegundos: 15);
+          ..resultadoUso = const ResultadoTiempo();
         await _abrirNivel(
           tester,
           _gatewayCon(const [_desafioTexto]),
@@ -1639,38 +1639,44 @@ void main() {
       },
     );
 
-    testWidgets('usar el comodín tiempo extiende la cuenta atrás', (
-      tester,
-    ) async {
-      final comodines = FakeComodinesGateway()
-        ..resultadoUso = const ResultadoTiempo(extraSegundos: 15);
-      await _abrirNivel(
-        tester,
-        _gatewayCon(const [_desafioTexto]),
-        comodinesGateway: comodines,
-      );
-      await _cerrarPista(tester);
+    testWidgets(
+      'usar el comodín tiempo detiene la cuenta atrás sin límite de tiempo',
+      (tester) async {
+        final gateway = _gatewayCon(const [_desafioTexto]);
+        final comodines = FakeComodinesGateway()
+          ..resultadoUso = const ResultadoTiempo();
+        await _abrirNivel(tester, gateway, comodinesGateway: comodines);
+        await _cerrarPista(tester);
 
-      final antes = tester
-          .widget<Text>(
-            find.byKey(const Key('nivel-juego-cuenta-atras-etiqueta')),
-          )
-          .data;
+        await tester.tap(find.byKey(const Key('bandeja-comodines-pestana')));
+        await tester.pump();
+        await tester.tap(find.byKey(const Key('bandeja-comodines-tiempo')));
+        await _asentar(tester);
 
-      await tester.tap(find.byKey(const Key('bandeja-comodines-pestana')));
-      await tester.pump();
-      await tester.tap(find.byKey(const Key('bandeja-comodines-tiempo')));
-      await _asentar(tester);
+        expect(comodines.usosEnviados.single.tipo, ComodinTipo.tiempo);
 
-      final despues = tester
-          .widget<Text>(
-            find.byKey(const Key('nivel-juego-cuenta-atras-etiqueta')),
-          )
-          .data;
+        final etiquetaTrasUsar = tester
+            .widget<Text>(
+              find.byKey(const Key('nivel-juego-cuenta-atras-etiqueta')),
+            )
+            .data;
 
-      expect(comodines.usosEnviados.single.tipo, ComodinTipo.tiempo);
-      expect(despues, isNot(antes));
-    });
+        // Muy por encima de los 60s del desafío (default de _gatewayCon):
+        // sin el comodín, esto habría disparado el auto-envío hace tiempo.
+        await tester.pump(const Duration(seconds: 90));
+
+        expect(gateway.respuestasEnviadas, isEmpty);
+        expect(find.byKey(const Key('nivel-juego-revelado')), findsNothing);
+        expect(
+          tester
+              .widget<Text>(
+                find.byKey(const Key('nivel-juego-cuenta-atras-etiqueta')),
+              )
+              .data,
+          etiquetaTrasUsar,
+        );
+      },
+    );
 
     testWidgets('usar el comodín país avisa con el país recibido', (
       tester,
@@ -1702,7 +1708,7 @@ void main() {
           tipo: ComodinTipo.km1000,
           lat: 41.8902,
           lng: 12.4922,
-          radioKm: 1000,
+          radioKm: 500,
         );
       await _abrirNivel(
         tester,

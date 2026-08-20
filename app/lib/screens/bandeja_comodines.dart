@@ -333,8 +333,8 @@ String _assetIcono(ComodinTipo tipo) => switch (tipo) {
 };
 
 String _etiqueta(ComodinTipo tipo) => switch (tipo) {
-  ComodinTipo.tiempo => 'Comodín tiempo: 15 segundos extra',
+  ComodinTipo.tiempo => 'Comodín tiempo: sin límite para esta pregunta',
   ComodinTipo.pais => 'Comodín país: revela el país del objetivo',
-  ComodinTipo.km1000 => 'Comodín radio 1000 km',
-  ComodinTipo.km500 => 'Comodín radio 500 km',
+  ComodinTipo.km1000 => 'Comodín radio 500 km',
+  ComodinTipo.km500 => 'Comodín radio 150 km',
 };

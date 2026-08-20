@@ -54,14 +54,10 @@ void main() {
   });
 
   group('mapearResultadoUsoComodin', () {
-    test('tiempo trae extra_segundos', () {
-      final resultado = mapearResultadoUsoComodin({
-        'tipo': 'tiempo',
-        'extra_segundos': 15,
-      });
+    test('tiempo se mapea sin datos propios', () {
+      final resultado = mapearResultadoUsoComodin({'tipo': 'tiempo'});
 
       expect(resultado, isA<ResultadoTiempo>());
-      expect((resultado as ResultadoTiempo).extraSegundos, 15);
     });
 
     test('pais trae el nombre del pais', () {
@@ -79,7 +75,7 @@ void main() {
         'tipo': 'km1000',
         'lat': 41.8902,
         'lng': 12.4922,
-        'radio_km': 1000,
+        'radio_km': 500,
       });
 
       expect(resultado, isA<ResultadoRadio>());
@@ -87,7 +83,7 @@ void main() {
       expect(radio.tipo, ComodinTipo.km1000);
       expect(radio.lat, 41.8902);
       expect(radio.lng, 12.4922);
-      expect(radio.radioKm, 1000);
+      expect(radio.radioKm, 500);
     });
 
     test('km500 trae lat/lng/radio_km, con numeric serializado como texto', () {
@@ -95,13 +91,13 @@ void main() {
         'tipo': 'km500',
         'lat': '41.8902',
         'lng': '12.4922',
-        'radio_km': '500',
+        'radio_km': '150',
       });
 
       final radio = resultado as ResultadoRadio;
       expect(radio.tipo, ComodinTipo.km500);
       expect(radio.lat, 41.8902);
-      expect(radio.radioKm, 500);
+      expect(radio.radioKm, 150);
     });
   });
 

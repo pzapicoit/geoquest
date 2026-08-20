@@ -270,67 +270,6 @@ void main() {
     });
   });
 
-  group('extender', () {
-    testWidgets('suma la duración al restante y al total sin reiniciar', (
-      tester,
-    ) async {
-      await _conCuentaAtras((cuenta, avisos) async {
-        cuenta.arrancar(const Duration(seconds: 60));
-        await _correr(tester, const Duration(seconds: 50));
-        expect(cuenta.restante, const Duration(seconds: 10));
-
-        cuenta.extender(const Duration(seconds: 15));
-
-        expect(cuenta.restante, const Duration(seconds: 25));
-        expect(cuenta.total, const Duration(seconds: 75));
-        expect(cuenta.corriendo, isTrue);
-        expect(avisos, isEmpty);
-      });
-    });
-
-    testWidgets('el tiempo extendido de verdad retrasa el auto-envío', (
-      tester,
-    ) async {
-      await _conCuentaAtras((cuenta, avisos) async {
-        cuenta.arrancar(const Duration(seconds: 10));
-        cuenta.extender(const Duration(seconds: 15));
-
-        await _correr(tester, const Duration(seconds: 10));
-        expect(avisos, isEmpty, reason: 'los 10s originales ya no bastan');
-
-        await _correr(tester, const Duration(seconds: 15));
-        expect(avisos, hasLength(1));
-      });
-    });
-
-    testWidgets('extender un desafío ya agotado no hace nada', (tester) async {
-      await _conCuentaAtras((cuenta, avisos) async {
-        cuenta.arrancar(const Duration(seconds: 10));
-        await _correr(tester, const Duration(seconds: 10));
-        expect(avisos, hasLength(1));
-
-        cuenta.extender(const Duration(seconds: 15));
-
-        expect(cuenta.restante, Duration.zero);
-        expect(cuenta.corriendo, isFalse);
-      });
-    });
-
-    testWidgets('extender tras parar no revive la cuenta atrás', (
-      tester,
-    ) async {
-      await _conCuentaAtras((cuenta, avisos) async {
-        cuenta.arrancar(const Duration(seconds: 60));
-        cuenta.parar();
-
-        cuenta.extender(const Duration(seconds: 15));
-
-        expect(cuenta.corriendo, isFalse);
-        expect(avisos, isEmpty);
-      });
-    });
-  });
-
   group('opacidad del marco crítico', () {
     const umbral = Duration(seconds: 12);
 

@@ -100,21 +100,10 @@ class CuentaAtrasDeDesafio extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Extiende el margen antes del auto-envío (INT-119, comodín "tiempo"): NO
-  /// reinicia el desafío, solo adelanta el instante de fin y suma [extra] al
-  /// total/restante. Sin efecto sobre `mostrado_en` ni el bonus de rapidez del
-  /// servidor —ese cálculo sigue siendo sobre el tiempo real transcurrido—: el
-  /// comodín solo pospone el momento del auto-envío, no puntúa.
-  void extender(Duration extra) {
-    if (extra <= Duration.zero || _fin == null) return;
-    _total += extra;
-    _restante += extra;
-    _fin = _fin!.add(extra);
-    notifyListeners();
-  }
-
-  /// Deja la cuenta atrás quieta donde esté: se confirmó la respuesta, o la
-  /// pantalla se va. Lo que ya se enseñaba sigue en pantalla hasta que entre el
+  /// Deja la cuenta atrás quieta donde esté: se confirmó la respuesta, la
+  /// pantalla se va, o el jugador consumió el comodín "tiempo" (INT-119
+  /// delta-1: deja la pregunta sin límite de tiempo, no solo un margen
+  /// extra). Lo que ya se enseñaba sigue en pantalla hasta que entre el
   /// revelado.
   void parar() {
     if (!_ticker.isActive) return;

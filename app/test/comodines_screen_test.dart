@@ -85,7 +85,7 @@ void main() {
     await tester.tap(find.byKey(const Key('comodines-info-tiempo')));
     await tester.pump();
 
-    expect(find.textContaining('15 segundos'), findsOneWidget);
+    expect(find.textContaining('sin límite de tiempo'), findsOneWidget);
   });
 
   testWidgets('un error de carga muestra el estado de error con reintentar', (

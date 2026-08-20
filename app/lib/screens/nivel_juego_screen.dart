@@ -295,14 +295,14 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
     }
   }
 
-  /// Aplica el efecto propio de cada tipo (D3/D4/D7 de `design.md`): tiempo
-  /// extiende el margen antes del auto-envío, país se avisa en un toast y
+  /// Aplica el efecto propio de cada tipo: tiempo detiene el cronómetro por
+  /// completo (delta-1: antes daba 15s extra), país se avisa en un toast y
   /// los de radio dibujan el círculo en el mapa (grupo 7).
   void _aplicarEfectoComodin(ResultadoUsoComodin resultado) {
     switch (resultado) {
-      case ResultadoTiempo(:final extraSegundos):
-        _cuentaAtras.extender(Duration(seconds: extraSegundos));
-        _avisar('+$extraSegundos s para responder');
+      case ResultadoTiempo():
+        _cuentaAtras.parar();
+        _avisar('Sin límite de tiempo para esta pregunta');
       case ResultadoPais(:final pais):
         _avisar('El objetivo está en $pais');
       case ResultadoRadio(:final lat, :final lng, :final radioKm):

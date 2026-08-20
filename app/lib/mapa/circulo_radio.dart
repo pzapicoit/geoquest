@@ -4,8 +4,10 @@ import 'mapa_mundi_controller.dart';
 import 'mercator.dart';
 
 /// Radio medio de la Tierra en km: la misma esfera que usa
-/// `calcular_distancia_km` en Postgres (Haversine), coherente con el radio
-/// que declara el propio comodín (1000/500 km, D7 de `design.md`).
+/// `calcular_distancia_km` en Postgres (Haversine). El radio del círculo
+/// (`radioKm`) lo decide siempre el servidor (`usar_comodin`), nunca un
+/// literal aquí — así un ajuste de balance (INT-119 delta-1: 500/150 km en
+/// vez de 1000/500) no toca código de la app.
 const double _radioTierraKm = 6371;
 
 /// Puntos del borde de un círculo de [radioKm] centrado en [centro], sobre
