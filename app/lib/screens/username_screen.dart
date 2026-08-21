@@ -205,6 +205,13 @@ class _UsernameScreenState extends State<UsernameScreen> {
               ? 'No hemos encontrado un apodo libre. Escribe uno tú mismo.'
               : 'Ese apodo ya está ocupado. Prueba con otro.';
         });
+      case ApodoDeJugadorSinContrasena():
+        setState(() {
+          _saving = false;
+          _errorMessage =
+              'Ese jugador no tiene contraseña, así que solo puede entrar '
+              'desde el móvil donde se creó. Elige otro apodo.';
+        });
       case ContrasenaDebil():
         setState(() {
           _saving = false;

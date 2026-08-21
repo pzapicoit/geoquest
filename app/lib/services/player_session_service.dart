@@ -24,10 +24,19 @@ class ContrasenaIncorrecta extends EntradaResult {
   const ContrasenaIncorrecta();
 }
 
-/// El apodo es de otro jugador que no tiene contraseña: no hay credencial que
-/// comprobar y darlo de alta se lo arrebataría a su dueño.
+/// El apodo lo tiene otro jugador. Se usa cuando alguien se lo queda entre la
+/// consulta de estado y el alta, y cuando ninguna sugerencia de invitado queda
+/// libre.
 class ApodoOcupado extends EntradaResult {
   const ApodoOcupado();
+}
+
+/// El apodo es de otro jugador que **no tiene contraseña**: no hay credencial
+/// que comprobar para entrar, y darlo de alta se lo arrebataría a su dueño, que
+/// solo puede alcanzarlo desde el móvil donde lo creó. Se distingue de
+/// [ApodoOcupado] porque al jugador hay que explicarle por qué no entra.
+class ApodoDeJugadorSinContrasena extends EntradaResult {
+  const ApodoDeJugadorSinContrasena();
 }
 
 /// La contraseña no cumple lo que exige el proyecto.
@@ -276,7 +285,7 @@ class PlayerSessionService {
       return ponerContrasena(apodo: apodo, contrasena: contrasena);
     }
 
-    return const ApodoOcupado();
+    return const ApodoDeJugadorSinContrasena();
   }
 
   Future<void> _sesionRecienCreada() async {

@@ -147,7 +147,7 @@ void main() {
   group('entrar con un apodo sin contraseña', () {
     setUp(() => estadoApodo.estado = EstadoApodo.sinContrasena);
 
-    test('si es de otro jugador, se rechaza como ocupado', () async {
+    test('si es de otro jugador, se rechaza explicando por qué', () async {
       profile.nicknameActual = 'Otro';
 
       final resultado = await _servicio().entrar(
@@ -155,7 +155,7 @@ void main() {
         contrasena: 'secreta123',
       );
 
-      expect(resultado, isA<ApodoOcupado>());
+      expect(resultado, isA<ApodoDeJugadorSinContrasena>());
       expect(auth.updateUserCalls, 0);
       expect(profile.updateNicknameCalls, 0);
     });
@@ -433,5 +433,22 @@ void main() {
       expect(resultado, isA<EntradaFallida>());
       expect(profile.updateNicknameCalls, 0);
     });
+  });
+
+  test('el apodo ocupado en la carrera no se confunde con el del invitado sin '
+      'contraseña', () async {
+    // Son dos situaciones distintas y el jugador necesita saber cuál le pasa:
+    // una es "prueba otro apodo", la otra es "ese perfil solo vive en otro
+    // móvil".
+    estadoApodo.estado = EstadoApodo.libre;
+    profile.throwOnNextCall = const AliasEnUsoException();
+
+    final carrera = await _servicio().entrar(
+      apodo: 'Pablo',
+      contrasena: 'secreta123',
+    );
+
+    expect(carrera, isA<ApodoOcupado>());
+    expect(carrera, isNot(isA<ApodoDeJugadorSinContrasena>()));
   });
 }

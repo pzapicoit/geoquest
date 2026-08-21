@@ -231,7 +231,8 @@ void main() {
     await tester.tap(_startButton);
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('ya está ocupado'), findsOneWidget);
+    expect(find.textContaining('no tiene contraseña'), findsOneWidget);
+    expect(find.textContaining('Elige otro apodo'), findsOneWidget);
     expect(find.byType(UsernameScreen), findsOneWidget);
     expect(profileGateway.updateNicknameCalls, 0);
   });
