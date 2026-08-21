@@ -210,6 +210,46 @@ Puertos configurados en `supabase/config.toml`:
 Las claves del stack **local** las imprime `supabase status` y no tienen nada que
 ver con las del proyecto remoto. No mezcles unas con otras.
 
+## Autenticación de jugadores: sin email, a propósito
+
+Un jugador entra con **apodo y contraseña**, y en este producto no hay email por
+ningún lado: ni envío, ni verificación, ni recuperación (INT-128).
+
+Supabase Auth necesita un identificador para poder usar contraseña, así que se
+usa uno **sintético, derivado del apodo en el cliente**:
+
+```
+sha256(apodo recortado y en minúsculas) en hexadecimal + "@geoquest.invalid"
+```
+
+Por eso en el panel de Auth los usuarios aparecen como cadenas hexadecimales:
+no es un dato corrupto. El dominio `.invalid` está reservado por la RFC 2606 y
+no puede enrutar correo, así que ese buzón no existe ni puede existir.
+
+Tres consecuencias que conviene tener presentes antes de tocar nada:
+
+**La confirmación de email debe seguir DESACTIVADA en el proyecto remoto.** Es
+`enable_confirmations = false` en `config.toml` (`mailer_autoconfirm: true` visto
+desde fuera). Si se activa, cada alta queda sin confirmar y **el jugador no puede
+iniciar sesión**, mientras el proyecto intenta entregar un correo a un buzón que
+no existe. Se comprueba sin credenciales:
+
+```bash
+curl -s "$SUPABASE_URL/auth/v1/settings" -H "apikey: $SUPABASE_PUBLISHABLE_KEY" \
+  | grep mailer_autoconfirm
+```
+
+**El apodo de un jugador con contraseña no se puede cambiar**, y lo impide un
+trigger sobre `profiles`. Si la identidad deriva del apodo, renombrarlo deja al
+jugador fuera de su cuenta en silencio y sin arreglo: no hay recuperación de
+contraseña que valga.
+
+**"Tener contraseña" es tenerla no vacía, no que el campo exista.** GoTrue no
+deja `auth.users.encrypted_password` a `null` en las altas anónimas, así que
+`encrypted_password is not null` se cumple para todo el mundo. El criterio bueno
+es `coalesce(encrypted_password, '') <> ''`, y está en `estado_apodo` y en el
+trigger. Costó una migración correctiva descubrirlo.
+
 ## Claves: quién usa qué
 
 Hay dos claves y la diferencia importa.
@@ -245,3 +285,9 @@ el paso 2 de la puesta en marcha.
 **Las claves de `supabase status` no funcionan contra el proyecto remoto**
 
 Son las del stack local. Para el remoto usa `.env.local`.
+
+**Un jugador crea su cuenta pero no puede entrar después**
+
+Lo primero a mirar es la confirmación de email del proyecto: si está activada,
+el alta queda sin confirmar y el acceso falla. Ver "Autenticación de jugadores"
+más arriba.

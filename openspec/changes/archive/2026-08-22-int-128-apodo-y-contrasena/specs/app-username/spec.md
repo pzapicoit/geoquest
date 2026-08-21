@@ -1,12 +1,6 @@
-# app-username Specification
-
-## Purpose
-TBD - created by archiving change int-89-nombre-usuario. Update Purpose after archive.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Campo de apodo obligatorio con validación de longitud
-
 La pantalla de acceso SHALL mostrar un campo de texto para el apodo del jugador y
 un campo para su contraseña, y SHALL exigir una longitud mínima y máxima en el
 apodo, y la longitud mínima de contraseña del proyecto, antes de permitir
@@ -39,7 +33,6 @@ continuar.
 - **THEN** el campo no admite caracteres adicionales más allá del máximo
 
 ### Requirement: Guardar el apodo y navegar al Mapa de temáticas
-
 Al pulsar el botón principal con apodo y contraseña válidos, el sistema SHALL
 resolver con una sola acción del jugador si ese apodo está libre, si es de un
 jugador con contraseña o si es de un jugador sin contraseña, y en consecuencia
@@ -90,17 +83,7 @@ almacenamiento local del dispositivo y SHALL navegar al Mapa de temáticas.
 - **THEN** la pantalla muestra un error explícito y no navega
 - **AND** el jugador puede reintentar sin tener que volver a escribir el apodo
 
-### Requirement: Sugerencia de apodo aleatorio
-La pantalla SHALL ofrecer una acción para rellenar el campo con un apodo
-sugerido aleatoriamente, sin que el jugador tenga que escribirlo.
-
-#### Scenario: El jugador pide una sugerencia
-- **WHEN** el jugador pulsa el botón de sugerencia de apodo
-- **THEN** el campo de texto se rellena con un apodo no vacío tomado de una
-  lista de sugerencias
-
 ### Requirement: Mensaje de tranquilidad sobre la sesión anónima
-
 La pantalla SHALL explicar en un texto breve para qué sirve la contraseña: volver a
 entrar en el perfil y recuperar el progreso desde este dispositivo o desde otro.
 La pantalla SHALL advertir además de que la contraseña no se puede recuperar. La
@@ -118,7 +101,6 @@ vinculación de una cuenta como la única forma de no perder el progreso.
 - **THEN** no se muestra ningún texto que afirme que no hay contraseñas por ahora
 
 ### Requirement: Acceso rápido como invitado
-
 La pantalla de acceso SHALL ofrecer una acción "Entrar sin cuenta como invitado"
 que deje al jugador con un **perfil nuevo sin contraseña**, con un apodo tomado de
 la lista de sugerencias, sin exigir que escriba nada. Esta acción NO SHALL entrar
@@ -136,6 +118,8 @@ que podrían coincidir con el apodo de otro jugador.
 - **WHEN** el apodo sugerido para el invitado ya pertenece a otro jugador
 - **THEN** la app no entra en ese perfil
 - **AND** el invitado acaba con un perfil nuevo y un apodo libre
+
+## ADDED Requirements
 
 ### Requirement: Ponerse contraseña desde la propia app
 

@@ -11,7 +11,12 @@ import 'package:geoquest/services/username_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'package:geoquest/services/player_roster_storage.dart';
+import 'package:geoquest/services/player_session_service.dart';
+
 import 'fakes/fake_auth_gateway.dart';
+import 'fakes/fake_estado_apodo_gateway.dart';
+import 'fakes/fake_profile_gateway.dart';
 import 'fakes/fake_camino_gateway.dart';
 
 const _config = AppConfig.forTesting(
@@ -25,15 +30,28 @@ Widget _pantalla({
   required AnonymousSessionService service,
   Duration minDuration = Duration.zero,
   CaminoGateway? caminoGateway,
-}) => MaterialApp(
-  home: SplashScreen(
-    config: _config,
-    sessionService: service,
-    usernameStorage: UsernameStorage(),
-    caminoGateway: caminoGateway ?? FakeCaminoGateway(_caminoVacio),
-    minDuration: minDuration,
-  ),
-);
+}) {
+  final usernameStorage = UsernameStorage();
+
+  return MaterialApp(
+    home: SplashScreen(
+      config: _config,
+      sessionService: service,
+      usernameStorage: usernameStorage,
+      caminoGateway: caminoGateway ?? FakeCaminoGateway(_caminoVacio),
+      // Igual que `caminoGateway`: si no se inyecta, la pantalla de entrada
+      // construiría el suyo contra `Supabase.instance`, que aquí no existe.
+      playerSessionService: PlayerSessionService(
+        auth: FakeAuthGateway(),
+        profile: FakeProfileGateway(),
+        estadoApodo: FakeEstadoApodoGateway(),
+        usernameStorage: usernameStorage,
+        roster: PlayerRosterStorage(),
+      ),
+      minDuration: minDuration,
+    ),
+  );
+}
 
 Session _fakeSession() => Session(
   accessToken: 'fake-access-token',

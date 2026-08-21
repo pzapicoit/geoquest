@@ -1,12 +1,6 @@
-# player-alias-uniqueness Specification
-
-## Purpose
-TBD - created by syncing change int-111-panel-jugadores-delta-1. Update Purpose after archive.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Alias único entre jugadores
-
 El sistema SHALL impedir que dos perfiles con `role = 'jugador'` compartan el
 mismo `nombre`. La unicidad es lo que permite que un apodo identifique a un
 jugador y solo a uno, y con este cambio pasa a ser además la base de su
@@ -48,4 +42,3 @@ existan perfiles confundibles entre sí de los que solo uno sea el legítimo.
 #### Scenario: Migración de datos existentes duplicados
 - **WHEN** se aplica la migración sobre perfiles con alias duplicados
 - **THEN** se conserva el alias del perfil más antiguo de cada grupo (por fecha de alta) y a los demás se les añade un sufijo numerado (" (2)", " (3)"...), truncando la parte base si hace falta para no superar los 16 caracteres permitidos
-
