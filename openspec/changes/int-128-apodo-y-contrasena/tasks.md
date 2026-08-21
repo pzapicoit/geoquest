@@ -1,7 +1,7 @@
 ## 1. Proyecto Supabase — desactivar la confirmación de email
 
-- [ ] 1.1 Revisar qué cambiaría `supabase config push` en el remoto además de la confirmación: `site_url` (hoy `127.0.0.1:3000` en el fichero), `additional_redirect_urls`, `jwt_expiry` y los rate limits. Dejar `config.toml` con los valores que se quieren en remoto **antes** de empujar (D3).
-- [ ] 1.2 `supabase config push` y comprobar con `curl $SUPABASE_URL/auth/v1/settings` que `mailer_autoconfirm` pasa a `true`. Es la verificación válida, no el listado del CLI.
+- [x] 1.1 Revisar qué cambiaría `supabase config push` en el remoto además de la confirmación: `site_url` (hoy `127.0.0.1:3000` en el fichero), `additional_redirect_urls`, `jwt_expiry` y los rate limits. Dejar `config.toml` con los valores que se quieren en remoto **antes** de empujar (D3).
+- [x] 1.2 `supabase config push` y comprobar con `curl $SUPABASE_URL/auth/v1/settings` que `mailer_autoconfirm` pasa a `true`. Es la verificación válida, no el listado del CLI. Hecho: además de la confirmación cambiaron `max_frequency` (1m→1s) y `otp_length` (8→6), ambos de OTP por email, que este producto no usa.
 - [ ] 1.3 Documentar en `backend/README.md` que la confirmación de email debe quedar desactivada y por qué (la identidad interna es sintética y no puede recibir correo), para que un clon no lo descubra por un login que falla.
 
 ## 2. Backend — estado del apodo y bloqueo de renombrado
@@ -45,6 +45,6 @@
 - [x] 5.1 `flutter test` en verde, incluidos los tests existentes de `username_screen`, `login_screen`, `profile_gateway` y `anonymous_session_service` que cambian de expectativa.
 - [x] 5.2 `flutter test --coverage` sin bajar la cobertura previa; los servicios nuevos cubiertos.
 - [x] 5.3 `flutter analyze` y `dart format --set-exit-if-changed` limpios.
-- [ ] 5.4 Prueba local end-to-end contra el remoto: crear jugador A con contraseña y puntos; cambiar a jugador B nuevo; volver a A con su contraseña y comprobar puntuación, camino y comodines; comprobar que A sigue en la clasificación; comprobar que una contraseña mal escrita no entra; comprobar que el apodo de un invitado antiguo sale como ocupado.
+- [x] 5.4 Prueba local end-to-end contra el remoto: crear jugador A con contraseña y puntos; cambiar a jugador B nuevo; volver a A con su contraseña y comprobar puntuación, camino y comodines; comprobar que A sigue en la clasificación; comprobar que una contraseña mal escrita no entra; comprobar que el apodo de un invitado antiguo sale como ocupado.
 - [ ] 5.5 Prueba de la conversión: entrar como invitado, acumular algún punto, ponerse contraseña, y comprobar que el perfil es el mismo (mismo apodo, mismos puntos) y que se puede entrar con esa contraseña tras un cambio de jugador.
-- [ ] 5.6 Comprobar a mano que el trigger de D4 rechaza un `update` de `profiles.nombre` sobre un jugador con contraseña, y lo permite sobre uno sin ella.
+- [x] 5.6 Comprobar a mano que el trigger de D4 rechaza un `update` de `profiles.nombre` sobre un jugador con contraseña, y lo permite sobre uno sin ella.
