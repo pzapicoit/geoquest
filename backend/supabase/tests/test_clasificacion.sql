@@ -44,11 +44,26 @@ declare
   v_jug_c uuid := 'aaaaaaaa-0000-0000-0000-000000000003';
   v_jug_d uuid := 'aaaaaaaa-0000-0000-0000-000000000004';
   v_jug_e uuid := 'aaaaaaaa-0000-0000-0000-000000000005';
+  -- INT-123: tres jugadores mas, todos con progreso en una PARADA NUEVA
+  -- (v_camino_3, tematica aparte) para no alterar los conteos y posiciones
+  -- exactas que clasificacion_por_camino/por_tematica ya afirman sobre
+  -- v_camino_1/v_tematica.
+  --   F: progreso con mejor_puntaje 0 -> clasificado con 0, distinto de D
+  --      (que no tiene ninguna fila).
+  --   G: una fila real (100) mas una HUERFANA (camino_id NULL, 9999) que no
+  --      debe contar.
+  --   H: tres intentos con respuesta acertada en la misma parada (15000 en
+  --      respuestas_desafio) pero mejor_puntaje 800 -> repetir no acumula.
+  v_jug_f uuid := 'aaaaaaaa-0000-0000-0000-000000000006';
+  v_jug_g uuid := 'aaaaaaaa-0000-0000-0000-000000000007';
+  v_jug_h uuid := 'aaaaaaaa-0000-0000-0000-000000000008';
 
   v_tematica uuid := 'bbbbbbbb-0000-0000-0000-000000000001';
   v_tematica_inexistente uuid := 'bbbbbbbb-9999-9999-9999-999999999999';
   v_camino_1 uuid := 'cccccccc-0000-0000-0000-000000000001';
   v_camino_2 uuid := 'cccccccc-0000-0000-0000-000000000002';
+  v_tematica_2 uuid := 'bbbbbbbb-0000-0000-0000-000000000002';
+  v_camino_3 uuid := 'cccccccc-0000-0000-0000-000000000003';
   v_camino_inexistente uuid := 'cccccccc-9999-9999-9999-999999999999';
   v_desafio_1 uuid := 'dddddddd-0000-0000-0000-000000000001';
   v_desafio_2 uuid := 'dddddddd-0000-0000-0000-000000000002';
@@ -57,6 +72,11 @@ declare
   v_intento_b uuid;
   v_intento_c uuid;
   v_intento_e uuid;
+  v_intento_h1 uuid;
+  v_intento_h2 uuid;
+  v_intento_h3 uuid;
+  v_puntuacion_antes bigint;
+  v_puntuacion_tematica bigint;
 
   -- Escalares de scratch reutilizados en cada asercion.
   v_n integer;
@@ -75,12 +95,16 @@ begin
   -- 1) Jugadores: auth.users dispara handle_new_user, que crea profiles con
   -- nombre aleatorio -- lo sobrescribimos para poder comprobar el paso a
   -- traves de nombre/avatar_url.
-  insert into auth.users (id) values (v_jug_a), (v_jug_b), (v_jug_c), (v_jug_d), (v_jug_e);
+  insert into auth.users (id) values (v_jug_a), (v_jug_b), (v_jug_c), (v_jug_d), (v_jug_e),
+    (v_jug_f), (v_jug_g), (v_jug_h);
   update profiles set nombre = 'Jugador A', avatar_url = 'a.png' where id = v_jug_a;
   update profiles set nombre = 'Jugador B', avatar_url = 'b.png' where id = v_jug_b;
   update profiles set nombre = 'Jugador C', avatar_url = 'c.png' where id = v_jug_c;
   update profiles set nombre = 'Jugador D', avatar_url = null where id = v_jug_d;
   update profiles set nombre = 'Jugador E', avatar_url = null where id = v_jug_e;
+  update profiles set nombre = 'Jugador F', avatar_url = null where id = v_jug_f;
+  update profiles set nombre = 'Jugador G', avatar_url = null where id = v_jug_g;
+  update profiles set nombre = 'Jugador H', avatar_url = null where id = v_jug_h;
 
   -- 2) Tematica + dos paradas de camino (dificultad 'facil', ya seedeada en
   -- dificultad_defaults). Orden muy alto para no chocar con datos reales.
@@ -90,6 +114,13 @@ begin
   values
     (v_camino_1, 900001, v_tematica, 'facil', 'Test parada 1'),
     (v_camino_2, 900002, v_tematica, 'facil', 'Test parada 2');
+
+  -- INT-123: tematica y parada aisladas para los fixtures F/G/H, para que no
+  -- toquen las aserciones exactas de v_camino_1 / v_tematica.
+  insert into tematicas (id, nombre, imagen_portada, orden, objetivo_global)
+  values (v_tematica_2, 'Test INT-123', 'y.png', 900002, '¿Dónde está esto?');
+  insert into camino (id, orden, tematica_id, dificultad, nombre)
+  values (v_camino_3, 900003, v_tematica_2, 'facil', 'Test parada 3');
 
   -- 3) progreso_usuario_nivel: se inserta directo (sin RPC), esta tabla no
   -- tiene trigger que recalcule sus columnas. Fuente de clasificacion_por_
@@ -106,7 +137,13 @@ begin
     (v_jug_a, v_camino_2, true, 200, true),
     (v_jug_b, v_camino_1, true, 300, true),
     (v_jug_c, v_camino_1, true, 300, true),
-    (v_jug_e, v_camino_1, false, 50, true);
+    (v_jug_e, v_camino_1, false, 50, true),
+    (v_jug_f, v_camino_3, false, 0, true),
+    (v_jug_g, v_camino_3, true, 100, true),
+    -- Huerfana: camino_id NULL (historial de una parada que ya no existe en
+    -- el camino, ver el raise warning de 20260818121000). No debe contar.
+    (v_jug_g, null, true, 9999, true),
+    (v_jug_h, v_camino_3, true, 800, true);
 
   -- 4) respuestas_desafio: fuente de clasificacion_global. El trigger
   -- respuestas_desafio_calcular_antes_de_insertar RECALCULA puntos/
@@ -138,10 +175,30 @@ begin
   insert into respuestas_desafio (intento_id, desafio_id, lat_adivinada, lng_adivinada)
   values (v_intento_e, v_desafio_1, null, null);
 
+  -- INT-123: H juega TRES veces la misma parada y acierta las tres. En
+  -- respuestas_desafio eso son 15000 puntos; su mejor_puntaje es 800. Bajo la
+  -- formula vieja (sum de respuestas_desafio) su puntuacion global habria sido
+  -- 15000; con la nueva es 800. Es el caso que da nombre a INT-123.
+  insert into intentos_nivel (id, usuario_id, camino_id) values (gen_random_uuid(), v_jug_h, v_camino_3) returning id into v_intento_h1;
+  insert into intentos_nivel (id, usuario_id, camino_id) values (gen_random_uuid(), v_jug_h, v_camino_3) returning id into v_intento_h2;
+  insert into intentos_nivel (id, usuario_id, camino_id) values (gen_random_uuid(), v_jug_h, v_camino_3) returning id into v_intento_h3;
+  insert into respuestas_desafio (intento_id, desafio_id, lat_adivinada, lng_adivinada)
+  values
+    (v_intento_h1, v_desafio_1, 0, 0),
+    (v_intento_h2, v_desafio_1, 0, 0),
+    (v_intento_h3, v_desafio_1, 0, 0);
+
   -- ======================================================================
   -- clasificacion_global (dataset compartido con datos reales -- ver nota
   -- de cabecera: solo se comprueban valores/relaciones propias, nunca
   -- conteos totales ni posiciones absolutas)
+  --
+  -- INT-123: la fuente pasa de sum(respuestas_desafio.puntos) a
+  -- sum(progreso_usuario_nivel.mejor_puntaje) con join a camino. Por eso los
+  -- valores esperados de A/B/C/E cambian aqui aunque su progreso no: A pasa
+  -- de 10000 (2 respuestas x 5000) a 500 (300 + 200 de mejor_puntaje), B y C
+  -- de 5000 a 300, y E de 0 a 50 -- E tenia una respuesta sin pin (0 puntos)
+  -- pero su fila de progreso vale 50.
   -- ======================================================================
 
   perform set_config('request.jwt.claim.sub', v_jug_a::text, true);
@@ -158,31 +215,129 @@ begin
   from clasificacion_global(50) t
   where t.usuario_id = v_jug_a;
 
-  if v_puntuacion <> 10000 or v_posicion_a is null or not v_actual or v_niveles <> 2 or v_nombre <> 'Jugador A' then
+  if v_puntuacion <> 500 or v_posicion_a is null or not v_actual or v_niveles <> 2 or v_nombre <> 'Jugador A' then
     raise exception 'fila de A en clasificacion_global incorrecta: puntuacion=%, posicion=%, actual=%, niveles=%, nombre=%',
       v_puntuacion, v_posicion_a, v_actual, v_niveles, v_nombre;
   end if;
 
-  -- Empate: B y C tienen la misma puntuacion (5000) y deben compartir
-  -- posicion, y ambos por detras de A (que sumo el doble).
+  -- Empate: B y C tienen la misma puntuacion (300, su mejor_puntaje en
+  -- camino_1) y deben compartir posicion, y ambos por detras de A (que suma
+  -- 500 al tener tambien camino_2).
+  --
+  -- INT-123: cada uno se consulta SUPLANTANDOLO, no desde A. `posicion` es un
+  -- rank() sobre el conjunto completo, asi que el valor es absoluto y se puede
+  -- comparar entre llamadas; y asi la fila viaja siempre aunque el jugador
+  -- caiga fuera del top 50 de datos reales. Consultandolos como A, un jugador
+  -- fuera del top dejaria su variable en NULL y las comparaciones con NULL no
+  -- se cumplirian: el test pasaria en vacio. El riesgo es mayor desde INT-123,
+  -- porque las puntuaciones fixture bajan de miles a cientos.
+  perform set_config('request.jwt.claim.sub', v_jug_b::text, true);
   select t.posicion into v_posicion_b from clasificacion_global(50) t where t.usuario_id = v_jug_b;
+  perform set_config('request.jwt.claim.sub', v_jug_c::text, true);
   select t.posicion into v_posicion_c from clasificacion_global(50) t where t.usuario_id = v_jug_c;
+  if v_posicion_b is null or v_posicion_c is null then
+    raise exception 'B y C deberian traer posicion real en clasificacion_global (la fila propia viaja siempre), dieron % y %', v_posicion_b, v_posicion_c;
+  end if;
   if v_posicion_b <> v_posicion_c then
     raise exception 'B y C deberian empatar en posicion en clasificacion_global, dieron % y %', v_posicion_b, v_posicion_c;
   end if;
   if v_posicion_b <= v_posicion_a then
-    raise exception 'B/C (5000 puntos) deberian quedar por detras de A (10000 puntos) en clasificacion_global';
+    raise exception 'B/C (300 puntos) deberian quedar por detras de A (500 puntos) en clasificacion_global';
   end if;
 
-  -- E respondio (puntos 0) y SI aparece clasificado, distinto de "sin
-  -- puntuacion agregable": posicion real (no null), y por detras de B/C.
+  -- E no supero la parada pero tiene mejor_puntaje 50: cuenta. Lo que decide
+  -- si un jugador esta clasificado es tener fila de progreso, no haber
+  -- superado nada.
+  perform set_config('request.jwt.claim.sub', v_jug_e::text, true);
   select t.puntuacion, t.posicion into v_puntuacion, v_posicion_e from clasificacion_global(50) t where t.usuario_id = v_jug_e;
-  if v_puntuacion <> 0 or v_posicion_e is null then
-    raise exception 'E deberia aparecer clasificado con puntuacion 0 y una posicion real (no NULL), dio puntuacion=% posicion=%', v_puntuacion, v_posicion_e;
+  if v_puntuacion is null or v_puntuacion <> 50 or v_posicion_e is null then
+    raise exception 'E deberia aparecer clasificado con puntuacion 50 y una posicion real (no NULL), dio puntuacion=% posicion=%', v_puntuacion, v_posicion_e;
   end if;
   if v_posicion_e <= v_posicion_b then
-    raise exception 'E (0 puntos) deberia quedar por detras de B/C (5000 puntos) en clasificacion_global';
+    raise exception 'E (50 puntos) deberia quedar por detras de B/C (300 puntos) en clasificacion_global';
   end if;
+
+  -- INT-123 -- los tres jugadores nuevos se comprueban SUPLANTANDO A CADA UNO,
+  -- no desde A. clasificacion_global solo devuelve el top N mas la fila de
+  -- quien llama (D4 de INT-109), y este remoto tiene datos reales: F (0),
+  -- G (100) y H (800) pueden caer fuera del top 50 de verdad. Consultandolos
+  -- como A, el SELECT INTO no encontraria fila, dejaria las variables en NULL
+  -- y las comparaciones `<>` con NULL no se cumplirian -- el test pasaria sin
+  -- comprobar nada. Llamando como cada uno, su fila viaja siempre.
+  --
+  -- Y aun asi cada asercion exige `is not null` explicitamente: si algun dia
+  -- la regla de la fila propia se rompiera, estos tests deben fallar, no
+  -- volverse vacios.
+
+  -- F tiene fila de progreso con mejor_puntaje 0: SI clasificado, con posicion
+  -- real. Es el caso que antes cubria E (respuesta sin pin) y que distingue
+  -- "jugo y saco 0" de "no tiene ninguna fila" (D, mas abajo).
+  perform set_config('request.jwt.claim.sub', v_jug_f::text, true);
+  select t.puntuacion, t.posicion, t.niveles_superados
+  into v_puntuacion, v_posicion, v_niveles
+  from clasificacion_global(50) t where t.usuario_id = v_jug_f;
+  if v_puntuacion is null or v_puntuacion <> 0 or v_posicion is null or v_niveles <> 0 then
+    raise exception 'F (progreso con 0 puntos) deberia estar clasificado con puntuacion 0, posicion real y 0 niveles; dio puntuacion=% posicion=% niveles=%',
+      v_puntuacion, v_posicion, v_niveles;
+  end if;
+
+  -- Repetir una parada no acumula: H tiene 15000 puntos repartidos en tres
+  -- respuestas acertadas sobre la MISMA parada, y su mejor_puntaje es 800. La
+  -- formula vieja (sum de respuestas_desafio) le habria dado 15000.
+  perform set_config('request.jwt.claim.sub', v_jug_h::text, true);
+  select t.puntuacion, t.niveles_superados into v_puntuacion, v_niveles
+  from clasificacion_global(50) t where t.usuario_id = v_jug_h;
+  if v_puntuacion is null or v_puntuacion <> 800 then
+    raise exception 'H deberia puntuar 800 (su mejor intento), no la suma de sus tres respuestas (15000); dio %', v_puntuacion;
+  end if;
+  if v_niveles is null or v_niveles <> 1 then
+    raise exception 'H deberia contar 1 nivel superado pese a sus tres intentos, dio %', v_niveles;
+  end if;
+
+  -- Mejorar SI sube, y solo por la diferencia: 800 -> 1300 debe subir el total
+  -- de H en 500, no en 1300.
+  v_puntuacion_antes := v_puntuacion;
+  update progreso_usuario_nivel set mejor_puntaje = 1300
+  where usuario_id = v_jug_h and camino_id = v_camino_3;
+  select t.puntuacion into v_puntuacion from clasificacion_global(50) t where t.usuario_id = v_jug_h;
+  if v_puntuacion is null or v_puntuacion - v_puntuacion_antes <> 500 then
+    raise exception 'mejorar de 800 a 1300 deberia subir la puntuacion de H en 500, subio %', v_puntuacion - v_puntuacion_antes;
+  end if;
+  -- Se deja como estaba para no arrastrar el cambio a las aserciones de abajo.
+  update progreso_usuario_nivel set mejor_puntaje = 800
+  where usuario_id = v_jug_h and camino_id = v_camino_3;
+
+  -- El progreso huerfano (camino_id NULL) no cuenta: G tiene una fila real de
+  -- 100 y una huerfana de 9999. El join a camino la descarta, con el mismo
+  -- criterio que ya aplicaba clasificacion_por_tematica.
+  perform set_config('request.jwt.claim.sub', v_jug_g::text, true);
+  select t.puntuacion into v_puntuacion from clasificacion_global(50) t where t.usuario_id = v_jug_g;
+  if v_puntuacion is null or v_puntuacion <> 100 then
+    raise exception 'G deberia puntuar 100 (su unica parada del camino), no 10099 sumando la fila huerfana; dio %', v_puntuacion;
+  end if;
+
+  -- Vuelta a A para lo que queda de esta seccion: las dos aserciones de abajo
+  -- son sobre su progreso, y su fila viaja siempre por ser quien llama.
+  perform set_config('request.jwt.claim.sub', v_jug_a::text, true);
+
+  -- Global y por_tematica miden lo mismo: todo el progreso de A esta en
+  -- v_tematica, asi que ambas funciones deben darle la misma cifra.
+  select t.puntuacion into v_puntuacion from clasificacion_global(50) t where t.usuario_id = v_jug_a;
+  select t.puntuacion into v_puntuacion_tematica
+  from clasificacion_por_tematica(v_tematica, 50) t where t.usuario_id = v_jug_a;
+  if v_puntuacion is null or v_puntuacion_tematica is null or v_puntuacion <> v_puntuacion_tematica then
+    raise exception 'clasificacion_global (%) y clasificacion_por_tematica (%) deberian coincidir para A, cuyo progreso esta todo en esa tematica',
+      v_puntuacion, v_puntuacion_tematica;
+  end if;
+
+  -- Desactivar una parada no borra los puntos ya ganados (D7 de INT-109 sigue
+  -- vivo con el join a camino, que NO filtra por activo).
+  update camino set activo = false where id = v_camino_2;
+  select t.puntuacion into v_puntuacion from clasificacion_global(50) t where t.usuario_id = v_jug_a;
+  if v_puntuacion is null or v_puntuacion <> 500 then
+    raise exception 'desactivar camino_2 no deberia quitarle a A los 200 puntos que gano ahi; dio %', v_puntuacion;
+  end if;
+  update camino set activo = true where id = v_camino_2;
 
   -- Fila propia siempre presente y sin duplicar, dentro o fuera del top
   -- fisico (con datos reales de por medio no se puede saber si A/E/D caen

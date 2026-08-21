@@ -20,6 +20,8 @@ class ParadaCamino {
     required this.estrellasAcumuladasUsuario,
     required this.desbloqueado,
     required this.esActual,
+    required this.mejorPuntaje,
+    required this.puntosAcumulados,
     this.imagenPortadaUrl,
   });
 
@@ -34,15 +36,34 @@ class ParadaCamino {
   final int estrellasAcumuladasUsuario;
   final bool desbloqueado;
   final bool esActual;
+
+  /// Puntaje del **mejor intento** del jugador sobre esta parada, tal cual lo
+  /// da `camino_jugador.mejor_puntaje` (0 si nunca la jugó). Repetir la parada
+  /// solo puede subirlo, nunca acumular: el `greatest(...)` de
+  /// `cerrar_intento_parada` lo garantiza en el servidor (INT-123).
+  final int mejorPuntaje;
+
+  /// Puntos acumulados **hasta esta parada incluida**: la suma de
+  /// [mejorPuntaje] de todas las paradas de `orden` menor o igual al de esta.
+  ///
+  /// Es el valor que pinta el indicador del riel, así que crece a lo largo del
+  /// camino y el de la última parada coincide con
+  /// [CaminoJugador.puntosTotales] (INT-123).
+  final int puntosAcumulados;
+
   final String? imagenPortadaUrl;
 }
 
 /// El camino completo del jugador, listo para pintar: paradas en orden
-/// ascendente de `orden`, más los puntos totales acumulados.
+/// ascendente de `orden`, más los puntos totales del jugador.
 class CaminoJugador {
   const CaminoJugador({required this.entradas, required this.puntosTotales});
 
   final List<ParadaCamino> entradas;
+
+  /// Suma del mejor intento de todas las paradas del camino — igual al
+  /// [ParadaCamino.puntosAcumulados] de la última parada, por construcción
+  /// (ver [construirCaminoJugador]).
   final int puntosTotales;
 }
 
@@ -61,7 +82,9 @@ class SupabaseCaminoGateway implements CaminoGateway {
   Future<CaminoJugador> fetchCamino() async {
     // `ascending` por defecto es `false` en el cliente Dart de postgrest (al
     // revés que en SQL y en postgrest-js) -- sin pasarlo explícito, el
-    // camino llega en orden inverso.
+    // camino llega en orden inverso. Y el orden aquí no es cosmético: el
+    // acumulado por parada de `construirCaminoJugador` se calcula recorriendo
+    // esta lista, así que depende de que llegue por `orden` ascendente.
     final caminoRows = await _client
         .from('camino_jugador')
         .select()
@@ -71,17 +94,17 @@ class SupabaseCaminoGateway implements CaminoGateway {
       for (final row in caminoRows) row['tematica_id'] as String,
     }.toList();
 
-    final portadasFuture = tematicaIds.isEmpty
-        ? Future.value(<Map<String, dynamic>>[])
-        : _client
+    // Hasta INT-123 aquí había una segunda consulta en paralelo que se traía
+    // TODAS las filas de `respuestas_desafio` del jugador para sumar sus
+    // `puntos` en cliente. Ya no hace falta: la puntuación sale de
+    // `camino_jugador.mejor_puntaje`, que además es la cifra correcta (el
+    // mejor intento por parada, no el histórico acumulado).
+    final portadaRows = tematicaIds.isEmpty
+        ? const <Map<String, dynamic>>[]
+        : await _client
               .from('tematicas')
               .select('id, imagen_portada')
               .inFilter('id', tematicaIds);
-    final puntosFuture = _client.from('respuestas_desafio').select('puntos');
-
-    final resultados = await Future.wait([portadasFuture, puntosFuture]);
-    final portadaRows = resultados[0];
-    final puntosRows = resultados[1];
 
     // `tematicas.imagen_portada` ya guarda la URL pública completa (el
     // panel la resuelve una vez con `getPublicUrl` al subir la portada y
@@ -93,42 +116,65 @@ class SupabaseCaminoGateway implements CaminoGateway {
           row['id'] as String: row['imagen_portada'] as String,
     };
 
-    final paradas = [
-      for (final row in caminoRows) _mapearParada(row, portadaPorTematica),
-    ];
-
-    return CaminoJugador(
-      entradas: paradas,
-      puntosTotales: sumarPuntos(puntosRows),
-    );
-  }
-
-  ParadaCamino _mapearParada(
-    Map<String, dynamic> row,
-    Map<String, String> portadaPorTematica,
-  ) {
-    return ParadaCamino(
-      caminoId: row['camino_id'] as String,
-      orden: row['orden'] as int,
-      nivelNombre: row['nombre'] as String?,
-      tematicaId: row['tematica_id'] as String,
-      tematicaNombre: row['tematica_nombre'] as String,
-      superado: row['superado'] as bool,
-      estrellasObtenidas: row['estrellas_obtenidas'] as int,
-      estrellasRequeridas: row['estrellas_requeridas'] as int,
-      estrellasAcumuladasUsuario: row['estrellas_acumuladas_usuario'] as int,
-      desbloqueado: row['desbloqueado'] as bool,
-      esActual: row['es_actual'] as bool,
-      imagenPortadaUrl: portadaPorTematica[row['tematica_id'] as String],
-    );
+    return construirCaminoJugador(caminoRows, portadaPorTematica);
   }
 }
 
-/// Suma el campo `puntos` de las filas de `respuestas_desafio`. Función pura
-/// para poder probarla sin red (INT-90).
-int sumarPuntos(List<Map<String, dynamic>> respuestas) {
-  return respuestas.fold(
-    0,
-    (total, row) => total + (row['puntos'] as num).toInt(),
+/// Construye el camino del jugador a partir de las filas de `camino_jugador`
+/// **ya ordenadas por `orden` ascendente**, resolviendo de una pasada el
+/// acumulado de cada parada y el total del jugador.
+///
+/// D3 de `design.md` (INT-123): el acumulado de cada parada y el total salen
+/// del mismo recorrido sobre la misma lista, así que el acumulado de la última
+/// parada *es* el total y no pueden divergir. Esa es la razón de calcularlo
+/// aquí y no con una `window function` en la vista: con el acumulado viniendo
+/// del servidor y el total de otra suma aparte serían dos cálculos que hay que
+/// mantener de acuerdo, y el criterio de aceptación es justamente que
+/// coincidan.
+///
+/// Función pura (no toca la red) para poder probarla con filas de mentira,
+/// igual que hacía `sumarPuntos` antes de INT-123.
+CaminoJugador construirCaminoJugador(
+  List<Map<String, dynamic>> caminoRows,
+  Map<String, String> portadaPorTematica,
+) {
+  var acumulado = 0;
+  final paradas = <ParadaCamino>[];
+
+  for (final row in caminoRows) {
+    // `camino_jugador` ya devuelve la columna con `coalesce(..., 0)`, así que
+    // el `?? 0` cubre solo el caso de una fila que no la traiga en absoluto
+    // (un cliente contra una base sin la migración de INT-123 aplicada).
+    final mejorPuntaje = (row['mejor_puntaje'] as num?)?.toInt() ?? 0;
+    acumulado += mejorPuntaje;
+    paradas.add(
+      _mapearParada(row, portadaPorTematica, mejorPuntaje, acumulado),
+    );
+  }
+
+  return CaminoJugador(entradas: paradas, puntosTotales: acumulado);
+}
+
+ParadaCamino _mapearParada(
+  Map<String, dynamic> row,
+  Map<String, String> portadaPorTematica,
+  int mejorPuntaje,
+  int puntosAcumulados,
+) {
+  return ParadaCamino(
+    caminoId: row['camino_id'] as String,
+    orden: row['orden'] as int,
+    nivelNombre: row['nombre'] as String?,
+    tematicaId: row['tematica_id'] as String,
+    tematicaNombre: row['tematica_nombre'] as String,
+    superado: row['superado'] as bool,
+    estrellasObtenidas: row['estrellas_obtenidas'] as int,
+    estrellasRequeridas: row['estrellas_requeridas'] as int,
+    estrellasAcumuladasUsuario: row['estrellas_acumuladas_usuario'] as int,
+    desbloqueado: row['desbloqueado'] as bool,
+    esActual: row['es_actual'] as bool,
+    mejorPuntaje: mejorPuntaje,
+    puntosAcumulados: puntosAcumulados,
+    imagenPortadaUrl: portadaPorTematica[row['tematica_id'] as String],
   );
 }

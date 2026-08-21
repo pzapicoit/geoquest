@@ -22,6 +22,8 @@ const _monumentos = ParadaCamino(
   estrellasAcumuladasUsuario: 480,
   desbloqueado: true,
   esActual: false,
+  mejorPuntaje: 1240,
+  puntosAcumulados: 1240,
 );
 
 const _museos = ParadaCamino(
@@ -36,6 +38,8 @@ const _museos = ParadaCamino(
   estrellasAcumuladasUsuario: 480,
   desbloqueado: false,
   esActual: false,
+  mejorPuntaje: 0,
+  puntosAcumulados: 1240,
 );
 
 final _caminoDePrueba = CaminoJugador(

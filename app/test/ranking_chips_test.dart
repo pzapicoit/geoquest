@@ -13,6 +13,8 @@ const _c1 = ParadaCamino(
   estrellasAcumuladasUsuario: 100,
   desbloqueado: true,
   esActual: false,
+  mejorPuntaje: 0,
+  puntosAcumulados: 0,
 );
 
 const _c2 = ParadaCamino(
@@ -26,6 +28,8 @@ const _c2 = ParadaCamino(
   estrellasAcumuladasUsuario: 100,
   desbloqueado: true,
   esActual: true,
+  mejorPuntaje: 0,
+  puntosAcumulados: 0,
 );
 
 const _c3 = ParadaCamino(
@@ -39,6 +43,8 @@ const _c3 = ParadaCamino(
   estrellasAcumuladasUsuario: 100,
   desbloqueado: false,
   esActual: false,
+  mejorPuntaje: 0,
+  puntosAcumulados: 0,
 );
 
 void main() {

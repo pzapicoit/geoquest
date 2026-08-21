@@ -325,7 +325,10 @@ class _RankingScreenState extends State<RankingScreen> {
   String get _subtitulo {
     switch (_pestana) {
       case _Pestana.global:
-        return 'Global · acumulado histórico';
+        // No "acumulado histórico": desde INT-123 `clasificacion_global`
+        // agrega el mejor intento de cada parada, así que repetir un nivel no
+        // suma. Prometer lo contrario aquí sería mentirle al jugador.
+        return 'Global · mejor intento por nivel';
       case _Pestana.camino:
         final chip = _buscarChipCamino(_caminoIdSeleccionado);
         if (chip != null) return 'Nivel ${chip.orden} · ${chip.tematicaNombre}';
