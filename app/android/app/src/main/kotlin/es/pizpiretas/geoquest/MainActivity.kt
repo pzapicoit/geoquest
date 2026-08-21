@@ -1,4 +1,4 @@
-package es.intermarkit.geoquest
+package es.pizpiretas.geoquest
 
 import io.flutter.embedding.android.FlutterActivity
 

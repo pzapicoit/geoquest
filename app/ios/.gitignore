@@ -27,12 +27,15 @@ Flutter/flutter_export_environment.sh
 ServiceDefinitions.json
 Runner/GeneratedPluginRegistrant.*
 
-# Resolucion de dependencias que Xcode escribe al abrir el workspace. No la lee
-# nada en este proyecto: `packageReferences` de Runner.xcodeproj esta vacio y
-# Flutter tiene Swift Package Manager desactivado, asi que las dependencias
-# nativas van por CocoaPods. Versionarla fijaria versiones de un mecanismo que
-# no se usa, y volveria a mutar cada vez que alguien abre Xcode.
+# Resolucion de dependencias de Swift Package Manager, que es por donde van
+# las dependencias nativas de este proyecto (CocoaPods se retiro: todos los
+# plugins de Flutter se resuelven ya como Swift Packages). Xcode y Flutter la
+# reescriben solos, asi que versionarla solo produce ruido en cada build.
+#
+# Son dos rutas, no una: Xcode escribe en la del workspace o en la del
+# .xcodeproj segun por donde se abra el proyecto.
 Runner.xcworkspace/xcshareddata/swiftpm/
+Runner.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/
 
 # Exceptions to above rules.
 !default.mode1v3
