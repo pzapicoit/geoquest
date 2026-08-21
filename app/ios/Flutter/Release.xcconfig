@@ -1,10 +1,17 @@
-#include? "Pods/Target Support Files/Pods-Runner/Pods-Runner.release.xcconfig"
 #include "Generated.xcconfig"
 
-// Ver Debug.xcconfig: la identidad de firma se redefine en `Local.xcconfig`,
-// no en el .pbxproj. Release y Profile comparten este fichero.
-GEOQUEST_DEVELOPMENT_TEAM = TYZG5ZZWXC
-GEOQUEST_BUNDLE_ID = es.intermarkit.geoquest
+// El equipo de firma NO va versionado: cada quien instala con el suyo, y el
+// bundle de este repositorio ya esta registrado a un equipo concreto. Sin
+// equipo el SIMULADOR compila igual (no firma nada); para un DISPOSITIVO real
+// crea `Local.xcconfig` en esta carpeta —ignorado por git— con lo tuyo:
+//
+//   GEOQUEST_DEVELOPMENT_TEAM = TUEQUIPO
+//   GEOQUEST_BUNDLE_ID = es.loquesea.geoquest
+//
+// El bundle solo hace falta redefinirlo si Xcode se niega a registrar el de
+// abajo, que es lo que pasa cuando pertenece a otro equipo de desarrollo.
+GEOQUEST_DEVELOPMENT_TEAM =
+GEOQUEST_BUNDLE_ID = es.pizpiretas.geoquest
 
 // Ver Debug.xcconfig: App ID de AdMob, test oficial de Google hasta que
 // exista cuenta real (INT-117).

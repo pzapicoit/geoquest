@@ -1,9 +1,10 @@
 {
-  "_comentario": "Copia este fichero a dart_define.json y rellena los valores. dart_define.json está gitignorado. Se pasa con: flutter run --dart-define-from-file=dart_define.json",
+  "_comentario": "Configuracion PUBLICA del proyecto de demostracion de GeoQuest. Copia este fichero a dart_define.json y ya funciona: cp dart_define.example.json dart_define.json && flutter run --dart-define-from-file=dart_define.json",
   "SUPABASE_URL": "https://xhrntgsdlnwrvwehqfgl.supabase.co",
-  "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_...",
+  "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_0bWrWkRJWubtZMq4JQhuyg_3eBpbjET",
   "_comentario_admob": "INT-117: ad units de test oficiales de Google (iOS). Sustituir por los reales cuando exista cuenta AdMob -- el App ID nativo (GADApplicationIdentifier) no va aquí, se resuelve en ios/Flutter/Debug.xcconfig y Release.xcconfig (GEOQUEST_ADMOB_APP_ID_IOS).",
   "ADMOB_AD_UNIT_REWARDED_INTERSTITIAL_IOS": "ca-app-pub-3940256099942544/6978759866",
   "_comentario_admob_delta1": "INT-117 delta-1: ad unit de RewardedAd (distinto de RewardedInterstitialAd), para el flujo bajo demanda de comodines.",
-  "ADMOB_AD_UNIT_REWARDED_IOS": "ca-app-pub-3940256099942544/1712485313"
+  "ADMOB_AD_UNIT_REWARDED_IOS": "ca-app-pub-3940256099942544/1712485313",
+  "_comentario_clave": "La clave publicable esta pensada para viajar dentro de clientes: ya va dentro de cualquier .ipa/.apk y del bundle del panel desplegado. No se salta RLS, y RLS es lo que protege los datos. La clave SECRETA (sb_secret_) nunca entra aqui."
 }
