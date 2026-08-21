@@ -1,0 +1,26 @@
+-- INT-124, remate: el `revoke execute ... from public` de
+-- 20260821210000_comodin_radio_centro_desplazado.sql no consigue lo que
+-- pretendia. Este proyecto tiene `alter default privileges in schema public
+-- grant execute on functions to anon, authenticated, service_role` (dos
+-- veces, concedido por postgres y por supabase_admin -- es la configuracion
+-- de fabrica de Supabase), asi que toda funcion nueva del esquema nace con
+-- esos grants EXPLICITOS y revocar del pseudo-rol PUBLIC no los toca.
+-- Comprobado en el remoto justo despues de aplicar la migracion anterior:
+--   desplazar_centro_radio | postgres=X | anon=X | authenticated=X | service_role=X
+--
+-- Efecto: la funcion quedaba publicada como RPC de PostgREST
+-- (POST /rest/v1/rpc/desplazar_centro_radio). No filtra nada -- es pura y
+-- solo opera sobre la coordenada que le pasa el llamante, que por tanto ya
+-- la conoce -- pero es superficie de API que nadie pidio, justo lo que la
+-- migracion anterior decia estar evitando.
+--
+-- Ojo al leer las migraciones viejas con esto en mente: el patron
+-- `revoke from public` + `grant to authenticated` de mis_comodines,
+-- usar_comodin, anuncio_debido, etc. si acaba en el estado que buscaba
+-- (authenticated puede llamarlas), pero por los grants por defecto, no por
+-- el grant explicito. Donde eso importa es en funciones que NO deben ser
+-- RPC de cliente, como esta.
+--
+-- usar_comodin sigue llamandola sin problema: es security definer y
+-- propiedad de postgres, que conserva su EXECUTE.
+revoke execute on function desplazar_centro_radio(double precision, double precision, double precision) from anon, authenticated;
