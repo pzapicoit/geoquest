@@ -2,9 +2,7 @@
 
 ## Purpose
 TBD - created by archiving change int-90-camino-niveles-home. Update Purpose after archive.
-
 ## Requirements
-
 ### Requirement: Home del jugador muestra el camino completo con progreso
 La app SHALL presentar, tras el splash con nombre de usuario ya
 guardado, una pantalla Home que lea `camino_jugador` y muestre una
@@ -18,23 +16,35 @@ parada por cada posición devuelta, en un camino vertical desplazable
 
 ### Requirement: Barra superior con identidad, progreso y puntos totales
 La Home SHALL mostrar una barra superior fija con el nombre de usuario
-guardado, un acceso al perfil y los puntos totales acumulados del
-jugador, calculados sumando `puntos` de todas sus filas de
-`respuestas_desafio`.
+guardado, un acceso al perfil y los puntos totales del jugador, calculados
+sumando el mejor intento (`mejor_puntaje`) de todas las paradas que devuelve
+`camino_jugador`.
+
+La Home NO SHALL consultar `respuestas_desafio` para calcular ese total:
+sale de la misma lectura de `camino_jugador` con la que pinta el camino.
 
 #### Scenario: Se cargan los puntos totales del jugador
 - **WHEN** la Home termina de cargar el progreso del jugador
-- **THEN** la barra superior muestra la suma de `puntos` de todas las
-  respuestas del jugador autenticado
+- **THEN** la barra superior muestra la suma de `mejor_puntaje` de todas las
+  paradas de su camino
 
 #### Scenario: Jugador sin respuestas todavía
 - **WHEN** un jugador que nunca respondió ningún desafío abre la Home
 - **THEN** la barra superior muestra 0 puntos totales
 
+#### Scenario: Repetir una parada no sube el total
+- **WHEN** un jugador vuelve a jugar una parada ya superada y saca menos
+  puntos que su mejor intento
+- **THEN** el total de la barra superior no cambia
+
+#### Scenario: El total se calcula sin consultar las respuestas
+- **WHEN** la Home carga el progreso del jugador
+- **THEN** no se emite ninguna consulta a `respuestas_desafio`
+
 ### Requirement: Estado visual de parada superada
-Toda parada cuya posición de `camino_jugador` traiga `superado = true`
-SHALL mostrarse a color (sin atenuar) y con sus `estrellas_obtenidas`
-(1 a 3) representadas visualmente.
+Toda parada cuya posición de `camino_jugador` traiga `superado = true` SHALL
+mostrarse a color (sin atenuar) y con sus `estrellas_obtenidas` (1 a 3)
+representadas visualmente.
 
 #### Scenario: Parada con dos estrellas obtenidas
 - **WHEN** una posición trae `superado = true` y
@@ -194,12 +204,11 @@ completo), el botón no SHALL mostrarse.
 - **THEN** la Home no muestra el botón fijo de jugar
 
 ### Requirement: Camino corto queda apoyado sobre el botón, no pegado al fondo
-Cuando el conjunto de paradas no llene el espacio visible
-entre la barra superior y el botón fijo de jugar, la Home SHALL
-mantenerlo apoyado justo encima del botón (con un margen pequeño y
-fijo), dejando el hueco sobrante hacia la barra superior, en vez de
-anclarlo al borde inferior de la pantalla o centrarlo repartiendo el
-hueco arriba y abajo.
+La Home SHALL mantener el camino apoyado justo encima del botón fijo de jugar
+(con un margen pequeño y fijo) cuando el conjunto de paradas no llene el espacio
+visible entre la barra superior y ese botón, dejando el hueco sobrante hacia la
+barra superior, en vez de anclarlo al borde inferior de la pantalla o centrarlo
+repartiendo el hueco arriba y abajo.
 
 #### Scenario: Camino con una sola parada
 - **WHEN** el camino tiene una única posición y su altura es menor que
@@ -225,10 +234,11 @@ una altura reducida.
 
 ### Requirement: El camino recarga su progreso al volver de jugar
 
-La Home SHALL volver a leer `camino_jugador` y los puntos totales del
-jugador al volver de la pantalla de juego de un nivel (desde el resumen
-del nivel, ya sea "Continuar" o "Volver al camino"), en vez de conservar
-los datos con los que se cargó antes de entrar a jugar.
+La Home SHALL volver a leer `camino_jugador` al volver de la pantalla de
+juego de un nivel (desde el resumen del nivel, ya sea "Continuar" o "Volver
+al camino"), en vez de conservar los datos con los que se cargó antes de
+entrar a jugar. Esa única lectura SHALL refrescar a la vez el progreso, los
+puntos totales y el acumulado de cada parada.
 
 #### Scenario: Vuelve con un nivel recién superado
 
@@ -242,26 +252,46 @@ los datos con los que se cargó antes de entrar a jugar.
 - **WHEN** el jugador entra a jugar un nivel y sale antes de terminarlo
 - **THEN** la Home recarga igualmente su progreso al volver
 
+#### Scenario: Vuelve tras mejorar su marca en una parada ya superada
+
+- **WHEN** el jugador repite una parada ya superada y mejora su
+  `mejor_puntaje`
+- **THEN** al volver, el indicador de esa parada y de todas las posteriores
+  refleja el acumulado nuevo, igual que la barra superior
+
 ### Requirement: Indicador de puntos totales junto a cada parada
-El indicador de la columna izquierda de cada parada SHALL mostrar los
-puntos totales acumulados del jugador (el mismo valor que se muestra en
-la barra superior), formateados con separador de miles, en vez del
-número de estrellas requeridas para esa parada.
+El indicador de la columna izquierda de cada parada SHALL mostrar los puntos
+**acumulados hasta esa parada** — la suma de `mejor_puntaje` de todas las
+paradas cuyo `orden` es menor o igual al de esa parada —, formateados con
+separador de miles, en vez del número de estrellas requeridas para esa parada
+y en vez del total del jugador repetido en todas.
 
-#### Scenario: Se muestran los puntos totales en cada parada
-- **WHEN** la Home renderiza el camino de un jugador con puntos totales
-  acumulados
-- **THEN** el indicador izquierdo de cada parada muestra ese mismo
-  valor de puntos totales, formateado con separador de miles
+El acumulado de la última parada del camino SHALL coincidir por construcción
+con el total que muestra la barra superior.
 
-#### Scenario: Todas las paradas muestran el mismo valor
+#### Scenario: Cada parada muestra su propio acumulado
+- **WHEN** la Home renderiza un camino cuyas tres paradas tienen
+  `mejor_puntaje` 300, 500 y 0
+- **THEN** los indicadores izquierdos muestran 300, 800 y 800
+  respectivamente, formateados con separador de miles
+
+#### Scenario: El acumulado no decrece a lo largo del camino
 - **WHEN** la Home renderiza un camino con varias paradas
-- **THEN** el indicador izquierdo de todas ellas muestra idéntico valor
-  de puntos totales, sin variar de una parada a otra
+- **THEN** el valor del indicador de cada parada es mayor o igual que el de
+  la parada anterior, nunca menor
+
+#### Scenario: La última parada coincide con la barra superior
+- **WHEN** la Home renderiza el camino completo de un jugador con puntos
+- **THEN** el indicador de la parada de mayor `orden` muestra el mismo valor
+  que la píldora de puntos de la barra superior
+
+#### Scenario: Paradas sin jugar repiten el acumulado anterior
+- **WHEN** una parada tiene `mejor_puntaje = 0` y las anteriores suman 800
+- **THEN** su indicador muestra 800, igual que la parada anterior
 
 #### Scenario: Jugador sin puntos todavía
-- **WHEN** un jugador sin respuestas registradas (puntos totales = 0)
-  abre la Home
+- **WHEN** un jugador sin respuestas registradas (todas las paradas con
+  `mejor_puntaje = 0`) abre la Home
 - **THEN** el indicador izquierdo de cada parada muestra 0
 
 ### Requirement: Candado visible en parada bloqueada
@@ -294,3 +324,4 @@ La cabecera de la pantalla Home (camino vertical) SHALL mostrar un indicador con
 
 - **WHEN** el jugador toca el indicador de comodines en la cabecera
 - **THEN** se abre la pantalla de Comodines
+

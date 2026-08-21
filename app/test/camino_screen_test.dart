@@ -42,6 +42,8 @@ const _monumentos = ParadaCamino(
   estrellasAcumuladasUsuario: 480,
   desbloqueado: true,
   esActual: false,
+  mejorPuntaje: 300,
+  puntosAcumulados: 300,
 );
 
 const _monumentos2 = ParadaCamino(
@@ -55,6 +57,8 @@ const _monumentos2 = ParadaCamino(
   estrellasAcumuladasUsuario: 480,
   desbloqueado: true,
   esActual: true,
+  mejorPuntaje: 500,
+  puntosAcumulados: 800,
 );
 
 const _banderas = ParadaCamino(
@@ -68,11 +72,13 @@ const _banderas = ParadaCamino(
   estrellasAcumuladasUsuario: 480,
   desbloqueado: false,
   esActual: false,
+  mejorPuntaje: 0,
+  puntosAcumulados: 800,
 );
 
 final _caminoDePrueba = CaminoJugador(
   entradas: [_monumentos, _monumentos2, _banderas],
-  puntosTotales: 240,
+  puntosTotales: 800,
 );
 
 Widget _pantalla(CaminoGateway gateway, {AnunciosGateway? anunciosGateway}) =>
@@ -150,37 +156,126 @@ void main() {
     await _pump(tester, FakeCaminoGateway(_caminoDePrueba));
 
     final pildora = tester.widget<Text>(find.byKey(const Key('camino-puntos')));
-    expect(pildora.data, '240');
+    expect(pildora.data, '800');
   });
 
   testWidgets(
-    'el indicador izquierdo de cada parada muestra los puntos totales del '
-    'jugador, formateados con separador de miles',
+    'el indicador izquierdo de cada parada muestra los puntos acumulados '
+    'hasta ella, no el total del jugador repetido (INT-123)',
     (tester) async {
-      final camino = CaminoJugador(
-        entradas: [_monumentos, _monumentos2, _banderas],
-        puntosTotales: 1234,
-      );
-      await _pump(tester, FakeCaminoGateway(camino));
+      // _monumentos 300, _monumentos2 500, _banderas 0 (sin jugar)
+      // => acumulados 300, 800, 800.
+      await _pump(tester, FakeCaminoGateway(_caminoDePrueba));
 
+      String indicador(String caminoId) =>
+          tester.widget<Text>(find.byKey(Key('parada-puntos-$caminoId'))).data!;
+
+      expect(indicador('nivel-superado'), '300');
+      expect(indicador('nivel-actual'), '800');
+      expect(indicador('nivel-bloqueado'), '800');
+    },
+  );
+
+  testWidgets('el indicador izquierdo formatea con separador de miles', (
+    tester,
+  ) async {
+    const parada = ParadaCamino(
+      orden: 1,
+      caminoId: 'nivel-rico',
+      tematicaId: 'monumentos',
+      tematicaNombre: 'Monumentos',
+      superado: true,
+      estrellasObtenidas: 3,
+      estrellasRequeridas: 0,
+      estrellasAcumuladasUsuario: 3,
+      desbloqueado: true,
+      esActual: false,
+      mejorPuntaje: 1234,
+      puntosAcumulados: 1234,
+    );
+    await _pump(
+      tester,
+      FakeCaminoGateway(
+        const CaminoJugador(entradas: [parada], puntosTotales: 1234),
+      ),
+    );
+
+    final indicador = tester.widget<Text>(
+      find.byKey(const Key('parada-puntos-nivel-rico')),
+    );
+    expect(indicador.data, '1 234');
+  });
+
+  testWidgets('el acumulado no decrece a lo largo del camino (INT-123)', (
+    tester,
+  ) async {
+    await _pump(tester, FakeCaminoGateway(_caminoDePrueba));
+
+    final valores = [
       for (final caminoId in [
         'nivel-superado',
         'nivel-actual',
         'nivel-bloqueado',
-      ]) {
-        final indicador = tester.widget<Text>(
-          find.byKey(Key('parada-puntos-$caminoId')),
-        );
-        expect(indicador.data, '1 234');
-      }
+      ])
+        int.parse(
+          tester
+              .widget<Text>(find.byKey(Key('parada-puntos-$caminoId')))
+              .data!
+              .replaceAll(' ', ''),
+        ),
+    ];
+
+    for (var i = 1; i < valores.length; i++) {
+      expect(
+        valores[i],
+        greaterThanOrEqualTo(valores[i - 1]),
+        reason:
+            'el acumulado de la parada $i no puede bajar respecto a la '
+            'anterior',
+      );
+    }
+  });
+
+  testWidgets(
+    'el acumulado de la última parada coincide con la píldora de la cabecera '
+    '(INT-123)',
+    (tester) async {
+      await _pump(tester, FakeCaminoGateway(_caminoDePrueba));
+
+      final pildora = tester
+          .widget<Text>(find.byKey(const Key('camino-puntos')))
+          .data;
+      final ultima = tester
+          .widget<Text>(find.byKey(const Key('parada-puntos-nivel-bloqueado')))
+          .data;
+
+      expect(ultima, pildora);
     },
   );
 
   testWidgets(
     'el indicador izquierdo muestra 0 cuando el jugador no tiene puntos',
     (tester) async {
-      final camino = CaminoJugador(entradas: [_monumentos], puntosTotales: 0);
-      await _pump(tester, FakeCaminoGateway(camino));
+      const sinJugar = ParadaCamino(
+        orden: 1,
+        caminoId: 'nivel-superado',
+        tematicaId: 'monumentos',
+        tematicaNombre: 'Monumentos',
+        superado: false,
+        estrellasObtenidas: 0,
+        estrellasRequeridas: 0,
+        estrellasAcumuladasUsuario: 0,
+        desbloqueado: true,
+        esActual: true,
+        mejorPuntaje: 0,
+        puntosAcumulados: 0,
+      );
+      await _pump(
+        tester,
+        FakeCaminoGateway(
+          const CaminoJugador(entradas: [sinJugar], puntosTotales: 0),
+        ),
+      );
 
       final indicador = tester.widget<Text>(
         find.byKey(const Key('parada-puntos-nivel-superado')),
@@ -519,6 +614,8 @@ void main() {
           estrellasAcumuladasUsuario: 999,
           desbloqueado: true,
           esActual: esActual,
+          mejorPuntaje: 0,
+          puntosAcumulados: 0,
         );
       }
 
@@ -569,6 +666,8 @@ void main() {
         estrellasAcumuladasUsuario: 0,
         desbloqueado: true,
         esActual: true,
+        mejorPuntaje: 0,
+        puntosAcumulados: 0,
       );
 
       await _pump(
@@ -603,6 +702,8 @@ void main() {
         estrellasAcumuladasUsuario: 3,
         desbloqueado: true,
         esActual: false,
+        mejorPuntaje: 0,
+        puntosAcumulados: 0,
       );
 
       await _pump(
@@ -635,6 +736,8 @@ void main() {
         estrellasAcumuladasUsuario: 0,
         desbloqueado: true,
         esActual: true,
+        mejorPuntaje: 0,
+        puntosAcumulados: 0,
       );
 
       await tester.pumpWidget(
@@ -744,6 +847,8 @@ void main() {
           estrellasAcumuladasUsuario: 0,
           desbloqueado: true,
           esActual: esActual,
+          mejorPuntaje: 0,
+          puntosAcumulados: 0,
         );
       }
 
@@ -824,6 +929,8 @@ void main() {
         estrellasAcumuladasUsuario: 3,
         desbloqueado: true,
         esActual: false,
+        mejorPuntaje: 0,
+        puntosAcumulados: 0,
       );
 
       await _pump(

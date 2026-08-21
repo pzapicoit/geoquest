@@ -2,11 +2,11 @@
 
 ## Purpose
 Pantalla "Clasificación" de la app móvil: tres pestañas navegables (Global, Camino, Temática) sobre las clasificaciones entre jugadores de `player-ranking`, con podio, lista scrollable, fila fija de la posición propia y punto de entrada desde la navegación existente. Creada al archivar el cambio int-110-pantalla-ranking; la pestaña "Camino" se renombró desde "Nivel" en int-110-pantalla-ranking-delta-1.
-
 ## Requirements
-
 ### Requirement: Pantalla única con tres pestañas de clasificación
 El sistema SHALL mostrar una pantalla "Clasificación" con tres pestañas navegables — Global, Camino y Temática — donde cambiar de pestaña recarga la clasificación correspondiente sin salir de la pantalla.
+
+El subtítulo de la pestaña Global SHALL no describir la puntuación como un acumulado histórico: desde que `clasificacion_global` agrega el mejor intento por parada, esa etiqueta describe algo que el sistema ya no hace.
 
 #### Scenario: El jugador cambia de pestaña
 - **WHEN** el jugador pulsa la pestaña "Temática" estando en "Global"
@@ -14,7 +14,15 @@ El sistema SHALL mostrar una pantalla "Clasificación" con tres pestañas navega
 
 #### Scenario: Cabecera contextual por pestaña
 - **WHEN** la pestaña activa es Global, o Camino/Temática con una tarjeta abierta
-- **THEN** el subtítulo de la cabecera refleja esa selección (p. ej. "Global · acumulado histórico", "Nivel N · <temática de esa parada>", "<Temática> · ranking") y la cabecera muestra siempre los puntos totales del propio jugador
+- **THEN** el subtítulo de la cabecera refleja esa selección (p. ej. "Global · mejor intento por nivel", "Nivel N · <temática de esa parada>", "<Temática> · ranking") y la cabecera muestra siempre los puntos totales del propio jugador
+
+#### Scenario: El subtítulo de Global no promete un acumulado histórico
+- **WHEN** la pestaña activa es Global
+- **THEN** su subtítulo no dice "acumulado histórico" ni ninguna variante que sugiera que repetir un nivel suma puntos
+
+#### Scenario: Los puntos de la cabecera coinciden con la Home
+- **WHEN** el jugador abre la Clasificación desde la Home
+- **THEN** los puntos totales de la cabecera son los mismos que muestra la píldora de la Home, por venir del mismo `camino_jugador` ya cargado
 
 ### Requirement: Rejilla de tarjetas para elegir parada o temática, con clasificación de dos niveles
 El sistema SHALL mostrar, solo en las pestañas Camino y Temática, una rejilla de tarjetas (una por parada del camino o por temática) en vez de la clasificación directamente; la pestaña Global no muestra rejilla, va directa a la clasificación. Tocar una tarjeta SHALL mostrar la clasificación de esa parada/temática (podio, lista y fila propia), sustituyendo la rejilla dentro de la misma pantalla.
@@ -111,3 +119,4 @@ El sistema SHALL exponer un punto de entrada a la pantalla de Clasificación des
 #### Scenario: El jugador navega a Clasificación
 - **WHEN** el jugador interactúa con el punto de entrada de Clasificación en la navegación principal
 - **THEN** la app navega a la pantalla de Clasificación abriendo por defecto la pestaña Global
+

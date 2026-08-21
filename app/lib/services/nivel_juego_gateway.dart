@@ -258,7 +258,7 @@ class SupabaseNivelJuegoGateway implements NivelJuegoGateway {
 /// Mapea el jsonb `{"intento_id", "desafios", "segundos_por_desafio"}` que
 /// devuelve `iniciar_intento_parada` a [IntentoNivel]. Función pura, extraída
 /// para poder probar el mapeo sin red (INT-91, mismo patrón que
-/// `sumarPuntos` en `camino_gateway.dart`).
+/// `construirCaminoJugador` en `camino_gateway.dart`).
 ///
 /// `segundos_por_desafio` viaja desde INT-99 (D11 de `design.md`): sin él la
 /// pantalla no sabría cuánto dura la cuenta atrás, así que se exige igual

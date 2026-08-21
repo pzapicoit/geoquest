@@ -18,6 +18,8 @@ const _paradas = [
     estrellasAcumuladasUsuario: 100,
     desbloqueado: true,
     esActual: false,
+    mejorPuntaje: 0,
+    puntosAcumulados: 0,
   ),
   ParadaCamino(
     orden: 2,
@@ -30,6 +32,8 @@ const _paradas = [
     estrellasAcumuladasUsuario: 100,
     desbloqueado: true,
     esActual: true,
+    mejorPuntaje: 0,
+    puntosAcumulados: 0,
   ),
 ];
 
