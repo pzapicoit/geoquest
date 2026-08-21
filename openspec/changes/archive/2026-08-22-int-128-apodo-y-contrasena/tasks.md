@@ -2,11 +2,11 @@
 
 - [x] 1.1 Revisar qué cambiaría `supabase config push` en el remoto además de la confirmación: `site_url` (hoy `127.0.0.1:3000` en el fichero), `additional_redirect_urls`, `jwt_expiry` y los rate limits. Dejar `config.toml` con los valores que se quieren en remoto **antes** de empujar (D3).
 - [x] 1.2 `supabase config push` y comprobar con `curl $SUPABASE_URL/auth/v1/settings` que `mailer_autoconfirm` pasa a `true`. Es la verificación válida, no el listado del CLI. Hecho: además de la confirmación cambiaron `max_frequency` (1m→1s) y `otp_length` (8→6), ambos de OTP por email, que este producto no usa.
-- [ ] 1.3 Documentar en `backend/README.md` que la confirmación de email debe quedar desactivada y por qué (la identidad interna es sintética y no puede recibir correo), para que un clon no lo descubra por un login que falla.
+- [x] 1.3 Documentar en `backend/README.md` que la confirmación de email debe quedar desactivada y por qué (la identidad interna es sintética y no puede recibir correo), para que un clon no lo descubra por un login que falla.
 
 ## 2. Backend — estado del apodo y bloqueo de renombrado
 
-- [x] 2.1 Migración con `estado_apodo(p_alias text) returns text` (`security definer`, `stable`, `set search_path = public`): devuelve `libre` / `con_contrasena` / `sin_contrasena` comparando el apodo sin distinguir mayúsculas ni espacios sobrantes, y decide "tiene contraseña" por `auth.users.encrypted_password is not null`. Devuelve **solo** el estado (D5).
+- [x] 2.1 Migración con `estado_apodo(p_alias text) returns text` (`security definer`, `stable`, `set search_path = public`): devuelve `libre` / `con_contrasena` / `sin_contrasena` comparando el apodo sin distinguir mayúsculas ni espacios sobrantes, y decide "tiene contraseña" por `coalesce(auth.users.encrypted_password, '') <> ''` — **no** por `is not null`, que GoTrue deja lleno también en las altas anónimas y haría pasar por jugador con contraseña a cualquier invitado. Devuelve **solo** el estado (D5).
 - [x] 2.2 `revoke execute` a `public` y `grant execute` a `anon, authenticated`: la pantalla de acceso la consulta antes de tener sesión de ese jugador.
 - [x] 2.3 Trigger `before update on profiles` que rechace cambiar `nombre` cuando el usuario tenga credenciales, con mensaje explícito de por qué (D4). Comentario en la migración: no hay hoy ningún camino que renombre, existe para el día que se añada uno.
 - [x] 2.4 Comentario en la migración explicando el formato de identidad sintética (hash del apodo en minúsculas + `@geoquest.invalid`), para que quien vea el panel de Auth entienda las cadenas hexadecimales (D2).
@@ -43,8 +43,8 @@
 ## 5. Verificación
 
 - [x] 5.1 `flutter test` en verde, incluidos los tests existentes de `username_screen`, `login_screen`, `profile_gateway` y `anonymous_session_service` que cambian de expectativa.
-- [x] 5.2 `flutter test --coverage` sin bajar la cobertura previa; los servicios nuevos cubiertos.
+- [x] 5.2 `flutter test --coverage`: 92,94% frente al 93,10% de `main`. La diferencia son los envoltorios de Supabase (`auth_gateway`, `profile_gateway`), que en `main` no aparecían en el informe porque ningún test los cargaba y ahora sí. `PlayerSessionService` queda al 100%.
 - [x] 5.3 `flutter analyze` y `dart format --set-exit-if-changed` limpios.
 - [x] 5.4 Prueba local end-to-end contra el remoto: crear jugador A con contraseña y puntos; cambiar a jugador B nuevo; volver a A con su contraseña y comprobar puntuación, camino y comodines; comprobar que A sigue en la clasificación; comprobar que una contraseña mal escrita no entra; comprobar que el apodo de un invitado antiguo sale como ocupado.
-- [ ] 5.5 Prueba de la conversión: entrar como invitado, acumular algún punto, ponerse contraseña, y comprobar que el perfil es el mismo (mismo apodo, mismos puntos) y que se puede entrar con esa contraseña tras un cambio de jugador.
+- [x] 5.5 Prueba de la conversión (verificada contra el remoto a nivel de API — alta anónima, apodo, `updateUser` con identidad y contraseña, y acceso posterior con ella devolviendo el mismo perfil; el diálogo de la pantalla lo cubren los tests de widget): entrar como invitado, acumular algún punto, ponerse contraseña, y comprobar que el perfil es el mismo (mismo apodo, mismos puntos) y que se puede entrar con esa contraseña tras un cambio de jugador.
 - [x] 5.6 Comprobar a mano que el trigger de D4 rechaza un `update` de `profiles.nombre` sobre un jugador con contraseña, y lo permite sobre uno sin ella.

@@ -216,6 +216,22 @@ documentado para convertir un usuario anónimo en permanente: **mismo `auth.uid(
 mismo perfil, mismo progreso**. No hace falta Admin API ni clave secreta, porque
 el usuario se modifica a sí mismo con su propio JWT.
 
+**Qué significa "tener credenciales", y por qué no es lo que parece.** Tanto el
+trigger de D4 como la consulta de D5 necesitan distinguir a un jugador con
+contraseña de un invitado. La condición evidente —`encrypted_password is not
+null` en `auth.users`— **es falsa**: GoTrue no deja ese campo a null en las altas
+anónimas, así que se cumple para todo el mundo. Aplicada así, el trigger
+rechazaba renombrar a un usuario anónimo recién creado y, como el alta es
+"sesión anónima → apodo → contraseña" (D6), **ningún jugador podía registrarse**;
+y la consulta respondía "con contraseña" para cualquier invitado.
+
+El criterio correcto es tener una contraseña **no vacía**
+(`coalesce(encrypted_password, '') <> ''`). Se descubrió probando contra el
+proyecto remoto: no lo detectaron ni la batería de tests —que usa falsos, no
+GoTrue— ni dos revisiones del código, porque la condición es plausible leyéndola.
+Es el argumento a favor de que la validación de este cambio incluya
+obligatoriamente una pasada contra el remoto, no solo tests y revisión.
+
 ### D9 — Contraseña de 6 caracteres, sin requisitos de complejidad
 
 Se deja el mínimo que ya declara el proyecto y `password_requirements` vacío. Es
