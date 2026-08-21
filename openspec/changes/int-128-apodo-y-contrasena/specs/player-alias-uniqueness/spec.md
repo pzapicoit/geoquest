@@ -29,6 +29,11 @@ existan perfiles confundibles entre sí de los que solo uno sea el legítimo.
 - **THEN** el alta no crea un perfil nuevo
 - **AND** se le pide la contraseña de "Pablo" o se le indica que elija otro apodo
 
+#### Scenario: Migración de alias que solo difieren en mayúsculas
+- **WHEN** se aplica la migración sobre perfiles de jugador cuyos alias coinciden salvo por mayúsculas o espacios sobrantes (p. ej. "Pablo" y "pablo")
+- **THEN** se conserva el alias del jugador más antiguo de cada grupo y a los demás se les añade un sufijo numerado
+- **AND** a partir de entonces el sistema impide crear alias que solo difieran en mayúsculas, porque derivarían la misma credencial y el segundo jugador perdería el acceso a su perfil sin posibilidad de recuperarlo
+
 #### Scenario: Migración de datos existentes duplicados
 - **WHEN** se aplica la migración sobre perfiles con alias duplicados
 - **THEN** se conserva el alias del perfil más antiguo de cada grupo (por fecha de alta) y a los demás se les añade un sufijo numerado (" (2)", " (3)"...), truncando la parte base si hace falta para no superar los 16 caracteres permitidos

@@ -99,6 +99,17 @@ Que el hash sea sobre el apodo en **minúsculas**: el login deja de depender de
 cómo se escriban las mayúsculas —nadie recuerda eso— y de paso impide que exista
 un "pablo" impostor al lado de "Pablo".
 
+Eso obliga a algo que el índice único de INT-111 no cubría: ese índice es
+**exacto**, así que hasta ahora "Pablo" y "pablo" podían ser dos jugadores
+distintos. Con identidades derivadas del apodo en minúsculas los dos derivarían
+la misma, el primero que se pusiera contraseña se la quedaría y el segundo
+perdería su perfil para siempre —sin recuperación posible, que es justo el fallo
+que este cambio viene a eliminar—. La migración deduplica lo que ya exista y
+sustituye el índice por uno sobre `lower(btrim(nombre))`, de modo que la
+unicidad de alias y la unicidad de identidad pasen a ser la misma cosa. El
+generador de alias por defecto de `handle_new_user` se ajusta al mismo criterio,
+o un candidato que solo difiriera en mayúsculas haría fallar el alta.
+
 Alternativas descartadas: el apodo como parte local (problema de juego de
 caracteres); una tabla de correspondencia apodo → identidad (obliga a una llamada
 al servidor antes de cada login y expone la correspondencia); teléfono (exige

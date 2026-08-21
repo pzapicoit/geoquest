@@ -41,11 +41,13 @@ begin
   -- minusculas, "Pablo" y "pablo" comparten identidad de acceso y tienen que
   -- responder lo mismo aqui.
   --
-  -- `bool_or` en vez de quedarse con una fila: el indice unico de alias es
-  -- exacto, asi que pueden convivir "Pablo" y "pablo" dados de alta antes de
-  -- este cambio. Si CUALQUIERA de ellos tiene credenciales, el apodo se trata
-  -- como accesible con contraseña -- que es el unico camino por el que alguien
-  -- puede entrar de verdad.
+  -- `bool_or` y `count` en vez de quedarse con una fila: mas abajo esta
+  -- migracion deduplica los alias que solo difieren en mayusculas y hace que la
+  -- unicidad pase a ser insensible a ellas, asi que a partir de aqui solo puede
+  -- haber una coincidencia. Se deja escrito de forma que un duplicado
+  -- inesperado no elija fila al azar: si CUALQUIERA tiene credenciales, el
+  -- apodo se trata como accesible con contraseña, que es el unico camino por el
+  -- que alguien puede entrar de verdad.
   select count(*), coalesce(bool_or(u.encrypted_password is not null), false)
     into v_coincidencias, v_alguna_con_credenciales
   from profiles p
@@ -68,6 +70,103 @@ $$;
 -- hace falta `anon` ademas de `authenticated`.
 revoke execute on function estado_apodo(text) from public;
 grant execute on function estado_apodo(text) to anon, authenticated;
+
+-- La identidad de acceso es sha256 del apodo EN MINUSCULAS (D2), pero el
+-- indice unico de alias de INT-111 es exacto (`on profiles (nombre)`), asi que
+-- hasta ahora podian convivir "Pablo" y "pablo" como dos jugadores distintos.
+-- Con contraseñas eso deja de ser una rareza cosmetica y pasa a ser una
+-- perdida de cuenta: los dos derivan la MISMA identidad, el primero que se
+-- ponga contraseña se la queda, y el segundo no puede entrar nunca mas en su
+-- perfil -- ni recuperarlo, porque no hay recuperacion de contraseña.
+--
+-- Se arregla en dos pasos: deduplicar lo que ya exista y hacer que la unicidad
+-- pase a ser insensible a mayusculas, para que no pueda repetirse.
+
+-- Mismo criterio que el dedupe de INT-111, pero agrupando por
+-- lower(btrim(nombre)): se conserva el alias del jugador mas antiguo de cada
+-- grupo y a los demas se les añade un sufijo numerado, recortando la base si
+-- hace falta para no pasar de los 16 caracteres que impone la app.
+with duplicados as (
+  select
+    p.id,
+    p.nombre,
+    row_number() over (
+      partition by lower(btrim(p.nombre)) order by u.created_at
+    ) as posicion
+  from profiles p
+  join auth.users u on u.id = p.id
+  where p.role = 'jugador'
+)
+update profiles p
+set nombre = case
+  when length(p.nombre) + length(' (' || d.posicion || ')') <= 16
+    then p.nombre || ' (' || d.posicion || ')'
+  else left(p.nombre, 16 - length(' (' || d.posicion || ')')) || ' (' || d.posicion || ')'
+end
+from duplicados d
+where d.id = p.id
+  and d.posicion > 1;
+
+-- El indice exacto queda cubierto por el insensible a mayusculas (si
+-- lower(btrim(x)) es unico, x tambien lo es), asi que se sustituye en vez de
+-- acumular dos indices haciendo el mismo trabajo.
+drop index profiles_nombre_jugador_key;
+create unique index profiles_nombre_jugador_key
+on profiles (lower(btrim(nombre)))
+where role = 'jugador';
+
+-- El generador de alias por defecto comprobaba la disponibilidad con `=`, que
+-- con el indice de arriba ya no basta: un candidato que solo difiera en
+-- mayusculas de uno existente pasaria la comprobacion y reventaria el insert,
+-- convirtiendo un alta sin friccion (INT-75) en un alta fallida. Se replica en
+-- la comprobacion el mismo criterio que impone el indice.
+--
+-- Se parte de la version vigente (INT-119, que ademas siembra el inventario de
+-- comodines) y solo se cambian las dos comprobaciones.
+create or replace function handle_new_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_candidato text;
+  v_intento integer := 0;
+begin
+  loop
+    v_intento := v_intento + 1;
+    v_candidato := 'Jugador' || lpad((floor(random() * 10000))::int::text, 4, '0');
+    exit when v_intento >= 30
+      or not exists (
+        select 1 from public.profiles
+        where lower(btrim(nombre)) = lower(btrim(v_candidato)) and role = 'jugador'
+      );
+  end loop;
+
+  if exists (
+    select 1 from public.profiles
+    where lower(btrim(nombre)) = lower(btrim(v_candidato)) and role = 'jugador'
+  ) then
+    v_candidato := left('Jugador' || replace(new.id::text, '-', ''), 16);
+  end if;
+
+  insert into public.profiles (id, nombre, device_id)
+  values (
+    new.id,
+    v_candidato,
+    nullif(new.raw_user_meta_data ->> 'device_id', '')::uuid
+  );
+
+  insert into public.comodines_inventario (usuario_id, tipo, cantidad)
+  values
+    (new.id, 'tiempo', 1),
+    (new.id, 'pais', 1),
+    (new.id, 'km1000', 1),
+    (new.id, 'km500', 0);
+
+  return new;
+end;
+$$;
 
 -- D4: si la identidad de acceso deriva del apodo, renombrar a un jugador que ya
 -- tiene contraseña lo deja fuera de su cuenta -- el hash que calcularia el

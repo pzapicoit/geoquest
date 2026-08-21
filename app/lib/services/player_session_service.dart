@@ -306,5 +306,8 @@ class PlayerSessionService {
 
   bool _esContrasenaDebil(AuthException error) =>
       error.code == 'weak_password' ||
-      error.message.toLowerCase().contains('password');
+      // Respaldo por si el codigo no viene, acotado a la frase concreta: un
+      // `contains('password')` a secas clasificaria como contraseña debil
+      // cualquier fallo que mencione la palabra.
+      error.message.toLowerCase().contains('password should be');
 }
