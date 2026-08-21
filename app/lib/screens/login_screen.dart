@@ -2,7 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../services/auth_gateway.dart';
 import '../services/camino_gateway.dart';
+import '../services/estado_apodo_gateway.dart';
+import '../services/player_roster_storage.dart';
+import '../services/player_session_service.dart';
 import '../services/profile_gateway.dart';
 import '../services/username_storage.dart';
 import 'camino_screen.dart';
@@ -21,12 +25,16 @@ class LoginScreen extends StatefulWidget {
     this.usernameStorage,
     this.profileGateway,
     this.caminoGateway,
+    this.sessionService,
+    this.rosterStorage,
   });
 
   /// Inyectables para poder probar la pantalla sin salir a la red ni al disco.
   final UsernameStorage? usernameStorage;
   final ProfileGateway? profileGateway;
   final CaminoGateway? caminoGateway;
+  final PlayerSessionService? sessionService;
+  final PlayerRosterStorage? rosterStorage;
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -40,16 +48,85 @@ class _LoginScreenState extends State<LoginScreen> {
   late final CaminoGateway _caminoGateway =
       widget.caminoGateway ?? SupabaseCaminoGateway(Supabase.instance.client);
 
+  late final PlayerRosterStorage _rosterStorage =
+      widget.rosterStorage ?? PlayerRosterStorage();
+  late final PlayerSessionService _sessionService =
+      widget.sessionService ?? _defaultSessionService();
+
   late Future<String?> _savedNameFuture = _usernameStorage.read();
 
-  /// "Cambiar de jugador": borra el apodo local y vuelve a mostrar el
+  PlayerSessionService _defaultSessionService() {
+    final client = Supabase.instance.client;
+    return PlayerSessionService(
+      auth: SupabaseAuthGateway(client.auth),
+      profile: widget.profileGateway ?? SupabaseProfileGateway(client),
+      estadoApodo: SupabaseEstadoApodoGateway(client),
+      usernameStorage: _usernameStorage,
+      roster: _rosterStorage,
+    );
+  }
+
+  /// "Cambiar de jugador": suelta la sesión del jugador activo y vuelve al
   /// estado "primera vez" sin pasar de nuevo por el splash.
+  ///
+  /// Soltar la sesión es lo que hace que el apodo que se introduzca después
+  /// entre en su propio perfil en vez de renombrar el del jugador anterior
+  /// (INT-128) — antes solo se borraba el apodo local y por eso "cambiar de
+  /// jugador" acababa renombrando.
   Future<void> _onSwitchPlayer() async {
-    await _usernameStorage.clear();
+    final resultado = await _sessionService.cambiarDeJugador();
     if (!mounted) return;
-    setState(() {
-      _savedNameFuture = Future.value(null);
-    });
+
+    switch (resultado) {
+      case CambioListo():
+        setState(() {
+          _savedNameFuture = Future.value(null);
+        });
+      case CambioNecesitaContrasena():
+        // Este perfil solo existe en este móvil: soltarlo sin contraseña lo
+        // pierde para siempre. Se pide una antes de dejar sitio a otro.
+        await _pedirContrasenaAntesDeCambiar();
+      case CambioFallido(:final motivo):
+        _avisar(motivo);
+    }
+  }
+
+  Future<void> _pedirContrasenaAntesDeCambiar() async {
+    final savedName = await _savedNameFuture;
+    if (!mounted || savedName == null) return;
+
+    final decision = await showDialog<_DecisionSinContrasena>(
+      context: context,
+      builder: (_) => _ProtegerAntesDeCambiarDialog(apodo: savedName),
+    );
+    if (!mounted || decision == null) return;
+
+    switch (decision) {
+      case _PonerContrasena(:final contrasena):
+        final resultado = await _sessionService.ponerContrasena(
+          apodo: savedName,
+          contrasena: contrasena,
+        );
+        if (!mounted) return;
+        if (resultado is EntradaCompletada) {
+          await _onSwitchPlayer();
+        } else {
+          _avisar('No se pudo guardar la contraseña. Inténtalo de nuevo.');
+        }
+      case _Descartar():
+        final resultado = await _sessionService.descartarJugador();
+        if (!mounted) return;
+        if (resultado is CambioListo) {
+          setState(() {
+            _savedNameFuture = Future.value(null);
+          });
+        }
+    }
+  }
+
+  void _avisar(String mensaje) {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(mensaje)));
   }
 
   @override
@@ -72,13 +149,20 @@ class _LoginScreenState extends State<LoginScreen> {
               key: const ValueKey('first-time'),
               usernameStorage: _usernameStorage,
               profileGateway: widget.profileGateway,
+              sessionService: widget.sessionService,
+              rosterStorage: widget.rosterStorage,
             );
           }
           return _ReturningWelcome(
-            key: const ValueKey('returning'),
+            // La clave incluye el apodo para que, al cambiar de jugador, el
+            // estado (y con él el `Future` del progreso) se reconstruya en vez
+            // de reutilizar los datos del jugador anterior.
+            key: ValueKey('returning-$savedName'),
             savedName: savedName,
             caminoGateway: _caminoGateway,
             onSwitchPlayer: _onSwitchPlayer,
+            tieneContrasena: _sessionService.tieneCredenciales,
+            onProtegerProgreso: _pedirContrasenaAntesDeCambiar,
           );
         },
       ),
@@ -95,11 +179,19 @@ class _ReturningWelcome extends StatefulWidget {
     required this.savedName,
     required this.caminoGateway,
     required this.onSwitchPlayer,
+    required this.tieneContrasena,
+    required this.onProtegerProgreso,
   });
 
   final String savedName;
   final CaminoGateway caminoGateway;
   final Future<void> Function() onSwitchPlayer;
+
+  /// Si el jugador activo tiene con qué volver a entrar desde otro móvil.
+  /// Decide si el enlace de abajo ofrece algo real o sigue siendo el hueco
+  /// preparado para la vinculación de cuenta.
+  final bool tieneContrasena;
+  final Future<void> Function() onProtegerProgreso;
 
   @override
   State<_ReturningWelcome> createState() => _ReturningWelcomeState();
@@ -242,10 +334,20 @@ class _ReturningWelcomeState extends State<_ReturningWelcome> {
               const SizedBox(height: 22),
               RiseIn(
                 delay: const Duration(milliseconds: 420),
-                child: const GhostLink(
-                  key: Key('link-account'),
-                  label: 'Vincular una cuenta para no perder el progreso',
-                ),
+                child: widget.tieneContrasena
+                    ? const GhostLink(
+                        key: Key('link-account'),
+                        label: 'Vincular una cuenta para no perder el progreso',
+                      )
+                    : GhostLink(
+                        // El propio GhostLink trae `onTap`; envolverlo en otro
+                        // GestureDetector no funciona, porque el suyo consume
+                        // el toque aunque no se le pase nada.
+                        key: const Key('protect-progress'),
+                        label:
+                            'Ponle una contraseña para no perder tu progreso',
+                        onTap: () => widget.onProtegerProgreso(),
+                      ),
               ),
             ],
           ),
@@ -554,6 +656,141 @@ class _ProgressCardError extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Qué decide el jugador cuando quiere cambiar de jugador desde un perfil sin
+/// contraseña (INT-128, D7): ese perfil solo es alcanzable desde este móvil,
+/// así que soltarlo sin más lo pierde para siempre.
+sealed class _DecisionSinContrasena {
+  const _DecisionSinContrasena();
+}
+
+class _PonerContrasena extends _DecisionSinContrasena {
+  const _PonerContrasena(this.contrasena);
+  final String contrasena;
+}
+
+class _Descartar extends _DecisionSinContrasena {
+  const _Descartar();
+}
+
+/// Pide una contraseña para poder volver a este perfil, y ofrece descartarlo
+/// como una decisión explícita en vez de como un efecto secundario.
+class _ProtegerAntesDeCambiarDialog extends StatefulWidget {
+  const _ProtegerAntesDeCambiarDialog({required this.apodo});
+
+  final String apodo;
+
+  @override
+  State<_ProtegerAntesDeCambiarDialog> createState() =>
+      _ProtegerAntesDeCambiarDialogState();
+}
+
+class _ProtegerAntesDeCambiarDialogState
+    extends State<_ProtegerAntesDeCambiarDialog> {
+  final _controller = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  bool get _valida =>
+      _controller.text.length >= UsernameScreen.minPasswordLength;
+
+  Future<void> _confirmarDescarte() async {
+    final confirmado = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: entryCard,
+        title: Text(
+          '¿Descartar a ${widget.apodo}?',
+          style: GoogleFonts.baloo2(color: Colors.white),
+        ),
+        content: Text(
+          'Sin contraseña, este jugador solo existe en este móvil. Si lo '
+          'descartas, su progreso no se podrá recuperar.',
+          style: GoogleFonts.outfit(color: Colors.white.withValues(alpha: 0.7)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            key: const Key('confirm-discard'),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Descartar'),
+          ),
+        ],
+      ),
+    );
+
+    if (!mounted || confirmado != true) return;
+    Navigator.of(context).pop(const _Descartar());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: entryCard,
+      title: Text(
+        'Ponle una contraseña a ${widget.apodo}',
+        style: GoogleFonts.baloo2(color: Colors.white, fontSize: 20),
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Este jugador todavía no tiene contraseña, así que solo existe en '
+            'este móvil. Con una podrás volver a entrar cuando quieras.',
+            style: GoogleFonts.outfit(
+              color: Colors.white.withValues(alpha: 0.7),
+              fontSize: 13.5,
+            ),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            key: const Key('protect-password-field'),
+            controller: _controller,
+            obscureText: true,
+            autofocus: true,
+            style: GoogleFonts.outfit(color: Colors.white),
+            decoration: InputDecoration(
+              hintText: 'Contraseña',
+              hintStyle: GoogleFonts.outfit(
+                color: Colors.white.withValues(alpha: 0.35),
+              ),
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          key: const Key('discard-player'),
+          onPressed: _confirmarDescarte,
+          child: const Text('Descartar este jugador'),
+        ),
+        TextButton(
+          key: const Key('save-password'),
+          onPressed: _valida
+              ? () =>
+                    Navigator.of(context)
+                        .pop(_PonerContrasena(_controller.text))
+              : null,
+          child: const Text('Guardar y cambiar'),
+        ),
+      ],
     );
   }
 }

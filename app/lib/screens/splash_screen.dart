@@ -6,6 +6,8 @@ import '../config/app_config.dart';
 import '../services/anonymous_session_service.dart';
 import '../services/auth_gateway.dart';
 import '../services/camino_gateway.dart';
+import '../services/player_roster_storage.dart';
+import '../services/player_session_service.dart';
 import '../services/device_id_service.dart';
 import '../services/profile_gateway.dart';
 import '../services/username_storage.dart';
@@ -31,6 +33,8 @@ class SplashScreen extends StatefulWidget {
     this.usernameStorage,
     this.profileGateway,
     this.caminoGateway,
+    this.playerSessionService,
+    this.rosterStorage,
     this.minDuration = const Duration(milliseconds: 1200),
   });
 
@@ -42,6 +46,11 @@ class SplashScreen extends StatefulWidget {
   final UsernameStorage? usernameStorage;
   final ProfileGateway? profileGateway;
   final CaminoGateway? caminoGateway;
+
+  /// Se reenvían a [LoginScreen]; el nombre lleva el prefijo para no chocar
+  /// con [sessionService], que es el servicio de sesión anónima del arranque.
+  final PlayerSessionService? playerSessionService;
+  final PlayerRosterStorage? rosterStorage;
 
   /// Tiempo mínimo que el splash permanece visible, aunque la sesión se
   /// resuelva al instante, para evitar un parpadeo.
@@ -97,6 +106,8 @@ class _SplashScreenState extends State<SplashScreen> {
           usernameStorage: widget.usernameStorage,
           profileGateway: widget.profileGateway,
           caminoGateway: widget.caminoGateway,
+          sessionService: widget.playerSessionService,
+          rosterStorage: widget.rosterStorage,
         ),
       ),
     );

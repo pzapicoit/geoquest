@@ -4,6 +4,12 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 /// para poder probarla con un falso sin salir a la red (INT-89).
 abstract class ProfileGateway {
   Future<void> updateNickname(String nombre);
+
+  /// Apodo del perfil de la sesión activa, o `null` si no hay sesión o el
+  /// perfil no existe. Sirve para reconocer el caso en que el apodo que se
+  /// intenta usar es **el del propio jugador** sin contraseña, que no es un
+  /// apodo ocupado por otro sino una invitación a ponerle una (INT-128).
+  Future<String?> currentNickname();
 }
 
 /// Se lanza cuando el apodo ya lo usa otro jugador (violación del índice
@@ -43,5 +49,21 @@ class SupabaseProfileGateway implements ProfileGateway {
       }
       rethrow;
     }
+  }
+
+  @override
+  Future<String?> currentNickname() async {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) return null;
+
+    // Se apoya en la policy `profiles_select_own` (INT-76): un jugador puede
+    // leer su propia fila y solo la suya.
+    final fila = await _client
+        .from('profiles')
+        .select('nombre')
+        .eq('id', userId)
+        .maybeSingle();
+
+    return fila?['nombre'] as String?;
   }
 }
