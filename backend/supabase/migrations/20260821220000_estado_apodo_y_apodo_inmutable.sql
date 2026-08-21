@@ -82,30 +82,76 @@ grant execute on function estado_apodo(text) to anon, authenticated;
 -- Se arregla en dos pasos: deduplicar lo que ya exista y hacer que la unicidad
 -- pase a ser insensible a mayusculas, para que no pueda repetirse.
 
--- Mismo criterio que el dedupe de INT-111, pero agrupando por
--- lower(btrim(nombre)): se conserva el alias del jugador mas antiguo de cada
--- grupo y a los demas se les añade un sufijo numerado, recortando la base si
--- hace falta para no pasar de los 16 caracteres que impone la app.
-with duplicados as (
-  select
-    p.id,
-    p.nombre,
-    row_number() over (
-      partition by lower(btrim(p.nombre)) order by u.created_at
-    ) as posicion
-  from profiles p
-  join auth.users u on u.id = p.id
-  where p.role = 'jugador'
-)
-update profiles p
-set nombre = case
-  when length(p.nombre) + length(' (' || d.posicion || ')') <= 16
-    then p.nombre || ' (' || d.posicion || ')'
-  else left(p.nombre, 16 - length(' (' || d.posicion || ')')) || ' (' || d.posicion || ')'
-end
-from duplicados d
-where d.id = p.id
-  and d.posicion > 1;
+-- Mismo criterio que el dedupe de INT-111 (conservar el alias del jugador mas
+-- antiguo de cada grupo y sufijar los demas), pero agrupando por
+-- lower(btrim(nombre)) y, sobre todo, BUSCANDO un sufijo libre en vez de darlo
+-- por bueno.
+--
+-- Ese matiz no es cosmetico: INT-111 deduplico "pablo" + "pablo" dejando un
+-- "pablo (2)", y si despues alguien se llamo "PABLO", el sufijo calculado para
+-- el seria otra vez "PABLO (2)" -- que colisiona con el de entonces. Con el
+-- indice unico insensible a mayusculas que se crea justo debajo, esa colision
+-- no seria un alias feo: haria fallar la creacion del indice y con ella la
+-- migracion entera.
+--
+-- Se recorre fila a fila en vez de con un UPDATE de conjunto porque cada
+-- candidato tiene que comprobarse contra el estado YA renombrado, no contra el
+-- inicial.
+do $$
+declare
+  r record;
+  v_sufijo integer;
+  v_sufijo_txt text;
+  v_candidato text;
+begin
+  for r in
+    select
+      p.id,
+      p.nombre,
+      row_number() over (
+        partition by lower(btrim(p.nombre)) order by u.created_at
+      ) as posicion
+    from profiles p
+    join auth.users u on u.id = p.id
+    where p.role = 'jugador'
+  loop
+    continue when r.posicion = 1;
+
+    v_sufijo := r.posicion;
+
+    loop
+      v_sufijo_txt := ' (' || v_sufijo || ')';
+
+      -- Los 16 caracteres son el maximo que impone la app (INT-89): un alias
+      -- mas largo no se podria volver a escribir para entrar.
+      if length(r.nombre) + length(v_sufijo_txt) <= 16 then
+        v_candidato := r.nombre || v_sufijo_txt;
+      else
+        v_candidato := left(r.nombre, 16 - length(v_sufijo_txt)) || v_sufijo_txt;
+      end if;
+
+      exit when not exists (
+        select 1
+        from profiles q
+        where q.role = 'jugador'
+          and q.id <> r.id
+          and lower(btrim(q.nombre)) = lower(btrim(v_candidato))
+      );
+
+      v_sufijo := v_sufijo + 1;
+
+      -- Salida de emergencia: un alias derivado del propio id es unico por
+      -- construccion. Si se llega aqui, algo muy raro pasa con los datos, pero
+      -- la migracion no se queda colgada.
+      if v_sufijo > 999 then
+        v_candidato := left('Jugador' || replace(r.id::text, '-', ''), 16);
+        exit;
+      end if;
+    end loop;
+
+    update profiles set nombre = v_candidato where id = r.id;
+  end loop;
+end $$;
 
 -- El indice exacto queda cubierto por el insensible a mayusculas (si
 -- lower(btrim(x)) es unico, x tambien lo es), asi que se sustituye en vez de

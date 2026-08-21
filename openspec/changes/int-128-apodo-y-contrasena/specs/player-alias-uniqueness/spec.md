@@ -34,6 +34,11 @@ existan perfiles confundibles entre sí de los que solo uno sea el legítimo.
 - **THEN** se conserva el alias del jugador más antiguo de cada grupo y a los demás se les añade un sufijo numerado
 - **AND** a partir de entonces el sistema impide crear alias que solo difieran en mayúsculas, porque derivarían la misma credencial y el segundo jugador perdería el acceso a su perfil sin posibilidad de recuperarlo
 
+#### Scenario: El sufijo de la deduplicación ya está ocupado
+- **WHEN** el alias con sufijo que la migración calcularía para un duplicado ya lo usa otro jugador (por ejemplo, porque una deduplicación anterior dejó un "pablo (2)")
+- **THEN** se sigue probando con sufijos siguientes hasta encontrar uno libre
+- **AND** la migración termina con todos los alias de jugador distintos entre sí sin distinguir mayúsculas, sin que ninguna colisión la haga fallar
+
 #### Scenario: Migración de datos existentes duplicados
 - **WHEN** se aplica la migración sobre perfiles con alias duplicados
 - **THEN** se conserva el alias del perfil más antiguo de cada grupo (por fecha de alta) y a los demás se les añade un sufijo numerado (" (2)", " (3)"...), truncando la parte base si hace falta para no superar los 16 caracteres permitidos

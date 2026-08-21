@@ -10,7 +10,7 @@
 - [x] 2.2 `revoke execute` a `public` y `grant execute` a `anon, authenticated`: la pantalla de acceso la consulta antes de tener sesión de ese jugador.
 - [x] 2.3 Trigger `before update on profiles` que rechace cambiar `nombre` cuando el usuario tenga credenciales, con mensaje explícito de por qué (D4). Comentario en la migración: no hay hoy ningún camino que renombre, existe para el día que se añada uno.
 - [x] 2.4 Comentario en la migración explicando el formato de identidad sintética (hash del apodo en minúsculas + `@geoquest.invalid`), para que quien vea el panel de Auth entienda las cadenas hexadecimales (D2).
-- [x] 2.5 Deduplicar los alias de jugador que solo difieren en mayúsculas o espacios y sustituir el índice único exacto de INT-111 por uno sobre `lower(btrim(nombre))`: con identidades derivadas del apodo en minúsculas, dos alias así derivan la misma credencial y el segundo jugador perdería su perfil sin recuperación. Ajustar `handle_new_user` al mismo criterio para que su candidato por defecto no reviente el alta.
+- [x] 2.5 Deduplicar los alias de jugador que solo difieren en mayúsculas o espacios y sustituir el índice único exacto de INT-111 por uno sobre `lower(btrim(nombre))`: con identidades derivadas del apodo en minúsculas, dos alias así derivan la misma credencial y el segundo jugador perdería su perfil sin recuperación. Ajustar `handle_new_user` al mismo criterio para que su candidato por defecto no reviente el alta. El sufijo del dedupe se busca libre fila a fila, porque uno calculado a ciegas puede chocar con un `" (2)"` que dejara la deduplicación de INT-111 y tumbar la creación del índice.
 - [x] 2.6 `supabase db lint --linked` sin hallazgos nuevos.
 
 ## 3. App — identidad y servicios
