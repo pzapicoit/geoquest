@@ -63,6 +63,59 @@ es lo que delata esa divergencia.
 > local, es el único entorno que existe: borra y reconstruye. Por eso el contenido
 > de trabajo debe vivir en el seed, no solo dentro de la base.
 
+## Contenido del juego (`seed.sql`)
+
+El esquema lo reconstruyen las migraciones. **El contenido no**: temáticas,
+desafíos, camino y valores por dificultad son obra de autor y viven en
+`supabase/seed.sql`.
+
+```bash
+cd backend
+supabase db query --linked -f supabase/seed.sql
+```
+
+`supabase db reset` lo ejecuta solo al final (`[db.seed] enabled = true` en
+`config.toml`). Todos los bloques son `insert ... on conflict do update`: son
+idempotentes, convergen al estado del fichero, y no borran nada — se pueden
+aplicar sobre una base ya poblada.
+
+| Tabla | Filas | Qué es |
+|---|---|---|
+| `dificultad_defaults` | 5 | preguntas por partida y segundos por desafío |
+| `tematicas` | 7 | categorías y su arte de portada |
+| `desafios` | 143 | el banco de preguntas |
+| `camino` | 8 | la secuencia de paradas |
+
+No incluye datos de jugadores (`profiles`, `intentos_nivel`,
+`respuestas_desafio`, `progreso_usuario_nivel`, inventarios de comodines): son
+datos de uso, no contenido, y cuelgan de `auth.users`.
+
+### Dos cosas que las migraciones ya no reconstruyen
+
+Conviene saber por qué el seed no es opcional:
+
+- **`camino`**: la migración de INT-98 lo poblaba con un `select` sobre
+  `niveles`, y esa tabla la eliminó INT-106. Hoy ese `insert` produce **cero
+  filas**, así que sin el seed el camino queda vacío y no hay nada que jugar.
+- **`dificultad_defaults`**: las migraciones insertan los valores originales
+  (8 preguntas, 30-90 s). Los vigentes se ajustaron jugando (4 preguntas,
+  20-30 s) y solo existían dentro de la base.
+
+### Las imágenes no están en el seed
+
+`tematicas.imagen_portada` y `desafios.imagen_url` son URLs absolutas al bucket
+público `challenge-media` de este proyecto. Al ser público, esas filas funcionan
+desde cualquier proyecto sin credenciales. La contrapartida es que las imágenes
+siguen alojadas aquí: una copia autosuficiente exigiría resubir los ficheros y
+reescribir las URLs.
+
+### Cómo se regenera
+
+El fichero se genera **desde la base**, no se edita a mano. Si creas contenido
+desde el panel y te importaría perderlo, vuelve a volcarlo: se leen las cuatro
+tablas por REST con la clave secreta y se emiten los `insert` en orden de clave
+ajena (`tematicas` antes de `desafios` y `camino`).
+
 ## Edge Functions
 
 Hay dos, y existen por una sola razón: **custodiar la clave de OpenAI**. El panel

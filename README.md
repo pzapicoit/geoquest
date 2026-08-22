@@ -67,18 +67,19 @@ cada uno con un modelo de imagen—.
 | | |
 | --- | --- |
 | Temáticas · desafíos · paradas | 7 · 143 · 8 |
-| Código de aplicación | ~13.700 líneas Dart · ~12.600 líneas TypeScript |
-| Base de datos | 42 migraciones versionadas · 15 tablas · 4 vistas · 33 funciones |
-| Tests | 683 en 51 ficheros, todos en verde · 92,2 % y 90,0 % de cobertura |
-| Especificaciones | 43 specs vivas · 60 cambios completados |
-| Commits | 217 |
+| Código de aplicación | ~14.700 líneas Dart · ~12.600 líneas TypeScript |
+| Base de datos | 47 migraciones versionadas · 15 tablas · 4 vistas · 36 funciones |
+| Tests | 761 en 60 ficheros, todos en verde · 92,9 % y 90,0 % de cobertura |
+| Especificaciones | 45 specs vivas · 63 cambios completados |
+| Commits | 222 |
 
 ---
 
 ## Cómo se juega
 
-1. **Entras** con un apodo, o como invitado. No hay registro ni contraseña: la
-   sesión es anónima y el progreso se guarda en el dispositivo.
+1. **Entras eligiendo un apodo.** Puedes ponerle contraseña —y entonces tu
+   perfil te sigue a cualquier móvil— o entrar como invitado, con el progreso
+   guardado solo en ese dispositivo. En ningún caso hace falta un email.
 2. **Eliges una parada** del camino. Solo la primera está abierta; el resto se
    desbloquean con las estrellas que vas acumulando.
 3. **Lees la pista.** Una ilustración y una pregunta («¿Dónde se tomó esta
@@ -105,7 +106,7 @@ de la respuesta. Como mucho uno por partida.
 | **App de jugador** | Flutter 3.47 / Dart 3.13 — iOS, Android y Web |
 | **Panel de administración** | React 19 · Vite · TypeScript · Tailwind CSS 4 |
 | **Base de datos** | PostgreSQL 17.6 (Supabase, `eu-west-1`) |
-| **Autenticación** | Supabase Auth — sesión anónima (jugador), email+contraseña (admin) |
+| **Autenticación** | Supabase Auth — apodo + contraseña sin email (jugador), sesión anónima (invitado), email + contraseña (admin) |
 | **Almacenamiento** | Supabase Storage (ilustraciones de los desafíos) |
 | **Lógica de servidor** | Funciones y vistas de PostgreSQL (PL/pgSQL) |
 | **Edge Functions** | Deno (Supabase Functions) — custodia de la clave de OpenAI |
@@ -229,6 +230,61 @@ de responder, la ciudad *es* la respuesta. Solo `responder_desafio` las devuelve
 Es una regla fijada como escenario de especificación, no como disciplina
 implícita.
 
+### Un jugador se identifica sin dar nunca un email
+
+El jugador entra con **apodo y contraseña**. No hay email en ninguna parte del
+producto: ni se pide, ni se envía, ni se verifica, ni se recupera.
+
+Supabase Auth necesita un identificador para poder usar contraseña, así que se
+deriva del apodo en el cliente, de forma determinista:
+
+```
+sha256(apodo recortado y en minúsculas) en hexadecimal + "@geoquest.invalid"
+```
+
+El dominio `.invalid` está reservado por la RFC 2606 y no puede enrutar correo,
+así que ese buzón no existe ni puede existir. El hash hace la identidad
+insensible a mayúsculas y a espacios sobrantes, de modo que quien se registró
+como «Pablo» entra escribiendo «pablo».
+
+Tres consecuencias que el diseño asume de forma explícita:
+
+- **La confirmación de email tiene que seguir desactivada.** Si se activa, cada
+  alta queda pendiente de un correo que nunca podrá llegar, y el jugador no
+  puede entrar. Se comprueba sin credenciales contra `/auth/v1/settings`.
+- **El apodo de un jugador con contraseña es inmutable**, y lo impide un trigger
+  sobre `profiles`. Si la identidad deriva del apodo, renombrarlo dejaría al
+  jugador fuera de su cuenta en silencio y sin arreglo posible, porque no hay
+  recuperación de contraseña.
+- **«Tener contraseña» es tenerla no vacía**, no que la columna exista. GoTrue
+  rellena `encrypted_password` también en las altas anónimas, así que el
+  criterio correcto es `coalesce(encrypted_password, '') <> ''`. Costó una
+  migración correctiva descubrirlo.
+
+Un invitado puede ponerse contraseña más tarde **sin perder su progreso**, y una
+consulta `estado_apodo` dice si un apodo está libre, ocupado por alguien con
+contraseña, u ocupado por un invitado — devolviendo solo ese estado, nunca la
+identidad ni el identificador del jugador.
+
+### El comodín de radio no centra el círculo en la respuesta
+
+Los comodines de radio dibujan un círculo que acota dónde está el objetivo. La
+primera versión lo centraba en la respuesta, y eso convertía el comodín en la
+solución: bastaba pinchar el centro para acertar con distancia casi cero.
+
+Ahora el servidor **desplaza el centro al azar** y garantiza que el objetivo
+quede entre el **35 % y el 90 % del radio** de distancia: dentro del círculo
+siempre, pero nunca en el centro. El rumbo se sortea uniformemente y la
+distancia se reparte uniforme por área, para que ninguna dirección ni ninguna
+franja del círculo sea más probable. Cada consumo sortea un desplazamiento
+nuevo, así que gastar dos comodines sobre el mismo desafío da dos círculos
+distintos.
+
+La geometría vive en su propia función (`desplazar_centro_radio`), separada de
+`usar_comodin` y deliberadamente **no expuesta como RPC pública**: al no leer ni
+escribir ninguna tabla es testeable directamente contra el remoto, mientras que
+`usar_comodin` descuenta inventario y no lo es.
+
 ### Generación de contenido con IA, con revisión humana obligatoria
 
 El panel puede proponer preguntas nuevas para una temática, pero el wizard es
@@ -247,8 +303,8 @@ recordar lugares reales.
 
 ### Desarrollo dirigido por especificación
 
-El repositorio no solo contiene el código: contiene **43 especificaciones vivas
-y 60 cambios completados** en `openspec/`. Cada funcionalidad nació de una
+El repositorio no solo contiene el código: contiene **45 especificaciones vivas
+y 63 cambios completados** en `openspec/`. Cada funcionalidad nació de una
 propuesta escrita y aprobada antes de implementarse, pasó por revisión
 adversarial, tests y gates de calidad, y quedó archivada con su justificación de
 diseño.
@@ -270,10 +326,19 @@ backfills de datos también son migraciones.
 
 ### App de jugador (Flutter)
 
-- **Sesión anónima automática** al arrancar, con alias único entre jugadores y
-  progreso ligado al dispositivo. Acceso como invitado en un toque.
+- **Entrada con apodo y contraseña, sin email**: crear perfil, entrar desde otro
+  móvil, o jugar como invitado en un toque. Un invitado puede ponerse contraseña
+  después sin perder el progreso. La pantalla avisa de que no hay recuperación de
+  contraseña, porque no la hay.
+- **El dispositivo recuerda los apodos** que han entrado en él, con un tope:
+  elegir uno rellena el acceso —no lo completa, la contraseña sigue haciendo
+  falta— y se puede olvidar de la lista.
+- **Pantalla de bienvenida** al jugador reconocido, con resumen de progreso real,
+  continuar partida y cambiar de jugador.
 - **Camino de paradas** como pantalla principal, con arte por temática, estado
   de bloqueo, estrellas obtenidas y desbloqueo por estrellas acumuladas.
+- **Puntuación por camino**: los puntos del mejor intento de cada parada, y el
+  acumulado del jugador en el riel de progreso.
 - **Partida**: tanda de desafíos con cuenta atrás por pregunta,
   auto-confirmación al agotarse el tiempo, y aviso visual de tiempo crítico
   (marco rojo periférico) cuando queda menos de un quinto del tiempo o menos de
@@ -284,8 +349,9 @@ backfills de datos también son migraciones.
   distancia en kilómetros, puntos, desglose del bonus por rapidez y rótulo de la
   ciudad.
 - **Comodines**: parar el cronómetro, revelar el país, y círculo de acierto de
-  500 km o 150 km (con la cámara animándose para encuadrar el círculo). Máximo
-  uno por partida.
+  500 km o 150 km, con el centro desplazado al azar para que acote la zona sin
+  regalar el punto, y la cámara animándose para encuadrarlo. Máximo uno por
+  partida.
 - **Resumen de parada** con estrellas conseguidas y puntaje.
 - **Clasificación** con tres pestañas: global, por camino y por temática.
 - **Vídeo publicitario** (AdMob): recompensado para conseguir comodines bajo
@@ -326,10 +392,17 @@ backfills de datos también son migraciones.
 - **Vistas seguras**: `desafios_para_jugar` sirve el contenido del desafío sin
   exponer su ubicación real; `camino_jugador` devuelve el camino con el progreso
   del jugador autenticado.
-- **Clasificaciones** global, por camino y por temática.
+- **Clasificaciones** global, por camino y por temática, sobre el mejor intento
+  de cada parada, con top N acotado, empates que comparten posición y la fila de
+  quien llama siempre incluida.
+- **Identidad del jugador**: `estado_apodo` informa si un apodo está libre,
+  ocupado con contraseña u ocupado por un invitado, sin revelar identidad; un
+  trigger impide renombrar a un jugador con credenciales, porque su identidad
+  deriva del apodo.
 - **Comodines**: inventario sembrado al crear el perfil, consumo mediante
   funciones `security definer` (no hay ninguna política de escritura directa) y
-  concesión por anuncio con tope diario.
+  concesión por anuncio con tope diario. La geometría del círculo de radio
+  (`desplazar_centro_radio`) está aparte y no es RPC pública.
 - **Publicidad**: `anuncio_debido` decide qué anuncio toca antes de una partida y
   `iniciar_intento_parada` recalcula la misma lógica en su propia transacción, sin
   confiar en que la app avise.
@@ -348,7 +421,7 @@ GeoQuest/
 │   │   ├── mapa/               Mapa propio: Mercator, geometría, pintor, gran círculo
 │   │   ├── screens/            Splash, entrada, camino, partida, comodines, resumen, clasificación
 │   │   └── services/           Gateways contra Supabase (uno por caso de uso)
-│   ├── test/                   28 ficheros de test
+│   ├── test/                   33 ficheros de test
 │   ├── tool/                   build_world_asset.dart — genera el asset del mundo
 │   ├── assets/world/           world_50m.bin (785 KB, Natural Earth 50m)
 │   └── dart_define.example.json
@@ -361,13 +434,14 @@ GeoQuest/
 │
 ├── backend/                    Supabase — esquema, RLS, RPCs, Edge Functions
 │   └── supabase/
-│       ├── migrations/         42 migraciones versionadas
+│       ├── migrations/         47 migraciones versionadas
 │       ├── functions/          proponer-lugares · generar-imagen-lugar (Deno)
-│       └── seed.sql
+│       ├── tests/              tests SQL de la lógica de Postgres
+│       └── seed.sql            el banco de contenido (163 filas)
 │
 ├── openspec/                   Desarrollo dirigido por especificación
-│   ├── specs/                  43 especificaciones vivas
-│   └── changes/archive/        60 cambios completados con su diseño y justificación
+│   ├── specs/                  45 especificaciones vivas
+│   └── changes/archive/        63 cambios completados con su diseño y justificación
 │
 └── Recursos/                   Arte y mocks de diseño
 ```
@@ -414,8 +488,17 @@ cp .env.example .env.local
 supabase projects api-keys --project-ref <TU_PROJECT_REF> --reveal
 # …y pega los valores en .env.local
 
-supabase db push          # aplica las 42 migraciones
+supabase db push          # aplica las 47 migraciones
+
+# el contenido del juego (temáticas, desafíos, camino, dificultades)
+supabase db query --linked -f supabase/seed.sql
 ```
+
+Sin ese último paso el esquema queda montado pero **el juego no tiene nada que
+jugar**: el contenido es obra de autor y vive en `seed.sql`, no en las
+migraciones. El fichero es idempotente (`on conflict do update`), así que puede
+aplicarse sobre una base ya poblada sin duplicar ni borrar nada. `supabase db
+reset` lo ejecuta solo, al final.
 
 Las Edge Functions y sus secretos:
 
@@ -519,11 +602,28 @@ npm run dev
 
 ## Usuario y contraseña de prueba
 
-**La app de jugador no tiene login.** Se entra con un apodo o directamente como
-invitado: la sesión es anónima. No hacen falta credenciales para jugar.
+### App de jugador — no necesitas credenciales
 
-**El panel de administración sí.** Requiere una cuenta con
-`profiles.role = 'admin'`:
+La app tiene login, pero **no hace falta ninguna cuenta para jugar**, y crear una
+no requiere email ni verificación:
+
+| Cómo entrar | Qué hace falta |
+| --- | --- |
+| **Como invitado** | Nada. Hay un acceso «Entrar sin cuenta como invitado» en la pantalla de entrada |
+| **Con perfil propio** | Un apodo libre y una contraseña que te inventes en ese momento |
+
+No hay correo de confirmación, ni enlace que abrir, ni espera: el identificador
+que necesita el proveedor de autenticación se deriva del apodo sobre un dominio
+que no puede recibir correo. Detalle en
+[Un jugador se identifica sin dar nunca un email](#un-jugador-se-identifica-sin-dar-nunca-un-email).
+
+> Como no hay email, tampoco hay recuperación de contraseña, y la propia pantalla
+> lo advierte antes de que la elijas. Es una consecuencia asumida del diseño, no
+> un hueco pendiente.
+
+### Panel de administración — sí necesita cuenta
+
+Requiere una cuenta con `profiles.role = 'admin'`:
 
 | | |
 | --- | --- |
@@ -531,6 +631,10 @@ invitado: la sesión es anónima. No hacen falta credenciales para jugar.
 | Usuario | `master@geoquest.es` |
 | Contraseña | `SuperMaster1981` |
 
+> El panel es la única parte del proyecto que usa email como identificador, y lo
+> hace porque sus cuentas las crea a mano quien administra, no un flujo de
+> registro.
+>
 > Un usuario creado por la vía normal nace con `role = 'jugador'`. Para
 > convertirlo en administrador hay que promoverlo desde el editor SQL del
 > dashboard de Supabase:
@@ -546,13 +650,13 @@ invitado: la sesión es anónima. No hacen falta credenciales para jugar.
 
 ## Calidad de código y testing
 
-**683 tests, todos en verde**, con cobertura medida:
+**761 tests, todos en verde**, con cobertura medida:
 
 | Módulo | Tests | Cobertura |
 | --- | --- | --- |
-| `app/` (Flutter) | 396 en 28 ficheros | 92,2 % de líneas (4.293/4.654) |
+| `app/` (Flutter) | 474 en 33 ficheros | 92,9 % de líneas (4.649/5.002) |
 | `panel/` (Vitest) | 287 en 23 ficheros | 90,0 % de sentencias (1.284/1.426) |
-| `backend/` | `supabase db lint` sobre las migraciones | — |
+| `backend/` (SQL) | 4 scripts contra el proyecto remoto | — |
 
 ### Estrategia de testing
 
@@ -590,6 +694,15 @@ que se puede equivocar en silencio —deduplicación de lugares, contabilidad de
 lote, traducción de códigos de error— no vive en Deno sino en `panel/src/lib/`,
 cubierto con Vitest.
 
+**La lógica de Postgres se prueba en Postgres.** El puntaje, el bonus por
+rapidez, las clasificaciones y la geometría del círculo de radio tienen tests
+SQL propios en `backend/supabase/tests/`. Son scripts autónomos, sin pgTAP: el
+proyecto no lo instala, y un `do $$ ... $$` con asserts cubre lo que hace falta.
+Los que escriben en tablas se envuelven en `BEGIN`/`ROLLBACK`, porque corren
+contra el proyecto remoto; los que solo calculan sobre sus argumentos —como
+`desplazar_centro_radio`— no lo necesitan, y esa testabilidad es justo la razón
+de haber separado la geometría de `usar_comodin`.
+
 **Contrapartida asumida:** la pantalla de juego programa fotogramas mientras
 corre la cuenta atrás, así que sus tests no pueden usar `pumpAndSettle` y tienen
 que avanzar el tiempo a mano.
@@ -597,7 +710,7 @@ que avanzar el tiempo a mano.
 ### Proceso de calidad
 
 Ninguna funcionalidad se implementó sin una especificación aprobada antes. Cada
-cambio recorrió la misma cadena, y los 60 completados están archivados en
+cambio recorrió la misma cadena, y los 63 completados están archivados en
 `openspec/changes/archive/` con su propuesta, su diseño y sus tareas:
 
 ```
@@ -618,7 +731,7 @@ Las herramientas por módulo:
 | --- | --- | --- | --- |
 | `app/` | `flutter test` | `flutter analyze` | `dart format` |
 | `panel/` | Vitest + React Testing Library | ESLint · `tsc --noEmit` | Prettier |
-| `backend/` | `supabase db lint --linked` | `deno check` · `deno lint` | — |
+| `backend/` | scripts SQL + `supabase db lint --linked` | `deno check` · `deno lint` | — |
 
 ### Comandos
 
@@ -649,6 +762,9 @@ npm run format:check          # Prettier
 cd backend
 supabase db lint --linked     # lint del esquema contra el remoto
 supabase migration list       # divergencia local vs remoto
+
+# tests SQL (uno por fichero; el CLI 2.111 renombró "db execute" a "db query")
+supabase db query --linked -f supabase/tests/test_calcular_puntaje.sql
 
 cd supabase/functions
 deno check proponer-lugares/index.ts generar-imagen-lugar/index.ts
@@ -704,8 +820,13 @@ Honestidad sobre lo que hay y lo que no:
   identificador está alineado con el de iOS, pero no se ha compilado ni probado:
   no hay SDK de Android instalado en la máquina de desarrollo.
 - **Un solo entorno.** No hay stack local ni entorno de *staging*: el proyecto
-  remoto de Supabase es el único que existe. Por eso el contenido de trabajo
-  debe ser reproducible desde las migraciones.
+  remoto de Supabase es el único que existe.
+- **Las ilustraciones siguen alojadas en el proyecto original.** El banco de
+  contenido sí viaja en el repositorio (`seed.sql`), pero las imágenes son URLs
+  absolutas al bucket público `challenge-media` de este proyecto de Supabase.
+  Como el bucket es público, un despliegue propio funciona con imágenes desde el
+  primer momento; una copia de verdad autosuficiente exigiría volver a subir los
+  ficheros y reescribir las URLs.
 - **No hay CI.** Los gates de calidad se ejecutan en local a través del flujo de
   trabajo del proyecto.
 
