@@ -12,7 +12,7 @@ Trabajo de Fin de Máster — Máster en Desarrollo de Software (MoureDev).
 
 | Recurso | Enlace |
 | --- | --- |
-| **Jugar en el navegador** | _pendiente de despliegue_ |
+| **Jugar en el navegador** | https://geoquest-juego.vercel.app/ |
 | **Panel de administración** | https://geoquest-seven-omega.vercel.app/ |
 | **Presentación (slides)** | _pendiente_ |
 | **Vídeo de presentación** | _pendiente_ |
@@ -786,8 +786,8 @@ autorizar, construir el prompt y hablar con OpenAI.
 
 | Pieza | Dónde | Cómo |
 | --- | --- | --- |
-| Panel | Vercel | Conectado al repositorio, `panel/` como *root directory*. Deploy en cada push a `main`, preview por PR |
-| App web | Vercel | Build de `app/build/web` |
+| Panel | Vercel · [geoquest-seven-omega](https://geoquest-seven-omega.vercel.app/) | Conectado al repositorio, `panel/` como *root directory*. Deploy en cada push a `main`, preview por PR |
+| App web | Vercel · [geoquest-juego](https://geoquest-juego.vercel.app/) | Proyecto aparte, sin build en Vercel: se compila en local y se sube el resultado |
 | Base de datos | Supabase | `supabase db push` desde `backend/` |
 | Edge Functions | Supabase | `supabase functions deploy` |
 | App móvil | — | No publicada en stores |
@@ -795,6 +795,18 @@ autorizar, construir el prompt y hablar con OpenAI.
 Variables de entorno del panel en Vercel: `VITE_SUPABASE_URL` y
 `VITE_SUPABASE_PUBLISHABLE_KEY`. `vercel.json` añade el rewrite que evita el 404
 al recargar una ruta de `react-router-dom`.
+
+**La app web no se construye en Vercel**, a diferencia del panel: su imagen de
+build no trae Flutter, así que hacerlo ahí obligaría a descargarlo en el
+*install command* — builds de varios minutos y sensibles a cambios de versión.
+Se compila en local y se sube el resultado, que para un juego que no cambia a
+diario sale más barato:
+
+```bash
+cd app
+flutter build web --release --dart-define-from-file=dart_define.json
+cd build/web && vercel deploy --prod
+```
 
 ---
 
