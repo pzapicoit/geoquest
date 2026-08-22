@@ -7,7 +7,13 @@ class FakeAnunciosGateway implements AnunciosGateway {
     this.tipoPendiente = TipoAnuncioPendiente.ninguno,
     this.retraso = Duration.zero,
     this.recompensaGanada = false,
+    this.anunciosDisponibles = true,
   });
+
+  /// Si la plataforma simulada puede mostrar anuncios. `false` reproduce web,
+  /// donde la hoja de comodines lo dice en vez de intentarlo.
+  @override
+  final bool anunciosDisponibles;
 
   /// Lo que devuelve `anuncioDebido` la próxima vez que se llame.
   TipoAnuncioPendiente tipoPendiente;

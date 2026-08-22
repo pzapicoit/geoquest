@@ -126,7 +126,8 @@ class _CaminoScreenState extends State<CaminoScreen> with RouteAware {
       widget.comodinesGateway ??
       SupabaseComodinesGateway(Supabase.instance.client);
   late final AnunciosGateway _anunciosGateway =
-      widget.anunciosGateway ?? AdMobAnunciosGateway(Supabase.instance.client);
+      widget.anunciosGateway ??
+      anunciosGatewayPorDefecto(Supabase.instance.client);
 
   final _controller = ScrollController();
 

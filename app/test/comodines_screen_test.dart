@@ -259,6 +259,32 @@ void main() {
       },
     );
 
+    testWidgets(
+      'sin anuncios en la plataforma (web) lo dice y no intenta mostrarlo',
+      (tester) async {
+        final gateway = FakeComodinesGateway();
+        final anunciosGateway = FakeAnunciosGateway(anunciosDisponibles: false);
+        await tester.pumpWidget(
+          _pantalla(gateway, anunciosGateway: anunciosGateway),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byKey(const Key('comodines-obtener-mas')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('comodines-opcion-anuncio')));
+        await tester.pumpAndSettle();
+
+        // No se intenta: el "inténtalo de nuevo" del fallo normal sería
+        // mentira, porque en web no va a funcionar nunca.
+        expect(anunciosGateway.mostrarParaRecompensaCalls, 0);
+        expect(gateway.concederComodinPorAnuncioCalls, 0);
+        expect(
+          find.textContaining('no están disponibles en el navegador'),
+          findsOneWidget,
+        );
+      },
+    );
+
     testWidgets('tocar "Canjear puntos" avisa que está próximamente', (
       tester,
     ) async {

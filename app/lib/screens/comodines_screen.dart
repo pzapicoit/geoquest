@@ -207,7 +207,8 @@ class _ComodinesScreenState extends State<ComodinesScreen> {
   late final ComodinesGateway _gateway =
       widget.gateway ?? SupabaseComodinesGateway(Supabase.instance.client);
   late final AnunciosGateway _anunciosGateway =
-      widget.anunciosGateway ?? AdMobAnunciosGateway(Supabase.instance.client);
+      widget.anunciosGateway ??
+      anunciosGatewayPorDefecto(Supabase.instance.client);
 
   late Future<InventarioComodines> _futuro;
 
@@ -975,6 +976,19 @@ class _HojaObtenerMasState extends State<_HojaObtenerMas> {
 
   Future<void> _verAnuncio() async {
     if (_cargando) return;
+
+    // En web no hay SDK de anuncios, así que no se intenta: el mensaje de
+    // "inténtalo de nuevo" del fallo normal sería mentira, porque reintentar
+    // no va a funcionar nunca en esta plataforma.
+    if (!widget.anunciosGateway.anunciosDisponibles) {
+      setState(() {
+        _error =
+            'Los anuncios no están disponibles en el navegador. Abre la app '
+            'en el móvil para conseguir comodines viendo un vídeo.';
+      });
+      return;
+    }
+
     setState(() {
       _cargando = true;
       _error = null;
