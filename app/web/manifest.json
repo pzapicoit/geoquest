@@ -1,11 +1,11 @@
 {
-    "name": "geoquest",
-    "short_name": "geoquest",
+    "name": "GeoQuest",
+    "short_name": "GeoQuest",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "Juego de geografía: mira una ilustración, deduce dónde está y clávalo en el mapa.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
