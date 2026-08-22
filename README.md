@@ -69,7 +69,7 @@ cada uno con un modelo de imagen—.
 | Temáticas · desafíos · paradas | 7 · 143 · 8 |
 | Código de aplicación | ~14.700 líneas Dart · ~12.600 líneas TypeScript |
 | Base de datos | 47 migraciones versionadas · 15 tablas · 4 vistas · 36 funciones |
-| Tests | 761 en 60 ficheros, todos en verde · 92,9 % y 90,0 % de cobertura |
+| Tests | 770 en 62 ficheros, todos en verde · 92,9 % y 90,0 % de cobertura |
 | Especificaciones | 45 specs vivas · 63 cambios completados |
 | Commits | 222 |
 
@@ -356,6 +356,10 @@ backfills de datos también son migraciones.
 - **Clasificación** con tres pestañas: global, por camino y por temática.
 - **Vídeo publicitario** (AdMob): recompensado para conseguir comodines bajo
   demanda, e intersticial recompensado como gating de partidas, con tope diario.
+- **Encuadre de móvil en pantallas anchas**: por encima de 430 px la app se
+  pinta centrada en una franja vertical en vez de estirarse, con el mapa
+  recortado a ella. Se decide por ancho disponible, no por plataforma, así que
+  también sirve en tablet.
 - **Precarga de imágenes** del intento en segundo plano, en orden de juego, para
   que llegar a cada desafío sea un acierto de caché y no una espera de red con
   la cuenta atrás corriendo.
@@ -421,7 +425,7 @@ GeoQuest/
 │   │   ├── mapa/               Mapa propio: Mercator, geometría, pintor, gran círculo
 │   │   ├── screens/            Splash, entrada, camino, partida, comodines, resumen, clasificación
 │   │   └── services/           Gateways contra Supabase (uno por caso de uso)
-│   ├── test/                   33 ficheros de test
+│   ├── test/                   35 ficheros de test
 │   ├── tool/                   build_world_asset.dart — genera el asset del mundo
 │   ├── assets/world/           world_50m.bin (785 KB, Natural Earth 50m)
 │   └── dart_define.example.json
@@ -650,11 +654,11 @@ Requiere una cuenta con `profiles.role = 'admin'`:
 
 ## Calidad de código y testing
 
-**761 tests, todos en verde**, con cobertura medida:
+**770 tests, todos en verde**, con cobertura medida:
 
 | Módulo | Tests | Cobertura |
 | --- | --- | --- |
-| `app/` (Flutter) | 474 en 33 ficheros | 92,9 % de líneas (4.649/5.002) |
+| `app/` (Flutter) | 483 en 35 ficheros | 92,9 % de líneas (4.670/5.028) |
 | `panel/` (Vitest) | 287 en 23 ficheros | 90,0 % de sentencias (1.284/1.426) |
 | `backend/` (SQL) | 4 scripts contra el proyecto remoto | — |
 
@@ -804,11 +808,11 @@ Honestidad sobre lo que hay y lo que no:
 - **La publicidad usa los ad units de test de Google.** El código está
   integrado y funcional; sustituir los identificadores por los de una cuenta
   AdMob real no requiere tocar código, solo configuración.
-- **AdMob no soporta web.** En el navegador el SDK no está disponible: el gating
-  de partidas resuelve *fail-open* (se juega igual) y la obtención de comodines
-  por vídeo no está operativa.
-- **En escritorio el encuadre no está pulido.** La app está diseñada en vertical
-  para móvil; en una ventana ancha el layout se estira.
+- **En web no hay anuncios, y la app lo dice.** `google_mobile_ads` declara
+  soporte solo para Android e iOS, así que en el navegador el gateway es
+  `AnunciosGatewayWeb`: el gating de partidas nunca bloquea y la hoja de
+  comodines avisa de que hay que abrir la app en el móvil, en vez de intentarlo
+  y fallar con un "inténtalo de nuevo" que ahí sería mentira.
 - **El simulador de iOS no compila.** El build para dispositivo
   (`flutter build ios --no-codesign`) y el de web funcionan, pero el destino de
   simulador falla en `xcodebuild` al resolver `generic/platform=iOS Simulator`.

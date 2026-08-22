@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
@@ -7,6 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'config/app_config.dart';
 import 'route_observer.dart';
+import 'screens/marco_de_movil.dart';
 import 'screens/splash_screen.dart';
 
 Future<void> main() async {
@@ -35,7 +37,14 @@ Future<void> main() async {
   // pantalla pueda pedir un RewardedInterstitialAd. No bloquea el arranque
   // si tarda o falla (fail-open general de video-ads): no se espera aquí a
   // que termine, solo se dispara.
-  unawaited(MobileAds.instance.initialize());
+  //
+  // En web no se llama: `google_mobile_ads` declara soporte solo para Android
+  // e iOS, así que el plugin no está registrado y esta llamada terminaba en un
+  // error no capturado en la consola del navegador en cada arranque. Ahí el
+  // gateway de anuncios es `AnunciosGatewayWeb`, que no toca el SDK.
+  if (!kIsWeb) {
+    unawaited(MobileAds.instance.initialize());
+  }
 
   runApp(GeoQuestApp(config: config));
 }
@@ -53,6 +62,11 @@ class GeoQuestApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF1B6B4C)),
       ),
       navigatorObservers: [routeObserver],
+      // Encajona la app en una franja vertical si la ventana es más ancha que
+      // el diseño (navegador de escritorio, tablet). Va en `builder` y no
+      // envolviendo `home` para que también alcance a las rutas que empuje el
+      // Navigator, no solo a la primera pantalla.
+      builder: (context, child) => MarcoDeMovil(child: child!),
       home: SplashScreen(config: config),
     );
   }

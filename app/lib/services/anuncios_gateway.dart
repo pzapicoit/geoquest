@@ -45,9 +45,21 @@ abstract class AnunciosGateway {
   /// `false` en cualquier otro caso (no cargó, falló, se cerró antes de
   /// completarse) — quien llama no debe conceder nada si devuelve `false`.
   Future<bool> mostrarParaRecompensa();
+
+  /// Si esta plataforma puede mostrar anuncios de verdad.
+  ///
+  /// `false` en web, donde el SDK de Google Mobile Ads no tiene
+  /// implementación. Existe para que quien ofrezca "ver un anuncio" pueda
+  /// decir la verdad en vez de intentarlo y fallar: el mensaje de
+  /// "inténtalo de nuevo" de [mostrarParaRecompensa] sería mentira ahí,
+  /// porque reintentar no va a funcionar nunca.
+  bool get anunciosDisponibles;
 }
 
 class AdMobAnunciosGateway implements AnunciosGateway {
+  @override
+  bool get anunciosDisponibles => true;
+
   AdMobAnunciosGateway(
     this._client, {
     this.adUnitId = _adUnitIdPorDefecto,
@@ -243,3 +255,45 @@ class AdMobAnunciosGateway implements AnunciosGateway {
     );
   }
 }
+
+/// [AnunciosGateway] para web, donde no hay anuncios que mostrar.
+///
+/// `google_mobile_ads` declara soporte solo para Android e iOS: en web el
+/// plugin no se registra, así que cualquier llamada al SDK nativo termina en
+/// `MissingPluginException`. Antes de esta clase, `MobileAds.initialize()`
+/// dejaba dos errores en la consola del navegador en cada arranque.
+///
+/// Las tres operaciones se resuelven sin tocar red ni SDK, cada una por el
+/// lado que ya define su contrato:
+///
+///   * [anuncioDebido] devuelve `ninguno`. No se consulta la RPC: aunque
+///     funcionaría (es Postgres), su respuesta no serviría de nada — si
+///     dijera que toca anuncio, no habría forma de mostrarlo, y el gating es
+///     fail-open de todos modos. `iniciar_intento_parada` recalcula la misma
+///     lógica en su transacción, así que la contabilidad del servidor no se
+///     desvía por que el cliente no pregunte.
+///   * [mostrarSiToca] no hace nada, que es exactamente su fail-open.
+///   * [mostrarParaRecompensa] devuelve `false`, que es su contrato cuando no
+///     hay recompensa ganada. NO es fail-open: no se concede nada.
+class AnunciosGatewayWeb implements AnunciosGateway {
+  const AnunciosGatewayWeb();
+
+  @override
+  bool get anunciosDisponibles => false;
+
+  @override
+  Future<TipoAnuncioPendiente> anuncioDebido(String caminoId) async =>
+      TipoAnuncioPendiente.ninguno;
+
+  @override
+  Future<void> mostrarSiToca(String caminoId) async {}
+
+  @override
+  Future<bool> mostrarParaRecompensa() async => false;
+}
+
+/// El gateway que le toca a la plataforma en la que corre la app.
+///
+/// Se decide por [kIsWeb] y no por `Platform`, que en web lanza al importarse.
+AnunciosGateway anunciosGatewayPorDefecto(SupabaseClient client) =>
+    kIsWeb ? const AnunciosGatewayWeb() : AdMobAnunciosGateway(client);
