@@ -14,8 +14,8 @@ Trabajo de Fin de Máster — Máster en Desarrollo de Software (MoureDev).
 | --- | --- |
 | **Jugar en el navegador** | https://geoquest-juego.vercel.app/ |
 | **Panel de administración** | https://geoquest-seven-omega.vercel.app/ |
-| **Presentación (slides)** | _pendiente_ |
-| **Vídeo de presentación** | _pendiente_ |
+| **Presentación (slides)** | https://docs.google.com/presentation/d/1pBoASIM2moWz0t0Q2Px5nty3x07Z35IA/edit?usp=sharing |
+| **Vídeo de presentación** | https://youtu.be/1W1aHu4rXLY |
 | **Repositorio** | https://github.com/pzapicoit/geoquest |
 
 La app web se juega **sin registro**: hay un acceso «Entrar sin cuenta como
