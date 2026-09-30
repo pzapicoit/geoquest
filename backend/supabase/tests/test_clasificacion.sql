@@ -149,8 +149,8 @@ begin
   -- respuestas_desafio_calcular_antes_de_insertar RECALCULA puntos/
   -- distancia_km siempre -- no vale insertar "puntos" a mano. Con
   -- lat_adivinada = lat_real (0,0) la distancia es 0 y, al no existir fila
-  -- en intento_desafios (sin mostrado_en), el trigger trata el tiempo como
-  -- agotado -> bonus de rapidez 0 -> puntos = calcular_puntaje_por_distancia(0)
+  -- en intento_desafios con mostrado_en (queda a NULL), el trigger trata el
+  -- tiempo como agotado -> bonus de rapidez 0 -> puntos = calcular_puntaje_por_distancia(0)
   -- = 5000 exactos (ver test_calcular_puntaje.sql). Con lat/lng NULL
   -- (sin pin) el trigger deja puntos = 0 exactos, sin pasar por la curva.
   insert into desafios (id, nombre, tipo, texto_pregunta, lat_real, lng_real, nombre_lugar, tematica_id, dificultad)
@@ -162,6 +162,16 @@ begin
   insert into intentos_nivel (id, usuario_id, camino_id) values (gen_random_uuid(), v_jug_b, v_camino_1) returning id into v_intento_b;
   insert into intentos_nivel (id, usuario_id, camino_id) values (gen_random_uuid(), v_jug_c, v_camino_1) returning id into v_intento_c;
   insert into intentos_nivel (id, usuario_id, camino_id) values (gen_random_uuid(), v_jug_e, v_camino_1) returning id into v_intento_e;
+
+  -- INT-137: el trigger exige que el desafio este en la seleccion del intento
+  -- (intento_desafios). Se crea sin mostrado_en, asi que el tiempo sigue
+  -- contando como agotado y los puntos esperados no cambian.
+  insert into intento_desafios (intento_id, desafio_id, orden)
+  values
+    (v_intento_a, v_desafio_1, 1), (v_intento_a, v_desafio_2, 2),
+    (v_intento_b, v_desafio_1, 1),
+    (v_intento_c, v_desafio_1, 1),
+    (v_intento_e, v_desafio_1, 1);
 
   -- A acierta los dos desafios: 5000 + 5000 = 10000
   insert into respuestas_desafio (intento_id, desafio_id, lat_adivinada, lng_adivinada)
@@ -182,6 +192,8 @@ begin
   insert into intentos_nivel (id, usuario_id, camino_id) values (gen_random_uuid(), v_jug_h, v_camino_3) returning id into v_intento_h1;
   insert into intentos_nivel (id, usuario_id, camino_id) values (gen_random_uuid(), v_jug_h, v_camino_3) returning id into v_intento_h2;
   insert into intentos_nivel (id, usuario_id, camino_id) values (gen_random_uuid(), v_jug_h, v_camino_3) returning id into v_intento_h3;
+  insert into intento_desafios (intento_id, desafio_id, orden)
+  values (v_intento_h1, v_desafio_1, 1), (v_intento_h2, v_desafio_1, 1), (v_intento_h3, v_desafio_1, 1);
   insert into respuestas_desafio (intento_id, desafio_id, lat_adivinada, lng_adivinada)
   values
     (v_intento_h1, v_desafio_1, 0, 0),
