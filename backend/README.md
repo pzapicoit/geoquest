@@ -322,6 +322,32 @@ panel salen de políticas RLS sobre el rol del usuario autenticado (INT-77).
 
 `.env.local` está en `.gitignore`. Solo se versiona `.env.example`.
 
+## Las tablas de juego solo se escriben por RPC
+
+`intentos_nivel`, `intento_desafios`, `respuestas_desafio` y
+`progreso_usuario_nivel` no tienen ninguna policy de escritura y `anon` /
+`authenticated` no tienen privilegios de `insert`, `update`, `delete` ni
+`truncate` sobre ellas (INT-137). Con la clave publicable en el cliente, una
+policy `insert_own` o `update_own` equivale a dejar que el jugador escriba su
+propio puntaje, sus estrellas o su ranking. Un jugador solo **lee** sus filas;
+las escribe `iniciar_intento_parada`, `marcar_desafio_mostrado`,
+`responder_desafio`, `cerrar_intento_parada` y `usar_comodin`, todas
+`security definer` con `set search_path = public`.
+
+Consecuencia al escribir una RPC nueva sobre estas tablas: como `security definer`
+se salta RLS, **el filtro por dueño hay que escribirlo a mano**
+(`usuario_id = auth.uid()`), y el usuario sale siempre de `auth.uid()`, nunca de
+un parámetro. `responder_desafio` exige además que el desafío esté en
+`intento_desafios` del intento antes de leer nada de `desafios`.
+
+`tests/test_rls_tablas_juego.sql` lo comprueba (transacción con `rollback`, con
+el rol `authenticated`); ejecutarlo tras aplicar una migración que toque estas
+tablas:
+
+```bash
+supabase db query --linked -f supabase/tests/test_rls_tablas_juego.sql
+```
+
 ## Problemas frecuentes
 
 **`supabase start` falla con un error de conexión a Docker**
