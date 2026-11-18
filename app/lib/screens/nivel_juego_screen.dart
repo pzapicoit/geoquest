@@ -207,9 +207,10 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
   String? _relojArrancadoPara;
 
   /// Tope de lectura de la pista (INT-143): una sola fuente de verdad que
-  /// mueve la barra de la tarjeta y, al completarse, cierra la pista. Al ir
-  /// con el `vsync` de la pantalla, se pausa con ella (`TickerMode`) en vez
-  /// de cerrar la pista con la barra a medias.
+  /// mueve la barra de la tarjeta y, al completarse, cierra la pista. Va con
+  /// el `vsync` de la pantalla: se pausa con una ruta opaca encima
+  /// (`TickerMode`). Los diálogos no son opacos, así que el de «Salir» lo
+  /// pausa a mano.
   late final AnimationController _topeDeLectura =
       AnimationController(
         vsync: this,
@@ -513,12 +514,15 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
   void _prepararCuentaAtras(IntentoNivel intento) {
     _intento = intento;
     _cuentaAtras.preparar(Duration(seconds: intento.segundosPorDesafio));
-    // Con el lector de pantalla activo no hay tope (WCAG 2.2.1, tiempo
-    // ajustable): leer la pista con él lleva más que mirarla.
-    if (MediaQuery.maybeAccessibleNavigationOf(context) ?? false) {
-      _topeDeLectura.reset();
-      return;
-    }
+    // Con el lector de pantalla activo el tope es más largo (WCAG 2.2.1, tiempo
+    // ajustable): leer la pista con él lleva más que mirarla. Más largo y no
+    // quitado: sin tope, activar el lector bastaría para estudiar la pista sin
+    // límite y llevarse el bonus por rapidez completo.
+    _topeDeLectura.duration = Duration(
+      seconds: _conLectorDePantalla
+          ? segundosDeLecturaConLector
+          : segundosDeLecturaDePista,
+    );
     _topeDeLectura.forward(from: 0);
   }
 
@@ -834,14 +838,26 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
     }
   }
 
+  bool get _conLectorDePantalla =>
+      MediaQuery.maybeAccessibleNavigationOf(context) ?? false;
+
   Future<void> _pedirSalir() async {
+    // El diálogo no es opaco, así que no pausa los tickers de debajo: sin
+    // esto, el tope de lectura seguía corriendo detrás y podía cerrar la
+    // pista y arrancar el reloj mientras el jugador decidía (INT-143).
+    final topeEnMarcha = _topeDeLectura.isAnimating;
+    if (topeEnMarcha) _topeDeLectura.stop();
     final salir = await showDialog<bool>(
       context: context,
       barrierColor: const Color(0xC7060E14),
       builder: (_) =>
           _ModalSalir(puntaje: _puntajeConElRevelado, posicion: _indice + 1),
     );
-    if (salir == true && mounted) Navigator.of(context).pop();
+    if (salir == true && mounted) {
+      Navigator.of(context).pop();
+      return;
+    }
+    if (topeEnMarcha && mounted && _pistaVisible) _topeDeLectura.forward();
   }
 
   @override
@@ -2568,6 +2584,10 @@ class _TarjetaDePista extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tope = topeDeLectura;
+    final segundosDeLectura = tope is AnimationController
+        ? tope.duration?.inSeconds
+        : null;
     return Container(
       decoration: BoxDecoration(
         color: _cardBg,
@@ -2647,11 +2667,10 @@ class _TarjetaDePista extends StatelessWidget {
                   'Listo, voy a adivinar',
                   // Aviso estático del tope para el lector de pantalla, en
                   // lugar de la barra que cambia cada fotograma (INT-143).
-                  semanticsLabel: topeDeLectura == null
+                  semanticsLabel: segundosDeLectura == null
                       ? null
-                      : 'Listo, voy a adivinar. Tienes '
-                            '$segundosDeLecturaDePista segundos para leer la '
-                            'pista',
+                      : 'Listo, voy a adivinar. Tienes $segundosDeLectura '
+                            'segundos para leer la pista',
                   style: GoogleFonts.baloo2(
                     color: Colors.white,
                     fontSize: 17,
@@ -2666,7 +2685,8 @@ class _TarjetaDePista extends StatelessWidget {
             // Cuánto queda del tope de lectura: al vaciarse, la pista se
             // cierra sola y arranca el reloj (INT-143). Fuera del árbol de
             // semántica: su valor cambia en cada fotograma y el lector de
-            // pantalla lo anunciaría sin parar; el botón ya dice el tope.
+            // pantalla lo anunciaría sin parar; en su lugar, el botón «Listo»
+            // dice una vez cuántos segundos hay.
             ExcludeSemantics(
               child: AnimatedBuilder(
                 animation: tope,
@@ -2693,6 +2713,10 @@ class _TarjetaDePista extends StatelessWidget {
 /// tope se podría estudiar la imagen sin límite con la cuenta atrás parada y
 /// contestar al instante con el bonus por rapidez completo.
 const segundosDeLecturaDePista = 20;
+
+/// Tope de lectura con el lector de pantalla activo (INT-143): leer la pista
+/// con él lleva más tiempo, y WCAG 2.2.1 pide poder ampliar los límites.
+const segundosDeLecturaConLector = 60;
 
 /// Pie explicativo fijo por tipo de pista (D10 de `design.md`): `desafios` no
 /// tiene ninguna columna equivalente y el texto no varía por desafío.

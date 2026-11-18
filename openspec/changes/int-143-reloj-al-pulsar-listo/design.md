@@ -31,10 +31,15 @@ preparar cada desafío. Mueve la barra fina bajo «Listo» y, al completarse,
 cierra la pista. Se para al cerrar la pista a mano. Al ir con el `vsync`, se
 pausa con la pantalla (`TickerMode`), en vez de que un `Timer` aparte cierre la
 pista con la barra a medias (revisión de `ecc:flutter-reviewer`).
+- El diálogo «Salir» no es opaco, así que no pausa los tickers de debajo. Por
+  eso `_pedirSalir` para el tope mientras está abierto y lo reanuda si el
+  jugador sigue jugando.
 - Accesibilidad: la barra queda fuera del árbol de semántica, porque su valor
-  cambia en cada fotograma. El botón «Listo» anuncia el tope una vez («Tienes 20
+  cambia en cada fotograma. El botón «Listo» anuncia el tope una vez («Tienes N
   segundos para leer la pista»). Con el lector de pantalla activo
-  (`accessibleNavigation`) no hay tope, por WCAG 2.2.1 (tiempo ajustable).
+  (`accessibleNavigation`), el tope sube a 60 s, por WCAG 2.2.1 (tiempo
+  ajustable). Se amplía en vez de quitarse: sin tope, activar el lector
+  serviría para saltárselo (revisión adversarial).
 - *Alternativa:* sin tope. Se descarta: permitiría estudiar la imagen sin límite
   y contestar al instante con el bonus completo.
 - *Alternativa:* un número en el botón. Se descarta: es más ruido visual que una
@@ -44,6 +49,15 @@ pista con la barra a medias (revisión de `ecc:flutter-reviewer`).
 pista no arma el tope ni vuelve a llamar al servidor.
 
 ## Risks / Trade-offs
+
+- [La carga de la imagen consume el tope] → En una red muy lenta, una imagen que
+  tarde más de 20 s se llevaría el tope. La precarga del intento (INT-120) hace
+  que normalmente ya esté en caché. Si se ve en la práctica, el tope puede
+  arrancar al terminar de cargar.
+- [Tope fijo y no proporcional a `segundos_por_desafio`] → Es deliberado: el
+  tiempo de leer la pista no depende de la dificultad del mapa.
+- [Fallo de `marcar_desafio_mostrado`] → Preexistente: el error se traga y ese
+  desafío no tiene bonus (`mostrado_en` nulo). No cambia con esta propuesta.
 
 - [El comodín «tiempo» (`.parar()`) antes de arrancar] → Los comodines se usan
   desde la bandeja del mapa, que no se ve con la pista abierta. Si se usara

@@ -16,6 +16,9 @@ desde ese momento, así que leer con calma penaliza.
   agotarse se cierra sola y arranca el reloj. Sin tope, se podría estudiar la
   imagen indefinidamente con el reloj parado y luego contestar al instante con
   el bonus completo.
+- Con el lector de pantalla activo, el tope es de **60 s**, para poder leer la
+  pista con él (WCAG 2.2.1, tiempo ajustable). Se amplía, no se quita: si se
+  quitara, activar el lector bastaría para saltarse el tope.
 - Volver a abrir la pista con «Ver la pista», con el reloj ya en marcha, no lo
   para, igual que hoy.
 
@@ -35,10 +38,13 @@ Ninguna.
 - `app/lib/screens/nivel_juego_screen.dart`: arranque de la cuenta atrás y
   llamada a `marcarDesafioMostrado` al cerrar la pista, y tope de lectura.
 - Tests de `test/nivel_juego_screen_test.dart`.
+- `app/lib/screens/cuenta_atras_de_desafio.dart`: `preparar` (llena y quieta).
 - **Sin cambios en el backend.** `marcar_desafio_mostrado` ya fija `mostrado_en`
   solo en la primera llamada (spec `challenge-timer`), y el bonus se sigue
   calculando en el servidor. Solo cambia *cuándo* llama la app. La spec
-  `challenge-timer` no cambia.
+  `challenge-timer` no cambia: describe la RPC («la primera vez que se marca un
+  desafío»), y eso sigue siendo cierto; lo que cambia es el momento en que la
+  app la llama, que es de `app-game-screen`.
 - Relación con INT-139 (antitrampas): el reloj lo sigue fijando el servidor con
   `now()`. Como antes, una app modificada podría retrasar la llamada; cerrar eso
   es cosa de INT-139.

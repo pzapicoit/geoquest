@@ -1265,9 +1265,8 @@ void main() {
       expect(gateway.desafiosMarcadosMostrados, ['d3']);
     });
 
-    testWidgets('con lector de pantalla la pista no tiene tope (INT-143)', (
-      tester,
-    ) async {
+    testWidgets('con lector de pantalla el tope es más largo, no se quita '
+        '(INT-143)', (tester) async {
       tester.platformDispatcher.accessibilityFeaturesTestValue =
           const FakeAccessibilityFeatures(accessibleNavigation: true);
       addTearDown(
@@ -1278,11 +1277,45 @@ void main() {
       ], segundosPorDesafio: 30);
 
       await _abrirNivel(tester, gateway);
-      expect(
-        find.byKey(const Key('nivel-juego-tope-de-lectura')),
-        findsNothing,
-      );
       await tester.pump(const Duration(seconds: segundosDeLecturaDePista + 5));
+      expect(find.byKey(const Key('nivel-juego-boton-listo')), findsOneWidget);
+      expect(gateway.desafiosMarcadosMostrados, isEmpty);
+
+      await tester.pump(const Duration(seconds: segundosDeLecturaConLector));
+      await tester.pump();
+      expect(find.byKey(const Key('nivel-juego-boton-listo')), findsNothing);
+      expect(gateway.desafiosMarcadosMostrados, ['d3']);
+    });
+
+    testWidgets('el botón «Listo» anuncia el tope al lector (INT-143)', (
+      tester,
+    ) async {
+      final semantica = tester.ensureSemantics();
+      await _abrirNivel(tester, _gatewayCon(const [_desafioTexto]));
+
+      expect(
+        find.bySemanticsLabel(
+          RegExp('Tienes $segundosDeLecturaDePista segundos para leer'),
+        ),
+        findsOneWidget,
+      );
+      semantica.dispose();
+    });
+
+    testWidgets('el diálogo «Salir» pausa el tope de lectura (INT-143)', (
+      tester,
+    ) async {
+      final gateway = _gatewayCon(const [
+        _desafioTexto,
+      ], segundosPorDesafio: 30);
+
+      await _abrirNivel(tester, gateway);
+      await tester.tap(find.byKey(const Key('nivel-juego-salir')));
+      await tester.pump();
+      await tester.pump(const Duration(seconds: segundosDeLecturaDePista + 5));
+      await tester.tap(find.text('Seguir jugando'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
 
       expect(find.byKey(const Key('nivel-juego-boton-listo')), findsOneWidget);
       expect(gateway.desafiosMarcadosMostrados, isEmpty);
