@@ -144,6 +144,27 @@ void main() {
       expect(camino.fetchCaminoCalls, 1);
     });
 
+    testWidgets('con texto grande no se recortan ni desbordan', (tester) async {
+      tester.platformDispatcher.textScaleFactorTestValue = 2.5;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+
+      await _pump(tester, profileGateway: FakeProfileGateway());
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('8 NIVELES'), findsOneWidget);
+    });
+
+    testWidgets('el lector de pantalla oye una frase con las dos cifras', (
+      tester,
+    ) async {
+      final semantica = tester.ensureSemantics();
+
+      await _pump(tester, profileGateway: FakeProfileGateway());
+
+      expect(find.bySemanticsLabel('8 niveles y 6 temáticas'), findsOneWidget);
+      semantica.dispose();
+    });
+
     testWidgets('usan el singular con una parada', (tester) async {
       camino = FakeCaminoGateway(
         CaminoJugador(entradas: [_parada(1, 'monumentos')], puntosTotales: 0),
@@ -162,6 +183,7 @@ void main() {
 
       await _pump(tester, profileGateway: FakeProfileGateway());
 
+      expect(tester.takeException(), isNull);
       expect(find.textContaining('NIVEL'), findsNothing);
       expect(find.textContaining('TEMÁTICA'), findsNothing);
       await _rellenar(tester, apodo: 'Pablo');

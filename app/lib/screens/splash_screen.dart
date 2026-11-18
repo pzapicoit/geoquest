@@ -159,8 +159,8 @@ const consejosDeCarga = [
       'camino.',
   '¿Te atascas? Usa un comodín: parar el reloj, ver el país o un círculo de '
       'acierto. Uno por partida.',
-  'El mapa no tiene nombres: acércate con doble toque o con los botones de '
-      'zoom.',
+  'El mapa no tiene nombres: haz zoom con doble toque o con los botones + '
+      'y −.',
 ];
 
 /// Presentación del splash: logo, marca y, según el estado, un indicador de

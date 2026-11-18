@@ -507,38 +507,62 @@ class _BrandHeader extends StatelessWidget {
               // Mientras carga, o si falla, se reserva el hueco de una
               // insignia para que el formulario no salte al llegar los datos.
               if (datos == null) {
-                return const SizedBox(height: _StatBadge.altura);
+                // Una insignia invisible, no un alto fijo: así el hueco mide
+                // lo mismo que la real con cualquier escala de texto.
+                return const Visibility(
+                  visible: false,
+                  maintainSize: true,
+                  maintainAnimation: true,
+                  maintainState: true,
+                  child: _StatBadge(
+                    label: ' ',
+                    background: Colors.transparent,
+                    border: Colors.transparent,
+                    textColor: Colors.transparent,
+                  ),
+                );
               }
               final niveles = datos.entradas.length;
               final tematicas = {
                 for (final parada in datos.entradas) parada.tematicaId,
               }.length;
-              return Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  FloatLoop(
-                    duration: const Duration(milliseconds: 6000),
-                    child: _StatBadge(
-                      label: niveles == 1 ? '1 NIVEL' : '$niveles NIVELES',
-                      background: const Color(0x242BC0A8),
-                      border: const Color(0x6A2BC0A8),
-                      textColor: const Color(0xFF8FE7D6),
-                    ),
+              // El lector de pantalla oye una frase, no dos rótulos sueltos
+              // en mayúsculas.
+              return Semantics(
+                label:
+                    '${niveles == 1 ? '1 nivel' : '$niveles niveles'} y '
+                    '${tematicas == 1 ? '1 temática' : '$tematicas temáticas'}',
+                child: ExcludeSemantics(
+                  child: Wrap(
+                    alignment: WrapAlignment.center,
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      FloatLoop(
+                        duration: const Duration(milliseconds: 6000),
+                        child: _StatBadge(
+                          label: niveles == 1 ? '1 NIVEL' : '$niveles NIVELES',
+                          background: const Color(0x242BC0A8),
+                          border: const Color(0x6A2BC0A8),
+                          textColor: const Color(0xFF8FE7D6),
+                        ),
+                      ),
+
+                      FloatLoop(
+                        duration: const Duration(milliseconds: 6800),
+                        delay: const Duration(milliseconds: 600),
+                        child: _StatBadge(
+                          label: tematicas == 1
+                              ? '1 TEMÁTICA'
+                              : '$tematicas TEMÁTICAS',
+                          background: const Color(0x28FFC53D),
+                          border: const Color(0x80FFC53D),
+                          textColor: const Color(0xFFFFD98A),
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 8),
-                  FloatLoop(
-                    duration: const Duration(milliseconds: 6800),
-                    delay: const Duration(milliseconds: 600),
-                    child: _StatBadge(
-                      label: tematicas == 1
-                          ? '1 TEMÁTICA'
-                          : '$tematicas TEMÁTICAS',
-                      background: const Color(0x28FFC53D),
-                      border: const Color(0x80FFC53D),
-                      textColor: const Color(0xFFFFD98A),
-                    ),
-                  ),
-                ],
+                ),
               );
             },
           ),
@@ -556,9 +580,8 @@ class _StatBadge extends StatelessWidget {
     required this.textColor,
   });
 
-  /// Alto fijo, para que el hueco reservado mientras carga el camino mida
-  /// exactamente lo mismo que la insignia (INT-144).
-  static const altura = 30.0;
+  /// Alto mínimo; crece con la escala de texto en vez de recortarla.
+  static const alturaMinima = 30.0;
 
   final String label;
   final Color background;
@@ -568,9 +591,9 @@ class _StatBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: altura,
+      constraints: const BoxConstraints(minHeight: alturaMinima),
       alignment: Alignment.center,
-      padding: const EdgeInsets.symmetric(horizontal: 11),
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 4),
       decoration: BoxDecoration(
         color: background,
         borderRadius: BorderRadius.circular(12),
