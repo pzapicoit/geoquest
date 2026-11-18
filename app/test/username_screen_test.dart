@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:geoquest/screens/camino_screen.dart';
 import 'package:geoquest/screens/username_screen.dart';
+import 'package:geoquest/services/camino_gateway.dart';
 import 'package:geoquest/services/estado_apodo_gateway.dart';
 import 'package:geoquest/services/player_roster_storage.dart';
 import 'package:geoquest/services/player_session_service.dart';
@@ -10,11 +11,45 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'fakes/fake_auth_gateway.dart';
+import 'fakes/fake_camino_gateway.dart';
 import 'fakes/fake_estado_apodo_gateway.dart';
 import 'fakes/fake_profile_gateway.dart';
 
 late FakeAuthGateway auth;
 late FakeEstadoApodoGateway estadoApodo;
+late FakeCaminoGateway camino;
+
+/// Una parada mínima del camino para las insignias (INT-144): solo importan
+/// cuántas hay y de qué temática es cada una.
+ParadaCamino _parada(int orden, String tematicaId) => ParadaCamino(
+  orden: orden,
+  caminoId: 'parada-$orden',
+  tematicaId: tematicaId,
+  tematicaNombre: tematicaId,
+  superado: false,
+  estrellasObtenidas: 0,
+  estrellasRequeridas: 0,
+  estrellasAcumuladasUsuario: 0,
+  desbloqueado: orden == 1,
+  esActual: orden == 1,
+  mejorPuntaje: 0,
+  puntosAcumulados: 0,
+);
+
+/// Como el camino real: 8 paradas de 6 temáticas (Monumentos sale 3 veces).
+CaminoJugador _caminoReal() => CaminoJugador(
+  entradas: [
+    _parada(1, 'monumentos'),
+    _parada(2, 'peliculas'),
+    _parada(3, 'banderas'),
+    _parada(4, 'monumentos'),
+    _parada(5, 'personas'),
+    _parada(6, 'olimpiadas'),
+    _parada(7, 'museos'),
+    _parada(8, 'monumentos'),
+  ],
+  puntosTotales: 0,
+);
 
 Widget _pantalla({
   required FakeProfileGateway profileGateway,
@@ -26,6 +61,7 @@ Widget _pantalla({
 
   return MaterialApp(
     home: UsernameScreen(
+      caminoGateway: camino,
       usernameStorage: storage,
       profileGateway: profileGateway,
       rosterStorage: roster,
@@ -92,6 +128,45 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     auth = FakeAuthGateway();
     estadoApodo = FakeEstadoApodoGateway();
+    camino = FakeCaminoGateway(_caminoReal());
+  });
+
+  group('insignias de la cabecera (INT-144)', () {
+    testWidgets('muestran niveles y temáticas reales, sin récord', (
+      tester,
+    ) async {
+      await _pump(tester, profileGateway: FakeProfileGateway());
+
+      expect(find.text('8 NIVELES'), findsOneWidget);
+      expect(find.text('6 TEMÁTICAS'), findsOneWidget);
+      expect(find.textContaining('RÉCORD'), findsNothing);
+      expect(find.text('13 NIVELES'), findsNothing);
+      expect(camino.fetchCaminoCalls, 1);
+    });
+
+    testWidgets('usan el singular con una parada', (tester) async {
+      camino = FakeCaminoGateway(
+        CaminoJugador(entradas: [_parada(1, 'monumentos')], puntosTotales: 0),
+      );
+
+      await _pump(tester, profileGateway: FakeProfileGateway());
+
+      expect(find.text('1 NIVEL'), findsOneWidget);
+      expect(find.text('1 TEMÁTICA'), findsOneWidget);
+    });
+
+    testWidgets('si falla la lectura no se muestran y se puede entrar', (
+      tester,
+    ) async {
+      camino.throwOnNextCall = Exception('sin red');
+
+      await _pump(tester, profileGateway: FakeProfileGateway());
+
+      expect(find.textContaining('NIVEL'), findsNothing);
+      expect(find.textContaining('TEMÁTICA'), findsNothing);
+      await _rellenar(tester, apodo: 'Pablo');
+      expect(tester.widget<FilledButton>(_startButton).onPressed, isNotNull);
+    });
   });
 
   testWidgets('con el campo vacío, el CTA está deshabilitado', (tester) async {

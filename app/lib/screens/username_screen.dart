@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../services/auth_gateway.dart';
+import '../services/camino_gateway.dart';
 import '../services/estado_apodo_gateway.dart';
 import '../services/player_roster_storage.dart';
 import '../services/player_session_service.dart';
@@ -25,6 +26,7 @@ import 'entry_widgets.dart';
 class UsernameScreen extends StatefulWidget {
   const UsernameScreen({
     super.key,
+    this.caminoGateway,
     this.usernameStorage,
     this.profileGateway,
     this.sessionService,
@@ -32,6 +34,7 @@ class UsernameScreen extends StatefulWidget {
   });
 
   /// Inyectables para poder probar la pantalla sin salir a la red ni al disco.
+  final CaminoGateway? caminoGateway;
   final UsernameStorage? usernameStorage;
   final ProfileGateway? profileGateway;
   final PlayerSessionService? sessionService;
@@ -71,6 +74,12 @@ class _UsernameScreenState extends State<UsernameScreen> {
   final _passwordFocus = FocusNode();
   final _random = Random();
 
+  /// Lectura del camino para las insignias de la cabecera (INT-144). Se
+  /// lanza una vez; si falla, las insignias simplemente no aparecen.
+  late final Future<CaminoJugador> _camino =
+      (widget.caminoGateway ?? SupabaseCaminoGateway(Supabase.instance.client))
+          .fetchCamino();
+
   bool _saving = false;
   bool _passwordVisible = false;
   String? _errorMessage;
@@ -93,6 +102,9 @@ class _UsernameScreenState extends State<UsernameScreen> {
     _controller.addListener(_onTextChanged);
     _passwordController.addListener(_onTextChanged);
     _cargarRoster();
+    // Silencia el fallo: las insignias son decorativas y no deben convertir
+    // un error de red en una excepción sin capturar.
+    _camino.ignore();
   }
 
   @override
@@ -243,7 +255,7 @@ class _UsernameScreenState extends State<UsernameScreen> {
             padding: const EdgeInsets.fromLTRB(24, 40, 24, 26),
             child: Column(
               children: [
-                _BrandHeader(),
+                _BrandHeader(camino: _camino),
                 const SizedBox(height: 36),
                 RiseIn(
                   delay: const Duration(milliseconds: 220),
@@ -430,11 +442,13 @@ class _UsernameScreenState extends State<UsernameScreen> {
   }
 }
 
-/// Logo con halo pulsante + wordmark + insignias decorativas del juego
-/// (contenido estático de producto, no datos del jugador — igual criterio
-/// que ya usaban las insignias "42 CIUDADES"/"+120 PTS" de este hero).
+/// Logo con halo pulsante + wordmark + insignias con datos reales del camino
+/// (INT-144): número de paradas y de temáticas distintas. Antes eran literales
+/// del mock («13 NIVELES», «RÉCORD 1.240») sin ninguna fuente.
 class _BrandHeader extends StatelessWidget {
-  const _BrandHeader();
+  const _BrandHeader({required this.camino});
+
+  final Future<CaminoJugador> camino;
 
   @override
   Widget build(BuildContext context) {
@@ -486,30 +500,47 @@ class _BrandHeader extends StatelessWidget {
         const SizedBox(height: 8),
         RiseIn(
           delay: const Duration(milliseconds: 160),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: const [
-              FloatLoop(
-                duration: Duration(milliseconds: 6000),
-                child: _StatBadge(
-                  label: '13 NIVELES',
-                  background: Color(0x242BC0A8),
-                  border: Color(0x6A2BC0A8),
-                  textColor: Color(0xFF8FE7D6),
-                ),
-              ),
-              SizedBox(width: 8),
-              FloatLoop(
-                duration: Duration(milliseconds: 6800),
-                delay: Duration(milliseconds: 600),
-                child: _StatBadge(
-                  label: 'RÉCORD 1.240',
-                  background: Color(0x28FFC53D),
-                  border: Color(0x80FFC53D),
-                  textColor: Color(0xFFFFD98A),
-                ),
-              ),
-            ],
+          child: FutureBuilder<CaminoJugador>(
+            future: camino,
+            builder: (context, snapshot) {
+              final datos = snapshot.data;
+              // Mientras carga, o si falla, se reserva el hueco de una
+              // insignia para que el formulario no salte al llegar los datos.
+              if (datos == null) {
+                return const SizedBox(height: _StatBadge.altura);
+              }
+              final niveles = datos.entradas.length;
+              final tematicas = {
+                for (final parada in datos.entradas) parada.tematicaId,
+              }.length;
+              return Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  FloatLoop(
+                    duration: const Duration(milliseconds: 6000),
+                    child: _StatBadge(
+                      label: niveles == 1 ? '1 NIVEL' : '$niveles NIVELES',
+                      background: const Color(0x242BC0A8),
+                      border: const Color(0x6A2BC0A8),
+                      textColor: const Color(0xFF8FE7D6),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  FloatLoop(
+                    duration: const Duration(milliseconds: 6800),
+                    delay: const Duration(milliseconds: 600),
+                    child: _StatBadge(
+                      label: tematicas == 1
+                          ? '1 TEMÁTICA'
+                          : '$tematicas TEMÁTICAS',
+                      background: const Color(0x28FFC53D),
+                      border: const Color(0x80FFC53D),
+                      textColor: const Color(0xFFFFD98A),
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
         ),
       ],
@@ -525,6 +556,10 @@ class _StatBadge extends StatelessWidget {
     required this.textColor,
   });
 
+  /// Alto fijo, para que el hueco reservado mientras carga el camino mida
+  /// exactamente lo mismo que la insignia (INT-144).
+  static const altura = 30.0;
+
   final String label;
   final Color background;
   final Color border;
@@ -533,7 +568,9 @@ class _StatBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+      height: altura,
+      alignment: Alignment.center,
+      padding: const EdgeInsets.symmetric(horizontal: 11),
       decoration: BoxDecoration(
         color: background,
         borderRadius: BorderRadius.circular(12),

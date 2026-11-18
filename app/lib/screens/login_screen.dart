@@ -147,6 +147,7 @@ class _LoginScreenState extends State<LoginScreen> {
             // al renderizar — igual que antes de existir `LoginScreen`.
             return UsernameScreen(
               key: const ValueKey('first-time'),
+              caminoGateway: _caminoGateway,
               usernameStorage: _usernameStorage,
               profileGateway: widget.profileGateway,
               sessionService: widget.sessionService,
