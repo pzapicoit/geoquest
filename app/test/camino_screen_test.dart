@@ -1040,4 +1040,71 @@ void main() {
       expect(find.text('Comodines'), findsOneWidget);
     });
   });
+
+  group('cabecera sin cortes (INT-147)', () {
+    testWidgets(
+      'apodo largo y muchos puntos: encoge con suelo, sin desbordar',
+      (tester) async {
+        SharedPreferences.setMockInitialValues({
+          'username': 'TrotaMundos12345',
+        });
+        tester.view.physicalSize = const Size(390, 844);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.reset);
+
+        await tester.pumpWidget(
+          _pantalla(
+            FakeCaminoGateway(
+              CaminoJugador(
+                entradas: _caminoDePrueba.entradas,
+                puntosTotales: 123456,
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        final apodo = tester.widget<Text>(
+          find.byKey(const Key('camino-nickname')),
+        );
+        expect(apodo.data, 'TrotaMundos12345');
+        // Se encoge, pero nunca por debajo del 75 % (18 px → 13,5 px): antes
+        // de eso, mejor cortar que dejarlo ilegible.
+        expect(apodo.style!.fontSize, greaterThanOrEqualTo(13.5));
+        final progreso = tester.widget<Text>(
+          find.byKey(const Key('camino-progreso')),
+        );
+        expect(progreso.style!.fontSize, greaterThanOrEqualTo(9));
+        expect(find.text('Nivel 2/3 · 2/9 ★'), findsOneWidget);
+      },
+    );
+
+    testWidgets('con pocos puntos el apodo no se encoge sin necesidad', (
+      tester,
+    ) async {
+      SharedPreferences.setMockInitialValues({'username': 'Ana'});
+      await _pump(tester, FakeCaminoGateway(_caminoDePrueba));
+
+      final apodo = tester.widget<Text>(
+        find.byKey(const Key('camino-nickname')),
+      );
+      expect(apodo.style!.fontSize, 18);
+    });
+
+    testWidgets('el trofeo se anuncia como «Clasificación»', (tester) async {
+      final semantica = tester.ensureSemantics();
+      await _pump(tester, FakeCaminoGateway(_caminoDePrueba));
+
+      expect(
+        tester.getSemantics(find.bySemanticsLabel('Clasificación')),
+        matchesSemantics(
+          label: 'Clasificación',
+          isButton: true,
+          hasTapAction: true,
+        ),
+      );
+      semantica.dispose();
+    });
+  });
 }

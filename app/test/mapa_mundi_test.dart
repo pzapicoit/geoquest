@@ -562,4 +562,97 @@ void main() {
       expect(controlador.escala, aMedias);
     });
   });
+
+  group('rótulos dentro del mapa (INT-147)', () {
+    /// Longitud que cae a [x] px del borde izquierdo con la cámara inicial.
+    double longitudEnX(MapaMundiController controlador, double x) {
+      var longitud = -180.0;
+      while ((controlador
+              .coordenadasAPantalla(
+                Coordenada(latitud: 10, longitud: longitud),
+              )!
+              .dx) <
+          x) {
+        longitud += 0.1;
+      }
+      return longitud;
+    }
+
+    testWidgets('un pin a 20 px del borde izquierdo no corta su rótulo', (
+      tester,
+    ) async {
+      final controlador = await _montar(tester, interactivo: false);
+
+      controlador.colocarPin(const Coordenada(latitud: -40, longitud: 0));
+      controlador.revelarUbicacion(
+        Coordenada(latitud: 10, longitud: longitudEnX(controlador, 20)),
+        nombre: 'Isla del Borde',
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      final pin = tester.getRect(find.byKey(const Key('mapa-pin-real')));
+      expect(pin.center.dx, closeTo(20, 2));
+      final rotulo = tester.getRect(find.text('ISLA DEL BORDE'));
+      expect(rotulo.left, greaterThanOrEqualTo(8));
+      expect(rotulo.right, lessThanOrEqualTo(390 - 8));
+    });
+
+    testWidgets('un pin a 20 px del borde derecho tampoco lo corta', (
+      tester,
+    ) async {
+      final controlador = await _montar(tester, interactivo: false);
+
+      controlador.colocarPin(const Coordenada(latitud: -40, longitud: 0));
+      controlador.revelarUbicacion(
+        Coordenada(latitud: 10, longitud: longitudEnX(controlador, 390 - 20)),
+        nombre: 'Isla del Otro Borde',
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      final pin = tester.getRect(find.byKey(const Key('mapa-pin-real')));
+      expect(pin.center.dx, closeTo(390 - 20, 2));
+      final rotulo = tester.getRect(find.text('ISLA DEL OTRO BORDE'));
+      expect(rotulo.left, greaterThanOrEqualTo(8));
+      expect(rotulo.right, lessThanOrEqualTo(390 - 8));
+    });
+
+    testWidgets('con el pin fuera del mapa el rótulo no se queda en el borde', (
+      tester,
+    ) async {
+      final controlador = await _montar(tester, interactivo: false);
+
+      controlador.colocarPin(const Coordenada(latitud: 10, longitud: 0));
+      controlador.revelarUbicacion(
+        const Coordenada(latitud: 10, longitud: -179),
+        nombre: 'Muy Lejos',
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      final pin = tester.getRect(find.byKey(const Key('mapa-pin-real')));
+      expect(pin.center.dx, lessThan(0));
+      final rotulo = tester.getRect(find.text('MUY LEJOS'));
+      expect(rotulo.center.dx, closeTo(pin.center.dx, 1));
+    });
+
+    testWidgets('lejos de los bordes el rótulo sigue centrado sobre el pin', (
+      tester,
+    ) async {
+      final controlador = await _montar(tester, interactivo: false);
+
+      controlador.colocarPin(const Coordenada(latitud: -30, longitud: 0));
+      controlador.revelarUbicacion(
+        const Coordenada(latitud: 10, longitud: 0),
+        nombre: 'Centro',
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      final pin = tester.getRect(find.byKey(const Key('mapa-pin-real')));
+      final rotulo = tester.getRect(find.text('CENTRO'));
+      expect(rotulo.center.dx, closeTo(pin.center.dx, 1));
+    });
+  });
 }
