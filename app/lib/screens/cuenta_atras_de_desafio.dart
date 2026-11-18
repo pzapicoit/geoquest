@@ -51,7 +51,7 @@ class CuentaAtrasDeDesafio extends ChangeNotifier {
   DateTime? _fin;
 
   /// Tiempo completo del desafío en curso. `Duration.zero` antes del primer
-  /// [arrancar].
+  /// [preparar] o [arrancar].
   Duration get total => _total;
 
   /// Lo que queda, nunca por debajo de cero.
@@ -97,6 +97,26 @@ class CuentaAtrasDeDesafio extends ChangeNotifier {
     _restante = _total;
     _fin = _ahora().add(_total);
     if (_total > Duration.zero) _ticker.start();
+    notifyListeners();
+  }
+
+  /// Deja la cuenta atrás llena y quieta para el desafío que se acaba de
+  /// volver el actual, sin empezar a contar (INT-143): el tiempo de respuesta
+  /// arranca después, con [arrancar], al cerrar el jugador la pista.
+  void preparar(Duration total) {
+    _ticker.stop();
+    _total = total > Duration.zero ? total : Duration.zero;
+    _restante = _total;
+    _fin = null;
+    notifyListeners();
+  }
+
+  /// Sigue contando desde donde la dejó [parar], sin rellenarla (INT-143,
+  /// tope de lectura de la pista tras cerrar el diálogo «Salir»).
+  void reanudar() {
+    if (_ticker.isActive || _restante <= Duration.zero) return;
+    _fin = _ahora().add(_restante);
+    _ticker.start();
     notifyListeners();
   }
 

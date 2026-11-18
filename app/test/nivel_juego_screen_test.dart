@@ -1210,13 +1210,18 @@ void main() {
   group('cuenta atrás', () {
     testWidgets(
       'arranca con los segundos completos del nivel, en teal, y marca el '
-      'primer desafío como mostrado',
+      'primer desafío como mostrado al cerrar la pista (INT-143)',
       (tester) async {
         final gateway = _gatewayCon(const [
           _desafioTexto,
         ], segundosPorDesafio: 60);
 
         await _abrirNivel(tester, gateway);
+        // INT-143: con la pista abierta, llena y sin marcar.
+        expect(_etiquetaDeLaCuentaAtras(tester), '1:00');
+        expect(gateway.desafiosMarcadosMostrados, isEmpty);
+
+        await _cerrarPista(tester);
 
         expect(_etiquetaDeLaCuentaAtras(tester), '1:00');
         expect(_colorDeLaCuentaAtrasEnPantalla(tester), _tealDeLaCuentaAtras);
@@ -1224,19 +1229,164 @@ void main() {
       },
     );
 
-    testWidgets('sigue corriendo con el toast de pista abierto', (
-      tester,
-    ) async {
+    testWidgets('espera quieta con la pista abierta (INT-143)', (tester) async {
       final gateway = _gatewayCon(const [
         _desafioTexto,
       ], segundosPorDesafio: 10);
 
       await _abrirNivel(tester, gateway);
-      // La pista no se cierra: la cuenta atrás sigue visible por encima.
       expect(find.text('¿Dónde está esto?'), findsOneWidget);
+      await tester.pump(const Duration(seconds: 10));
+
+      expect(_etiquetaDeLaCuentaAtras(tester), '0:10');
+      expect(gateway.desafiosMarcadosMostrados, isEmpty);
+    });
+
+    testWidgets('reabrir la pista no para la cuenta atrás ni vuelve a marcar '
+        '(INT-143)', (tester) async {
+      final gateway = _gatewayCon(const [
+        _desafioTexto,
+      ], segundosPorDesafio: 10);
+
+      await _abrirNivel(tester, gateway);
+      await _cerrarPista(tester);
+      await tester.tap(find.text('Ver la pista'));
+      await tester.pump();
       await tester.pump(const Duration(seconds: 3));
 
+      expect(find.text('¿Dónde está esto?'), findsOneWidget);
       expect(_etiquetaDeLaCuentaAtras(tester), '0:07');
+      expect(
+        find.byKey(const Key('nivel-juego-tope-de-lectura')),
+        findsNothing,
+      );
+
+      await _cerrarPista(tester);
+      expect(gateway.desafiosMarcadosMostrados, ['d3']);
+    });
+
+    testWidgets('con lector de pantalla el tope es más largo, no se quita '
+        '(INT-143)', (tester) async {
+      tester.platformDispatcher.accessibilityFeaturesTestValue =
+          const FakeAccessibilityFeatures(accessibleNavigation: true);
+      addTearDown(
+        tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+      );
+      final gateway = _gatewayCon(const [
+        _desafioTexto,
+      ], segundosPorDesafio: 30);
+
+      await _abrirNivel(tester, gateway);
+      await tester.pump(const Duration(seconds: segundosDeLecturaDePista + 5));
+      expect(find.byKey(const Key('nivel-juego-boton-listo')), findsOneWidget);
+      expect(gateway.desafiosMarcadosMostrados, isEmpty);
+
+      await tester.pump(const Duration(seconds: segundosDeLecturaConLector));
+      await tester.pump();
+      expect(find.byKey(const Key('nivel-juego-boton-listo')), findsNothing);
+      expect(gateway.desafiosMarcadosMostrados, ['d3']);
+    });
+
+    testWidgets('el botón «Listo» anuncia el tope al lector (INT-143)', (
+      tester,
+    ) async {
+      final semantica = tester.ensureSemantics();
+      await _abrirNivel(tester, _gatewayCon(const [_desafioTexto]));
+
+      expect(
+        find.bySemanticsLabel(
+          RegExp('Tienes $segundosDeLecturaDePista segundos para leer'),
+        ),
+        findsOneWidget,
+      );
+      semantica.dispose();
+    });
+
+    testWidgets('el diálogo «Salir» pausa el tope de lectura (INT-143)', (
+      tester,
+    ) async {
+      final gateway = _gatewayCon(const [
+        _desafioTexto,
+      ], segundosPorDesafio: 30);
+
+      await _abrirNivel(tester, gateway);
+      await tester.tap(find.byKey(const Key('nivel-juego-salir')));
+      await tester.pump();
+      await tester.pump(const Duration(seconds: segundosDeLecturaDePista + 5));
+      await tester.tap(find.text('Seguir jugando'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(find.byKey(const Key('nivel-juego-boton-listo')), findsOneWidget);
+      expect(gateway.desafiosMarcadosMostrados, isEmpty);
+
+      // Y al seguir jugando, el tope se reanuda hasta cerrar la pista.
+      await tester.pump(const Duration(seconds: segundosDeLecturaDePista));
+      await tester.pump();
+      expect(find.byKey(const Key('nivel-juego-boton-listo')), findsNothing);
+      expect(gateway.desafiosMarcadosMostrados, ['d3']);
+    });
+
+    testWidgets('cerrar la pista a mano cancela su tope de lectura (INT-143)', (
+      tester,
+    ) async {
+      await _abrirNivel(
+        tester,
+        _gatewayCon(const [_desafioTexto], segundosPorDesafio: 120),
+      );
+      await _cerrarPista(tester);
+      await tester.tap(find.text('Ver la pista'));
+      await tester.pump();
+
+      // Si el tope siguiera vivo, a los 20 s cerraría la pista reabierta.
+      await tester.pump(const Duration(seconds: segundosDeLecturaDePista + 5));
+
+      expect(find.byKey(const Key('nivel-juego-boton-listo')), findsOneWidget);
+    });
+
+    testWidgets('el tope de lectura se rearma en cada desafío (INT-143)', (
+      tester,
+    ) async {
+      final gateway = _gatewayCon(
+        const [_desafioTexto, _desafioImagen],
+        segundosPorDesafio: 30,
+      )..respuesta = respuestaDePrueba(distanciaKm: 12, puntos: 1200);
+
+      await _abrirNivel(tester, gateway);
+      await _cerrarPista(tester);
+      await _colocarPin(tester);
+      await _confirmarYRevelar(tester);
+      await _avanzarDesdeElRevelado(tester);
+
+      expect(
+        find.byKey(const Key('nivel-juego-tope-de-lectura')),
+        findsOneWidget,
+      );
+      await tester.pump(const Duration(seconds: segundosDeLecturaDePista));
+      await tester.pump();
+      expect(find.byKey(const Key('nivel-juego-boton-listo')), findsNothing);
+      expect(gateway.desafiosMarcadosMostrados, ['d3', 'd1']);
+    });
+
+    testWidgets('la pista se cierra sola al agotar su tope de lectura '
+        '(INT-143)', (tester) async {
+      final gateway = _gatewayCon(const [
+        _desafioTexto,
+      ], segundosPorDesafio: 30);
+
+      await _abrirNivel(tester, gateway);
+      expect(
+        find.byKey(const Key('nivel-juego-tope-de-lectura')),
+        findsOneWidget,
+      );
+
+      await tester.pump(const Duration(seconds: segundosDeLecturaDePista));
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.byKey(const Key('nivel-juego-boton-listo')), findsNothing);
+      expect(gateway.desafiosMarcadosMostrados, ['d3']);
+      expect(_etiquetaDeLaCuentaAtras(tester), '0:30');
     });
 
     testWidgets('pasa a ámbar cuando queda la mitad del tiempo o menos', (
@@ -1250,6 +1400,8 @@ void main() {
       ], segundosPorDesafio: 60);
 
       await _abrirNivel(tester, gateway);
+      // INT-143: el reloj arranca al cerrar la pista.
+      await _cerrarPista(tester);
       await tester.pump(const Duration(seconds: 30));
 
       expect(_etiquetaDeLaCuentaAtras(tester), '0:30');
@@ -1264,6 +1416,8 @@ void main() {
       ], segundosPorDesafio: 10);
 
       await _abrirNivel(tester, gateway);
+      // INT-143: el reloj arranca al cerrar la pista.
+      await _cerrarPista(tester);
       await tester.pump(const Duration(seconds: 6));
 
       // Queda algo menos de 4 s: más de una quinta parte, pero por debajo del
@@ -1280,6 +1434,8 @@ void main() {
       ], segundosPorDesafio: 10);
 
       await _abrirNivel(tester, gateway);
+      // INT-143: el reloj arranca al cerrar la pista.
+      await _cerrarPista(tester);
       await tester.pump(const Duration(seconds: 9));
 
       expect(_etiquetaDeLaCuentaAtras(tester), '0:01');
@@ -1311,7 +1467,11 @@ void main() {
         await _confirmarYRevelar(tester);
         await _avanzarDesdeElRevelado(tester);
 
+        // INT-143: el nuevo desafío espera, lleno, a que se cierre su pista.
         expect(_etiquetaDeLaCuentaAtras(tester), '0:30');
+        expect(gateway.desafiosMarcadosMostrados, ['d3']);
+
+        await _cerrarPista(tester);
         expect(gateway.desafiosMarcadosMostrados, ['d3', 'd1']);
       },
     );
@@ -1328,6 +1488,7 @@ void main() {
         await _asentar(tester);
 
         expect(_etiquetaDeLaCuentaAtras(tester), '0:45');
+        await _cerrarPista(tester);
         expect(gateway.desafiosMarcadosMostrados, ['d3']);
       },
     );
@@ -1339,6 +1500,8 @@ void main() {
         tester,
         _gatewayCon(const [_desafioTexto], segundosPorDesafio: 60),
       );
+      // INT-143: el reloj arranca al cerrar la pista.
+      await _cerrarPista(tester);
       await _alinearConElSegundo(tester);
 
       final etiqueta = _etiquetaDeLaCuentaAtras(tester);
@@ -1359,6 +1522,8 @@ void main() {
         tester,
         _gatewayCon(const [_desafioTexto], segundosPorDesafio: 60),
       );
+      // INT-143: el reloj arranca al cerrar la pista.
+      await _cerrarPista(tester);
 
       // Ocho segundos de reloj real con un solo fotograma al volver: el tiempo
       // restante sale del reloj, no de los fotogramas entregados (D1).
@@ -1389,6 +1554,8 @@ void main() {
         tester,
         _gatewayCon(const [_desafioTexto], segundosPorDesafio: 60),
       );
+      // INT-143: el reloj arranca al cerrar la pista.
+      await _cerrarPista(tester);
 
       // Justo antes del umbral (una quinta parte de 60 s son 12 s) y de ahí a
       // pasitos, para pillar el primer fotograma dentro de la zona crítica sin
@@ -1419,6 +1586,8 @@ void main() {
         tester,
         _gatewayCon(const [_desafioTexto], segundosPorDesafio: 60),
       );
+      // INT-143: el reloj arranca al cerrar la pista.
+      await _cerrarPista(tester);
       await tester.pump(const Duration(seconds: 48));
 
       final marco = find.byKey(const Key('nivel-juego-marco-critico'));
@@ -1559,6 +1728,8 @@ void main() {
         _gatewayCon(const [_desafioTexto], segundosPorDesafio: 60),
         reducirAnimaciones: true,
       );
+      // INT-143: el reloj arranca al cerrar la pista.
+      await _cerrarPista(tester);
       await tester.pump(const Duration(seconds: 48));
 
       expect(_opacidadDelMarco(tester), 1);
@@ -1976,14 +2147,14 @@ void main() {
       await _abrirNivel(tester, gateway, precargarImagen: precargas.precargar);
 
       // Con la precarga colgada en la primera URL, el primer desafío ya está
-      // en pantalla y su cuenta atrás en marcha.
+      // en pantalla, con su pista.
       expect(precargas.urls, [foto1]);
       expect(find.byKey(const Key('nivel-juego-imagen')), findsOneWidget);
-      expect(gateway.desafiosMarcadosMostrados, ['d1']);
 
-      // Y es jugable: se puede cerrar la pista y poner el pin sin que la
-      // precarga se haya resuelto.
+      // Y es jugable: se puede cerrar la pista (y con eso arranca su cuenta
+      // atrás, INT-143) y poner el pin sin que la precarga se haya resuelto.
       await _cerrarPista(tester);
+      expect(gateway.desafiosMarcadosMostrados, ['d1']);
       await _colocarPin(tester);
       expect(find.byKey(const Key('nivel-juego-confirmar')), findsOneWidget);
 
