@@ -38,9 +38,9 @@ Con D1 el scroll ya no se pierde al volver, así que el problema original queda
 resuelto sin recentrar. Recentrar siempre en `didPopNext` sería molesto, porque
 también se dispara al volver de Clasificación o Comodines: el jugador perdería
 la posición a la que había desplazado a mano. Por eso la pantalla recuerda en qué
-parada centró (`_paradaCentrada`, anotada al programar el centrado) y, con datos
-definitivos (`connectionState == done`), solo vuelve a centrar si la `es_actual`
-nueva es otra. Es lo que pasa tras un desbloqueo.
+parada centró (`_paradaCentrada`, anotada al programar el centrado). Con datos
+definitivos (`connectionState == done`), `_autoScroll` decide por sí mismo: solo
+vuelve a centrar si la `es_actual` nueva es otra, sin tocar estado en `build`. Es lo que pasa tras un desbloqueo.
 
 **D2b. Spinner también en el reintento tras error.**
 El spinner se pinta mientras no hay datos y la lectura no ha terminado
@@ -57,4 +57,10 @@ clave `parada-puntos-<id>` deja de existir en las bloqueadas.
 - [Datos viejos visibles un instante] → Es la misma información que el jugador
   veía antes de jugar; se actualiza en cuanto llega la lectura.
 - [Error al recargar con datos previos] → `AsyncSnapshot.withError` no conserva
-  los datos, así que sigue apareciendo `_ErrorCamino`, igual que hoy.
+  los datos, así que el camino se sustituye por `_ErrorCamino` con su
+  reintento, igual que antes de este cambio. Un test lo fija. Conservar el
+  camino y avisar con un SnackBar queda fuera de alcance.
+- [Estado del centrado tras un error] → `_autoScrolled` y `_paradaCentrada`
+  sobreviven al desmontaje de la lista por error. El reintento reinicia
+  `_autoScrolled`, y la pantalla de error no deja navegar, así que hoy no es
+  alcanzable.

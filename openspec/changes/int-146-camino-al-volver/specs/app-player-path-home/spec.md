@@ -16,7 +16,7 @@ Al montar la Home, la app SHALL desplazar automáticamente el scroll del camino 
 
 #### Scenario: Vuelve de jugar sin desbloquear nada
 - **WHEN** el jugador vuelve a la Home desde el resumen de un nivel ("Volver al camino") sin haber desbloqueado ninguna parada
-- **THEN** el scroll queda donde estaba al entrar a jugar (la parada `es_actual` sigue a la vista), no en el principio del contenido ni en la última parada del camino
+- **THEN** el scroll queda donde estaba al entrar a jugar, no en el principio del contenido ni en la última parada del camino
 
 #### Scenario: Vuelve de otra pantalla tras desplazar a mano
 - **WHEN** el jugador desplaza el camino a mano, abre la clasificación o los comodines y vuelve sin que cambie la parada `es_actual`

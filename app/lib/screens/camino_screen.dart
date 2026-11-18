@@ -254,13 +254,16 @@ class _CaminoScreenState extends State<CaminoScreen> with RouteAware {
   /// INT-105) — SHALL usar exactamente esos valores, o el centrado se
   /// desincroniza de lo que se pinta.
   void _autoScroll(List<ParadaCamino> entradas, List<double> tops) {
-    if (_autoScrolled) return;
+    // Solo se centra una vez por parada actual (INT-146): al volver de otra
+    // pantalla se repite únicamente si la recarga trae otra `esActual`.
+    final indice = entradas.indexWhere((e) => e.esActual);
+    final actual = indice == -1 ? null : entradas[indice].caminoId;
+    if (_autoScrolled && actual == _paradaCentrada) return;
     _autoScrolled = true;
     // Se anota ya, no en el post-frame: un `build` intermedio (p. ej. el
     // `setState` del apodo) no debe ver aún la parada anterior y programar
     // un segundo centrado.
-    final indice = entradas.indexWhere((e) => e.esActual);
-    _paradaCentrada = indice == -1 ? null : entradas[indice].caminoId;
+    _paradaCentrada = actual;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !_controller.hasClients) return;
@@ -475,10 +478,6 @@ class _CaminoScreenState extends State<CaminoScreen> with RouteAware {
             // Centrar solo con datos definitivos: mientras recarga, `entradas`
             // son las de antes y la parada actual puede haber cambiado.
             if (snapshot.connectionState == ConnectionState.done) {
-              final actual = indiceActual == -1
-                  ? null
-                  : entradas[indiceActual].caminoId;
-              if (actual != _paradaCentrada) _autoScrolled = false;
               _autoScroll(entradas, tops);
             }
 

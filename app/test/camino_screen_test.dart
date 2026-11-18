@@ -1144,6 +1144,21 @@ void main() {
       expect(centroDe(tester, 'nivel-1'), closeTo(antes, 1));
     });
 
+    testWidgets('si la recarga falla, se ve el error con su reintento', (
+      tester,
+    ) async {
+      // Documenta lo que acepta el diseño (INT-146, Riesgos): un fallo al
+      // recargar no conserva el camino anterior, enseña el error.
+      final gateway = await montar(tester);
+
+      await irYVolver(tester, gateway);
+      gateway.siguiente.completeError(Exception('sin red'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Reintentar'), findsOneWidget);
+      expect(find.byKey(const Key('parada-nivel-1')), findsNothing);
+    });
+
     testWidgets('el reintento tras un error enseña el spinner', (tester) async {
       tester.view.physicalSize = const Size(390, 844);
       tester.view.devicePixelRatio = 1.0;

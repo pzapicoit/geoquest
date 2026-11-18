@@ -12,10 +12,13 @@ tuvieran puntos: siete veces la misma cifra al lado de siete candados.
 
 ## What Changes
 
-- Al volver de jugar, la Home **conserva el camino en pantalla** mientras
-  recarga, sin spinner a pantalla completa, y **vuelve a centrar** el scroll en
-  la parada actual con los datos nuevos. Si se acaba de desbloquear una parada,
-  el centrado va a la nueva actual.
+- Al volver de otra pantalla, la Home **conserva el camino en pantalla**
+  mientras recarga, sin spinner a pantalla completa. Con eso el scroll se queda
+  donde estaba y deja de saltar a la última parada. Solo **se vuelve a centrar si
+  la parada actual ha cambiado**, por ejemplo tras un desbloqueo. Volver de la
+  clasificación no le quita al jugador la posición a la que había desplazado a
+  mano.
+- El reintento tras un error vuelve a mostrar el spinner mientras carga.
 - El riel muestra el acumulado **solo junto a las paradas desbloqueadas**. Las
   bloqueadas conservan su marca atenuada, pero sin cifra.
   **Cambia lo especificado en INT-123** para las paradas bloqueadas: las
@@ -30,8 +33,8 @@ Ninguna.
 ### Modified Capabilities
 
 - `app-player-path-home`:
-  - «Auto-centrado en la parada actual al cargar»: también al volver de jugar,
-    no solo al montar la Home.
+  - «Auto-centrado en la parada actual al cargar»: al volver de otra pantalla,
+    el scroll se conserva y solo se recentra si cambia la parada actual.
   - «El camino recarga su progreso al volver de jugar»: la recarga no sustituye
     el camino por un spinner.
   - «Indicador de puntos totales junto a cada parada»: sin cifra en las paradas
@@ -40,8 +43,8 @@ Ninguna.
 
 ## Impact
 
-- `app/lib/screens/camino_screen.dart`: `didPopNext` (reactivar el
-  auto-centrado), el `builder` del `FutureBuilder` (solo spinner sin datos
-  previos) y la columna del riel (cifra solo si está desbloqueada).
+- `app/lib/screens/camino_screen.dart`: el `builder` del `FutureBuilder`
+  (spinner solo sin datos), `_autoScroll` (recuerda la parada centrada y solo
+  repite si cambia) y la columna del riel (cifra solo si está desbloqueada).
 - Tests: `test/camino_screen_test.dart`.
 - No cambian el backend ni las dependencias.
