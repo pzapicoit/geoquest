@@ -1040,4 +1040,50 @@ void main() {
       expect(find.text('Comodines'), findsOneWidget);
     });
   });
+
+  group('cabecera sin cortes (INT-147)', () {
+    testWidgets('apodo largo y muchos puntos se encogen, no se cortan', (
+      tester,
+    ) async {
+      SharedPreferences.setMockInitialValues({'username': 'TrotaMundos12345'});
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(
+        _pantalla(
+          FakeCaminoGateway(
+            CaminoJugador(
+              entradas: _caminoDePrueba.entradas,
+              puntosTotales: 123456,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      final apodo = tester.widget<Text>(
+        find.byKey(const Key('camino-nickname')),
+      );
+      expect(apodo.data, 'TrotaMundos12345');
+      expect(apodo.overflow, isNot(TextOverflow.ellipsis));
+      expect(
+        find.ancestor(
+          of: find.byKey(const Key('camino-nickname')),
+          matching: find.byType(FittedBox),
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Nivel 2/3 · 2/9 ★'), findsOneWidget);
+    });
+
+    testWidgets('el trofeo se anuncia como «Clasificación»', (tester) async {
+      final semantica = tester.ensureSemantics();
+      await _pump(tester, FakeCaminoGateway(_caminoDePrueba));
+
+      expect(find.bySemanticsLabel('Clasificación'), findsOneWidget);
+      semantica.dispose();
+    });
+  });
 }

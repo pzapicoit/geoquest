@@ -189,7 +189,14 @@ class _ResumenNivelScreenState extends State<ResumenNivelScreen> {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    superado ? '¡Nivel superado!' : '¡Casi lo tienes!',
+                    superado
+                        ? '¡Nivel superado!'
+                        : animoNoSuperado(
+                            porcentajeDelMinimo(
+                              widget.resultado.puntajeTotal,
+                              widget.resultado.puntajeMinimoSuperar,
+                            ),
+                          ).titulo,
                     key: const Key('resumen-nivel-titulo'),
                     textAlign: TextAlign.center,
                     style: GoogleFonts.baloo2(
@@ -761,7 +768,7 @@ class _TarjetaCuantoFalto extends StatelessWidget {
           const SizedBox(height: 11),
           Text(
             'Ya tienes el ${pct.round()}% del mínimo de este nivel. '
-            '¡Estás cerca!',
+            '${animoNoSuperado(pct.toDouble()).frase}',
             style: GoogleFonts.outfit(
               color: Colors.white.withValues(alpha: 0.5),
               fontSize: 13,
@@ -859,3 +866,19 @@ class _ConfetiState extends State<_Confeti>
     );
   }
 }
+
+/// Porcentaje (0–100) del mínimo para superar el nivel que alcanzó un intento.
+double porcentajeDelMinimo(int puntajeTotal, int puntajeMinimoSuperar) =>
+    puntajeMinimoSuperar > 0
+    ? (puntajeTotal / puntajeMinimoSuperar * 100).clamp(0, 100).toDouble()
+    : 100;
+
+/// Título y frase de ánimo del resumen no superado según lo cerca que se quedó
+/// el jugador del mínimo (INT-147). Siempre en positivo, pero sin decir
+/// «¡Estás cerca!» a quien se quedó en un 38 %.
+({String titulo, String frase}) animoNoSuperado(double porcentaje) =>
+    switch (porcentaje) {
+      >= 80 => (titulo: '¡Casi lo tienes!', frase: '¡Estás cerca!'),
+      >= 50 => (titulo: '¡Vas bien!', frase: '¡Vas por buen camino!'),
+      _ => (titulo: '¡Sigue intentándolo!', frase: 'Cada intento cuenta.'),
+    };

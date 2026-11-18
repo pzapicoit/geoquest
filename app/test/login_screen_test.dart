@@ -154,6 +154,8 @@ void main() {
       expect(find.text('1'), findsOneWidget);
       expect(find.text('3'), findsOneWidget);
       expect(find.textContaining('Siguiente: Museos'), findsOneWidget);
+      // INT-147: sin título propio no se repite el nombre.
+      expect(find.textContaining('Museos · Museos'), findsNothing);
       expect(find.text('Récord'), findsNothing);
       expect(find.text('Racha'), findsNothing);
       expect(find.textContaining('Última partida'), findsNothing);

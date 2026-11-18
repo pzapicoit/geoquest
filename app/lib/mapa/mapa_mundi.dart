@@ -4,7 +4,6 @@ import 'dart:ui' show PointMode;
 
 import 'package:flutter/gestures.dart' show kDoubleTapTimeout;
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart' show OverflowBoxFit;
 import 'package:google_fonts/google_fonts.dart';
 
 import 'circulo_radio.dart';
@@ -304,6 +303,7 @@ class _MapaMundiState extends State<MapaMundi>
                         // que distinguirlo.
                         rotulo: pinReal == null ? null : 'Tu pin',
                         colorDelRotulo: _pinRotulo,
+                        anchoDelMapa: tamano.width,
                         // Por debajo del pin para que nunca se solape con el
                         // rótulo del pin real, que va por encima (INT-104).
                         rotuloDebajo: pinReal != null,
@@ -317,6 +317,7 @@ class _MapaMundiState extends State<MapaMundi>
                         halo: _pinRealHalo,
                         rotulo: controller.nombrePinReal,
                         colorDelRotulo: _pinRealRotulo,
+                        anchoDelMapa: tamano.width,
                       ),
                     if (widget.interactivo)
                       _BotonesDeZoom(controller: controller),
@@ -432,6 +433,7 @@ class _PinDelMapa extends StatelessWidget {
     this.rotulo,
     this.colorDelRotulo,
     this.rotuloDebajo = false,
+    this.anchoDelMapa,
     this.clave,
   });
 
@@ -444,6 +446,10 @@ class _PinDelMapa extends StatelessWidget {
   /// (INT-104, D2 de `design.md`).
   static const double _anchoRotulo = 200;
 
+  /// Alto de la franja del rótulo: la misma separación que ya usaba su
+  /// `top`/`bottom` respecto al pin.
+  static const double _altoRotulo = 26;
+
   final Offset? punto;
   final Coordenada coordenada;
   final Color relleno;
@@ -455,6 +461,10 @@ class _PinDelMapa extends StatelessWidget {
   /// encima, para que los rótulos del pin del jugador y el real nunca se
   /// solapen entre sí, caigan donde caigan (INT-104, D6 de `design.md`).
   final bool rotuloDebajo;
+
+  /// Ancho visible del mapa, para que el rótulo no se salga por los lados
+  /// cuando el pin está cerca de un borde (INT-147). `null`: sin límite.
+  final double? anchoDelMapa;
 
   final Key? clave;
 
@@ -503,38 +513,41 @@ class _PinDelMapa extends StatelessWidget {
                   right: 0,
                   child: Opacity(
                     opacity: entrada.clamp(0.0, 1.0),
-                    child: OverflowBox(
-                      maxWidth: _anchoRotulo,
-                      alignment: Alignment.center,
-                      // Sin esto, la altura infinita que le llega desde este
-                      // lado del `Stack` —solo `top` o solo `bottom` está
-                      // fijado— haría que la caja intentara crecer sin
-                      // límite (`OverflowBoxFit.max` es el valor por
-                      // defecto).
-                      fit: OverflowBoxFit.deferToChild,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 4,
+                    // Centrado sobre el pin, pero desplazado lo justo para
+                    // quedar dentro del mapa si el pin está cerca de un borde
+                    // (INT-147). Antes se centraba siempre y se cortaba.
+                    child: SizedBox(
+                      height: _altoRotulo,
+                      child: CustomSingleChildLayout(
+                        delegate: _RotuloDentroDelMapa(
+                          izquierdaDelPin: punto!.dx - _lado / 2,
+                          anchoDelMapa: anchoDelMapa,
+                          anchoMaximo: _anchoRotulo,
                         ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF0E1620)
-                              .withValues(alpha: 0.72),
-                          borderRadius: BorderRadius.circular(999),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.14),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
                           ),
-                        ),
-                        child: Text(
-                          rotulo!.toUpperCase(),
-                          textAlign: TextAlign.center,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.outfit(
-                            color: colorDelRotulo,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 1.4,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF0E1620)
+                                .withValues(alpha: 0.72),
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.14),
+                            ),
+                          ),
+                          child: Text(
+                            rotulo!.toUpperCase(),
+                            textAlign: TextAlign.center,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.outfit(
+                              color: colorDelRotulo,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 1.4,
+                            ),
                           ),
                         ),
                       ),
@@ -836,4 +849,48 @@ class _BotonDeZoom extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Coloca el rótulo de un pin centrado sobre él, pero sin salirse del mapa
+/// (INT-147): si el pin está cerca de un borde, lo desplaza lo justo para
+/// dejarlo a [_margen] del lado. Se resuelve en el layout, con el ancho real
+/// del rótulo, en vez de suponer uno fijo.
+class _RotuloDentroDelMapa extends SingleChildLayoutDelegate {
+  const _RotuloDentroDelMapa({
+    required this.izquierdaDelPin,
+    required this.anchoDelMapa,
+    required this.anchoMaximo,
+  });
+
+  /// Coordenada x, en el mapa, del borde izquierdo de la caja del pin.
+  final double izquierdaDelPin;
+  final double? anchoDelMapa;
+  final double anchoMaximo;
+
+  static const double _margen = 8;
+
+  @override
+  BoxConstraints getConstraintsForChild(BoxConstraints constraints) =>
+      BoxConstraints(maxWidth: anchoMaximo, maxHeight: constraints.maxHeight);
+
+  @override
+  Offset getPositionForChild(Size size, Size childSize) {
+    final centrado = (size.width - childSize.width) / 2;
+    final y = (size.height - childSize.height) / 2;
+    final ancho = anchoDelMapa;
+    if (ancho == null) return Offset(centrado, y);
+
+    final minimo = _margen - izquierdaDelPin;
+    final maximo = ancho - _margen - izquierdaDelPin - childSize.width;
+    // Un rótulo más ancho que el propio mapa no cabe por ningún lado: se
+    // deja centrado.
+    if (minimo > maximo) return Offset(centrado, y);
+    return Offset(centrado.clamp(minimo, maximo), y);
+  }
+
+  @override
+  bool shouldRelayout(_RotuloDentroDelMapa old) =>
+      old.izquierdaDelPin != izquierdaDelPin ||
+      old.anchoDelMapa != anchoDelMapa ||
+      old.anchoMaximo != anchoMaximo;
 }

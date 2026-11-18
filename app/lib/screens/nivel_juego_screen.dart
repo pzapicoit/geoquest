@@ -916,6 +916,7 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
                           : revelado.respuesta.distanciaKm! *
                                 _avanceDeLaDistancia,
                       puntos: _puntosDelContador,
+                      avanceDeLaDistancia: _avanceDeLaDistancia,
                       avanceDelDestello: _avanceDeLosPuntos,
                       cerrando: _cerrando,
                       onContinuar: () => _avanzarDesdeElRevelado(intento),
@@ -1182,42 +1183,39 @@ class _TarjetaDeProgreso extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              Flexible(
-                child: Text(
-                  'Desafío $posicion de $total',
-                  key: const Key('nivel-juego-progreso'),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.baloo2(
-                    color: Colors.white,
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.w800,
-                  ),
+          // «Desafío N de M» y el nombre de la parada en líneas separadas
+          // (INT-147): compartiendo una, se cortaban los dos
+          // («Desafío 2 d…», «MONUMENT…»).
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              'Desafío $posicion de $total',
+              key: const Key('nivel-juego-progreso'),
+              maxLines: 1,
+              style: GoogleFonts.baloo2(
+                color: Colors.white,
+                fontSize: 13.5,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+          if (nombreDelNivel != null)
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(
+                nombreDelNivel!.toUpperCase(),
+                key: const Key('nivel-juego-nombre-nivel'),
+                maxLines: 1,
+                style: GoogleFonts.outfit(
+                  color: Colors.white.withValues(alpha: 0.45),
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 1.2,
                 ),
               ),
-              if (nombreDelNivel != null) ...[
-                const SizedBox(width: 8),
-                Flexible(
-                  child: Text(
-                    nombreDelNivel!.toUpperCase(),
-                    key: const Key('nivel-juego-nombre-nivel'),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.outfit(
-                      color: Colors.white.withValues(alpha: 0.45),
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 1.2,
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          ),
+            ),
           const SizedBox(height: 7),
           Row(
             key: const Key('nivel-juego-segmentos'),
@@ -1696,6 +1694,7 @@ class _HojaDeRevelado extends StatelessWidget {
     required this.revelado,
     required this.distanciaKm,
     required this.puntos,
+    required this.avanceDeLaDistancia,
     required this.avanceDelDestello,
     required this.cerrando,
     required this.onContinuar,
@@ -1711,6 +1710,12 @@ class _HojaDeRevelado extends StatelessWidget {
   /// Valor que enseña el contador de puntos en este fotograma.
   final int puntos;
 
+  /// Avance (0–1) del contador de distancia. A 0 la tarjeta enseña «—»: un
+  /// «0,0 km» antes de contar se leía como un acierto perfecto (INT-147).
+  final double avanceDeLaDistancia;
+
+  /// Avance (0–1) del contador de puntos: mueve el destello, decide si los
+  /// puntos ya se enseñan y da la opacidad del desglose (INT-147).
   final double avanceDelDestello;
 
   /// `true` mientras `cerrar_intento_parada` está en curso, disparado desde
@@ -1774,7 +1779,10 @@ class _HojaDeRevelado extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         Expanded(
-                          child: _TarjetaDeDistancia(kilometros: distancia),
+                          child: _TarjetaDeDistancia(
+                            kilometros: distancia,
+                            contando: avanceDeLaDistancia > 0,
+                          ),
                         ),
                         const SizedBox(width: 10),
                         Expanded(
@@ -1793,10 +1801,15 @@ class _HojaDeRevelado extends StatelessWidget {
                   ),
                 // El desglose de precisión/bonus solo tiene sentido con un
                 // pin colocado: sin pin, precisión y bonus son ambos 0 (D14).
+                // Aparece a la vez que cuentan los puntos (INT-147): antes se
+                // veía con su cifra final mientras los contadores seguían a 0.
                 if (distanciaKm != null)
-                  _DesgloseDePuntaje(
-                    puntosDistancia: revelado.respuesta.puntosDistancia,
-                    puntosBonus: revelado.respuesta.puntosBonus,
+                  Opacity(
+                    opacity: avanceDelDestello.clamp(0.0, 1.0),
+                    child: _DesgloseDePuntaje(
+                      puntosDistancia: revelado.respuesta.puntosDistancia,
+                      puntosBonus: revelado.respuesta.puntosBonus,
+                    ),
                   ),
                 const SizedBox(height: 16),
                 SizedBox(
@@ -1963,9 +1976,12 @@ class _LugarRevelado extends StatelessWidget {
 }
 
 class _TarjetaDeDistancia extends StatelessWidget {
-  const _TarjetaDeDistancia({required this.kilometros});
+  const _TarjetaDeDistancia({required this.kilometros, required this.contando});
 
   final double kilometros;
+
+  /// `false` hasta que el contador empieza: se enseña «—» en vez de un 0.
+  final bool contando;
 
   @override
   Widget build(BuildContext context) {
@@ -2010,7 +2026,7 @@ class _TarjetaDeDistancia extends StatelessWidget {
             children: [
               Flexible(
                 child: Text(
-                  formatearDistancia(kilometros),
+                  contando ? formatearDistancia(kilometros) : '—',
                   key: const Key('nivel-juego-distancia'),
                   maxLines: 1,
                   style: GoogleFonts.baloo2(
@@ -2098,7 +2114,7 @@ class _TarjetaDePuntos extends StatelessWidget {
                 // modelo —el RPC lo devuelve y el parseo estricto avisa si el
                 // contrato cambia—, pero ya no se pinta en ninguna pantalla.
                 Text(
-                  '+${formatearPuntaje(puntos)}',
+                  avanceDelDestello > 0 ? '+${formatearPuntaje(puntos)}' : '—',
                   key: const Key('nivel-juego-puntos-ganados'),
                   maxLines: 1,
                   style: GoogleFonts.baloo2(
@@ -2601,8 +2617,9 @@ class _TarjetaDePista extends StatelessWidget {
 /// Pie explicativo fijo por tipo de pista (D10 de `design.md`): `desafios` no
 /// tiene ninguna columna equivalente y el texto no varía por desafío.
 String pieDePista(TipoDesafio tipo) => switch (tipo) {
-  TipoDesafio.imagen =>
-    '¿Dónde se tomó esta imagen? Coloca tu pin lo más cerca que puedas.',
+  // Sin repetir la pregunta: ya la plantea el objetivo de la temática
+  // encima de la imagen («Adivina dónde está este monumento») (INT-147).
+  TipoDesafio.imagen => 'Coloca tu pin lo más cerca que puedas.',
   TipoDesafio.video =>
     '¿Dónde se grabó este vídeo? Coloca tu pin lo más cerca que puedas.',
   TipoDesafio.preguntaTexto =>
@@ -2610,7 +2627,8 @@ String pieDePista(TipoDesafio tipo) => switch (tipo) {
 };
 
 String kickerDePista(TipoDesafio tipo, int posicion) => switch (tipo) {
-  TipoDesafio.imagen => 'FOTO · PISTA $posicion',
+  // Las imágenes del juego son ilustraciones, no fotos (INT-147).
+  TipoDesafio.imagen => 'IMAGEN · PISTA $posicion',
   TipoDesafio.video => 'VÍDEO · PISTA $posicion',
   TipoDesafio.preguntaTexto => 'PREGUNTA · PISTA $posicion',
 };
@@ -2668,21 +2686,28 @@ class _CabeceraDePista extends StatelessWidget {
               ),
             ),
           ),
-          InkWell(
-            key: const Key('nivel-juego-cerrar-pista'),
-            onTap: onCerrar,
-            borderRadius: BorderRadius.circular(10),
-            child: Container(
-              width: 30,
-              height: 30,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(
-                Icons.close_rounded,
-                size: 15,
-                color: Colors.white.withValues(alpha: 0.75),
+          // Solo icono: el lector de pantalla necesita su nombre (INT-147).
+          Semantics(
+            container: true,
+            button: true,
+            label: 'Cerrar pista',
+            excludeSemantics: true,
+            child: InkWell(
+              key: const Key('nivel-juego-cerrar-pista'),
+              onTap: onCerrar,
+              borderRadius: BorderRadius.circular(10),
+              child: Container(
+                width: 30,
+                height: 30,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(
+                  Icons.close_rounded,
+                  size: 15,
+                  color: Colors.white.withValues(alpha: 0.75),
+                ),
               ),
             ),
           ),

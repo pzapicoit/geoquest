@@ -602,11 +602,23 @@ void main() {
       await _abrirNivel(tester, _gatewayCon(const [_desafioImagen]));
 
       expect(
-        find.text(
-          '¿Dónde se tomó esta imagen? Coloca tu pin lo más cerca que puedas.',
-        ),
+        find.text('Coloca tu pin lo más cerca que puedas.'),
         findsOneWidget,
       );
+      // INT-147: sin repetir la pregunta que ya plantea el objetivo.
+      expect(find.textContaining('¿Dónde se tomó'), findsNothing);
+      expect(find.text('IMAGEN · PISTA 1'), findsOneWidget);
+      expect(find.textContaining('FOTO'), findsNothing);
+    });
+
+    testWidgets('la X de la pista se anuncia como «Cerrar pista» (INT-147)', (
+      tester,
+    ) async {
+      final semantica = tester.ensureSemantics();
+      await _abrirNivel(tester, _gatewayCon(const [_desafioImagen]));
+
+      expect(find.bySemanticsLabel('Cerrar pista'), findsOneWidget);
+      semantica.dispose();
     });
 
     testWidgets('tocar el fondo oscurecido cierra la pista', (tester) async {
@@ -712,6 +724,25 @@ void main() {
       );
 
       expect(find.text('PRADERAS DE EUROPA'), findsOneWidget);
+    });
+
+    testWidgets('el nombre de la parada va en su propia línea, sin cortarse '
+        '(INT-147)', (tester) async {
+      await _abrirNivel(
+        tester,
+        _gatewayCon(const [_desafioTexto]),
+        nivelNombre: 'Monumentos del Mundo',
+      );
+
+      final progreso = tester.getRect(
+        find.byKey(const Key('nivel-juego-progreso')),
+      );
+      final nombre = tester.getRect(
+        find.byKey(const Key('nivel-juego-nombre-nivel')),
+      );
+      expect(find.text('MONUMENTOS DEL MUNDO'), findsOneWidget);
+      expect(nombre.top, greaterThanOrEqualTo(progreso.bottom - 1));
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets('sin nombre de nivel no deja hueco ni falla', (tester) async {
@@ -1649,6 +1680,52 @@ void main() {
   });
 
   group('desglose del puntaje en el revelado', () {
+    testWidgets('no enseña cifras antes de contarlas (INT-147)', (
+      tester,
+    ) async {
+      final gateway = _gatewayCon(const [_desafioTexto])
+        ..respuesta = respuestaDePrueba(
+          distanciaKm: 12,
+          puntos: 4381,
+          puntosDistancia: 4301,
+          puntosBonus: 80,
+        );
+
+      await _abrirNivel(tester, gateway);
+      await _cerrarPista(tester);
+      await _colocarPin(tester);
+      await tester.tap(find.byKey(const Key('nivel-juego-confirmar')));
+      await tester.pump();
+
+      // Primer fotograma con la hoja: aún no ha empezado ningún contador.
+      for (var i = 0; i < 100; i++) {
+        if (find
+            .byKey(const Key('nivel-juego-revelado'))
+            .evaluate()
+            .isNotEmpty) {
+          break;
+        }
+        await tester.pump(const Duration(milliseconds: 20));
+      }
+      String texto(String clave) =>
+          tester.widget<Text>(find.byKey(Key(clave))).data!;
+      expect(texto('nivel-juego-distancia'), '—');
+      expect(texto('nivel-juego-puntos-ganados'), '—');
+      final desglose = tester.widget<Opacity>(
+        find
+            .ancestor(
+              of: find.text('4.301 puntos de precisión'),
+              matching: find.byType(Opacity),
+            )
+            .first,
+      );
+      expect(desglose.opacity, 0);
+
+      await tester.pump(const Duration(milliseconds: 5600));
+      expect(texto('nivel-juego-distancia'), isNot('—'));
+      expect(texto('nivel-juego-puntos-ganados'), '+4.381');
+    });
+
     testWidgets('muestra precisión y bonus cuando el bonus es mayor que 0', (
       tester,
     ) async {

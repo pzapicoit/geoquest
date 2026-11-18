@@ -508,7 +508,11 @@ class _NextLevelProgress extends StatelessWidget {
           children: [
             Expanded(
               child: Text(
-                'Siguiente: $nombreNivel · ${parada.tematicaNombre}',
+                // Sin repetir el nombre cuando la parada no tiene título propio
+                // («Siguiente: Peliculas · Peliculas», INT-147).
+                nombreNivel == parada.tematicaNombre
+                    ? 'Siguiente: $nombreNivel'
+                    : 'Siguiente: $nombreNivel · ${parada.tematicaNombre}',
                 overflow: TextOverflow.ellipsis,
                 style: GoogleFonts.outfit(
                   fontSize: 11,

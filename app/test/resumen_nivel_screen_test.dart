@@ -230,6 +230,19 @@ void main() {
   });
 
   group('estado no superado', () {
+    testWidgets('lejos del mínimo no dice «¡Estás cerca!» (INT-147)', (
+      tester,
+    ) async {
+      await _abrir(
+        tester,
+        _pantallaNoSuperada(puntajeTotal: 3727, puntajeMinimoSuperar: 9900),
+      );
+
+      expect(find.text('¡Sigue intentándolo!'), findsOneWidget);
+      expect(find.textContaining('¡Estás cerca!'), findsNothing);
+      expect(find.textContaining('Cada intento cuenta.'), findsOneWidget);
+    });
+
     testWidgets('muestra el ánimo, cuánto faltó y las estrellas apagadas', (
       tester,
     ) async {
@@ -298,6 +311,24 @@ void main() {
 
       expect(find.text('Ver resumen'), findsOneWidget);
       expect(gateway.iniciarIntentoCalls, 0);
+    });
+  });
+
+  group('ánimo del no superado por tramos (INT-147)', () {
+    test('cada tramo tiene su título y su frase', () {
+      expect(animoNoSuperado(38).titulo, '¡Sigue intentándolo!');
+      expect(animoNoSuperado(49.9).titulo, '¡Sigue intentándolo!');
+      expect(animoNoSuperado(50).titulo, '¡Vas bien!');
+      expect(animoNoSuperado(79).titulo, '¡Vas bien!');
+      expect(animoNoSuperado(80).titulo, '¡Casi lo tienes!');
+      expect(animoNoSuperado(90).frase, '¡Estás cerca!');
+      expect(animoNoSuperado(38).frase, isNot(contains('cerca')));
+    });
+
+    test('porcentaje del mínimo acotado y seguro con mínimo 0', () {
+      expect(porcentajeDelMinimo(3727, 9900), closeTo(37.6, 0.1));
+      expect(porcentajeDelMinimo(20000, 9900), 100);
+      expect(porcentajeDelMinimo(10, 0), 100);
     });
   });
 }

@@ -631,27 +631,39 @@ class _BarraSuperior extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      nickname,
-                      key: const Key('camino-nickname'),
-                      style: GoogleFonts.baloo2(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
+                    // Encoger antes que cortar (INT-147): con la píldora de
+                    // puntos creciendo, la elipsis se comía el apodo y el
+                    // progreso («RutaSal…», «Nivel 1 de 8 · …»).
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        nickname,
+                        key: const Key('camino-nickname'),
+                        maxLines: 1,
+                        style: GoogleFonts.baloo2(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
-                      overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 2),
-                    Text(
-                      'Nivel $posicion de $total · $estrellasGanadas/$estrellasPosibles ★',
-                      key: const Key('camino-progreso'),
-                      style: GoogleFonts.outfit(
-                        color: Colors.white.withValues(alpha: 0.45),
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 1,
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Nivel $posicion/$total · '
+                        '$estrellasGanadas/$estrellasPosibles ★',
+                        key: const Key('camino-progreso'),
+                        maxLines: 1,
+                        style: GoogleFonts.outfit(
+                          color: Colors.white.withValues(alpha: 0.45),
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 1,
+                        ),
                       ),
-                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
@@ -659,7 +671,15 @@ class _BarraSuperior extends StatelessWidget {
               const SizedBox(width: 8),
               _PildoraComodines(total: totalComodines, onTap: onTapComodines),
               const SizedBox(width: 8),
-              _PildoraPuntos(puntos: camino.puntosTotales),
+              // Con 6 cifras de puntos la fila ya no cabía en 390 px y
+              // desbordaba (INT-147): la píldora también se encoge si hace
+              // falta, en vez de empujar fuera de la pantalla.
+              Flexible(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: _PildoraPuntos(puntos: camino.puntosTotales),
+                ),
+              ),
             ],
           ),
         ),
@@ -714,22 +734,33 @@ class _BotonRanking extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      key: const Key('camino-ranking-boton'),
-      onTap: onTap,
-      child: Container(
-        width: 44,
-        height: 44,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(15),
-          color: Colors.white.withValues(alpha: 0.06),
-          border: Border.all(
-            color: Colors.white.withValues(alpha: 0.14),
-            width: 2,
+    // Solo icono: sin esto el lector de pantalla lo anunciaba como un botón
+    // sin nombre (INT-147).
+    return Semantics(
+      button: true,
+      label: 'Clasificación',
+      excludeSemantics: true,
+      child: GestureDetector(
+        key: const Key('camino-ranking-boton'),
+        onTap: onTap,
+        child: Container(
+          width: 44,
+          height: 44,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(15),
+            color: Colors.white.withValues(alpha: 0.06),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.14),
+              width: 2,
+            ),
+          ),
+          child: const Icon(
+            Icons.emoji_events_outlined,
+            color: _gold,
+            size: 22,
           ),
         ),
-        child: const Icon(Icons.emoji_events_outlined, color: _gold, size: 22),
       ),
     );
   }
