@@ -16,6 +16,12 @@ class FakeAuthGateway implements AuthGateway {
   Object? throwOnSignInWithPassword;
   Object? throwOnUpdateUser;
   Object? throwOnSignOut;
+  Object? throwOnSignInAnonymously;
+
+  /// Imita a `gotrue`: su `signOut` suelta la sesión local **antes** de avisar
+  /// al servidor, y solo después relanza el error de `/logout` (INT-145). Con
+  /// esto a `false` el fallo deja la sesión intacta, que es el otro caso.
+  bool signOutSueltaLaSesionAntesDeFallar = false;
 
   int signInAnonymouslyCalls = 0;
   int signInWithPasswordCalls = 0;
@@ -44,7 +50,11 @@ class FakeAuthGateway implements AuthGateway {
     calls.add('signInAnonymously');
     lastSignInData = data;
 
-    _throwIfNeeded(null);
+    if (_lanzar(() => throwOnSignInAnonymously, () {
+      throwOnSignInAnonymously = null;
+    })) {
+      return;
+    }
     initialSession = _fakeSession();
   }
 
@@ -89,6 +99,10 @@ class FakeAuthGateway implements AuthGateway {
     signOutCalls++;
     calls.add('signOut');
 
+    if (signOutSueltaLaSesionAntesDeFallar &&
+        (throwOnSignOut ?? throwOnNextCall) != null) {
+      initialSession = null;
+    }
     if (_lanzar(() => throwOnSignOut, () {
       throwOnSignOut = null;
     })) {

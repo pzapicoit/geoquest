@@ -324,6 +324,81 @@ void main() {
       },
     );
 
+    group('el servidor falla al cerrar pero la sesión local ya se soltó '
+        '(INT-145)', () {
+      // Es lo que hace `gotrue`: borra la sesión local y luego relanza el 500
+      // de `/logout`. En el dispositivo la sesión ya está cerrada.
+      setUp(() {
+        auth.signOutSueltaLaSesionAntesDeFallar = true;
+        auth.throwOnSignOut = const AuthException(
+          'Unexpected failure',
+          statusCode: '500',
+        );
+      });
+
+      test('entrar como invitado sigue y crea la sesión nueva', () async {
+        await auth.signInAnonymously();
+        auth.calls.clear();
+
+        final resultado = await _servicio().entrarComoInvitado(['GeoLince']);
+
+        expect(resultado, isA<EntradaCompletada>());
+        expect(auth.calls, ['signOut', 'signInAnonymously']);
+        expect(auth.currentSession, isNotNull);
+        expect(await usernameStorage.read(), 'GeoLince');
+      });
+
+      test('crear un jugador con contraseña sigue', () async {
+        estadoApodo.estado = EstadoApodo.libre;
+        await auth.signInAnonymously();
+
+        final resultado = await _servicio().entrar(
+          apodo: 'Pablo',
+          contrasena: 'secreta123',
+        );
+
+        expect(resultado, isA<EntradaCompletada>());
+        expect(auth.lastEmail, identidadDeApodo('Pablo'));
+      });
+
+      test('cambiar de jugador se completa y olvida el apodo', () async {
+        await auth.signInWithPassword(
+          email: 'x@geoquest.invalid',
+          password: 'y',
+        );
+        await usernameStorage.save('Pablo');
+
+        final resultado = await _servicio().cambiarDeJugador();
+
+        expect(resultado, isA<CambioListo>());
+        expect(auth.currentSession, isNull);
+        expect(await usernameStorage.read(), isNull);
+      });
+
+      test('descartar jugador se completa y olvida el apodo', () async {
+        await auth.signInAnonymously();
+        await usernameStorage.save('GeoLince');
+
+        final resultado = await _servicio().descartarJugador();
+
+        expect(resultado, isA<CambioListo>());
+        expect(await usernameStorage.read(), isNull);
+      });
+    });
+
+    test('si el cierre falla y la sesión sigue viva, el invitado no entra ni '
+        'se crea otra sesión', () async {
+      await auth.signInAnonymously();
+      auth.calls.clear();
+      auth.throwOnSignOut = const AuthException('sin conexión');
+
+      final resultado = await _servicio().entrarComoInvitado(['GeoLince']);
+
+      expect(resultado, isA<EntradaFallida>());
+      expect(auth.calls, ['signOut']);
+      expect(await usernameStorage.read(), isNull);
+    });
+
     test('descartar tampoco olvida el apodo si el cierre falla', () async {
       await auth.signInAnonymously();
       await usernameStorage.save('GeoLince');
@@ -373,7 +448,9 @@ void main() {
 
     test('si falla el alta anónima, no se toca ningún perfil', () async {
       estadoApodo.estado = EstadoApodo.libre;
-      auth.throwOnNextCall = const AuthException('proveedor deshabilitado');
+      auth.throwOnSignInAnonymously = const AuthException(
+        'proveedor deshabilitado',
+      );
 
       final resultado = await _servicio().entrar(
         apodo: 'Pablo',
@@ -426,7 +503,9 @@ void main() {
     });
 
     test('si el invitado no consigue sesión, se reporta', () async {
-      auth.throwOnNextCall = const AuthException('proveedor deshabilitado');
+      auth.throwOnSignInAnonymously = const AuthException(
+        'proveedor deshabilitado',
+      );
 
       final resultado = await _servicio().entrarComoInvitado(['GeoLince']);
 
