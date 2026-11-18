@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:video_player/video_player.dart';
@@ -13,7 +15,10 @@ import '../services/nivel_juego_gateway.dart';
 import 'bandeja_comodines.dart';
 import 'cuenta_atras_de_desafio.dart';
 import 'resumen_nivel_screen.dart';
+import '../motion/fondo_de_carga.dart';
 import '../motion/movimiento.dart';
+import '../motion/presencia.dart';
+import '../motion/pulsable.dart';
 import '../motion/rutas.dart';
 
 const _ink = Color(0xFF0E1620);
@@ -202,6 +207,13 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
 
   /// Posición dentro del intento: avanza al pulsar "Siguiente".
   int _indice = 0;
+
+  /// La pista que va a entrar viene de continuar desde un revelado: entra con
+  /// retraso, después de que salga la hoja (INT-152, D2 de `design.md`).
+  bool _pistaTrasRevelado = false;
+
+  /// La vibración de éxito de este revelado ya ha sonado (INT-152, D4).
+  bool _exitoVibrado = false;
   bool _pistaVisible = true;
 
   /// Desafío cuya cuenta atrás ya arrancó (INT-143). Arranca la primera vez
@@ -500,7 +512,10 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
   /// enseñó la pista.
   void _cerrarPista() {
     _topeDeLectura.parar();
-    setState(() => _pistaVisible = false);
+    setState(() {
+      _pistaVisible = false;
+      _pistaTrasRevelado = false;
+    });
 
     final intento = _intento;
     if (intento == null || _revelado != null) return;
@@ -528,7 +543,10 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
     );
   }
 
-  void _abrirPista() => setState(() => _pistaVisible = true);
+  void _abrirPista() => setState(() {
+    _pistaTrasRevelado = false;
+    _pistaVisible = true;
+  });
 
   void _avisar(String mensaje) {
     setState(() => _mensaje = mensaje);
@@ -682,6 +700,7 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
     // coreografía del revelado empiece a mover la cámara -- si no, las dos
     // animaciones se pelearían por `_mapa.aplicarCamara` en el mismo frame.
     _zoomComodin.stop();
+    _exitoVibrado = false;
 
     final origen = _camaraDelJugador ??= _mapa.camara;
     _mapa
@@ -753,6 +772,15 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
     }
 
     _mapa.progresoDeLaLinea = _tramo(_lineaDesde, _lineaHasta);
+
+    // Vibración de éxito una sola vez por revelado, cuando el contador de
+    // puntos llega al final de una respuesta que suma (INT-152, D4).
+    if (!_exitoVibrado &&
+        revelado.respuesta.puntos > 0 &&
+        _tramo(_puntosDesde, _puntosHasta) >= 1) {
+      _exitoVibrado = true;
+      HapticFeedback.heavyImpact();
+    }
   }
 
   /// Los contadores suben con una desaceleración, como el `1 - (1 - t)³` del
@@ -793,6 +821,7 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
       _puntaje += revelado.respuesta.puntos;
       _indice = siguiente;
       _pistaVisible = true;
+      _pistaTrasRevelado = true;
       _revelado = null;
       _camaraDelJugador = null;
       _camaraDelRevelado = null;
@@ -870,7 +899,7 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
         future: _futuro,
         builder: (context, snapshot) {
           if (snapshot.connectionState != ConnectionState.done) {
-            return const Center(child: CircularProgressIndicator(color: _teal));
+            return const _CargandoIntento();
           }
 
           // `setState(_iniciarIntento)` en vez de reasignar `_futuro` a mano:
@@ -932,41 +961,50 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
                     ),
                   ),
                 ),
-              if (!revelando && !_pistaVisible)
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: Presencia(
+                  visible: !revelando && !_pistaVisible,
                   child: AnimatedBuilder(
                     animation: _mapa,
                     builder: (context, _) => _ControlesAdivinar(
                       pin: _mapa.pin,
                       enviando: _enviando,
                       onVerPista: _abrirPista,
-                      onConfirmar: () => _confirmar(intento),
+                      onConfirmar: () {
+                        HapticFeedback.mediumImpact();
+                        _confirmar(intento);
+                      },
                     ),
                   ),
                 ),
-              if (!revelando && _pistaVisible)
-                Positioned.fill(
-                  child: _ToastPista(
-                    desafio: desafioActual,
-                    objetivoGlobal: intento.objetivoGlobal,
-                    posicion: _indice + 1,
-                    onListo: _cerrarPista,
-                    // Solo la primera vez: con el reloj ya en marcha, reabrir
-                    // la pista no tiene tope (INT-143).
-                    topeDeLectura:
-                        _relojArrancadoPara != desafioActual.id &&
-                            _topeDeLectura.restante > Duration.zero
-                        ? _topeDeLectura
-                        : null,
-                  ),
+              ),
+              Positioned.fill(
+                child: _ToastPista(
+                  visible: !revelando && _pistaVisible,
+                  retraso: _pistaTrasRevelado
+                      ? Movimiento.media
+                      : Duration.zero,
+                  desafio: desafioActual,
+                  objetivoGlobal: intento.objetivoGlobal,
+                  posicion: _indice + 1,
+                  onListo: _cerrarPista,
+                  // Solo la primera vez: con el reloj ya en marcha, reabrir
+                  // la pista no tiene tope (INT-143).
+                  topeDeLectura:
+                      _relojArrancadoPara != desafioActual.id &&
+                          _topeDeLectura.restante > Duration.zero
+                      ? _topeDeLectura
+                      : null,
                 ),
+              ),
               // La bandeja solo se ofrece en la fase de adivinar (INT-119):
               // ni durante el toast de pista ni durante el revelado.
-              if (!revelando && !_pistaVisible)
-                Positioned.fill(
+              Positioned.fill(
+                child: Presencia(
+                  visible: !revelando && !_pistaVisible,
                   child: BandejaComodines(
                     inventario: _inventarioComodines,
                     usadoEnEsteIntento: _comodinUsadoEnEsteIntento,
@@ -974,26 +1012,34 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
                     onUsar: (tipo) => _usarComodin(intento, tipo),
                   ),
                 ),
-              if (revelando)
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  child: AnimatedBuilder(
-                    animation: _coreografia,
-                    builder: (context, _) => _HojaDeRevelado(
-                      revelado: revelado,
-                      distanciaKm: revelado.respuesta.distanciaKm == null
-                          ? null
-                          : revelado.respuesta.distanciaKm! *
-                                _avanceDeLaDistancia,
-                      puntos: _puntosDelContador,
-                      avanceDelDestello: _avanceDeLosPuntos,
-                      cerrando: _cerrando,
-                      onContinuar: () => _avanzarDesdeElRevelado(intento),
-                    ),
-                  ),
+              ),
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: Presencia(
+                  visible: revelando,
+                  estilo: EstiloDePresencia.deslizar,
+                  desde: const Offset(0, 46),
+                  duracion: Movimiento.pantalla,
+                  child: revelado == null
+                      ? const SizedBox.shrink()
+                      : AnimatedBuilder(
+                          animation: _coreografia,
+                          builder: (context, _) => _HojaDeRevelado(
+                            revelado: revelado,
+                            distanciaKm: revelado.respuesta.distanciaKm == null
+                                ? null
+                                : revelado.respuesta.distanciaKm! *
+                                      _avanceDeLaDistancia,
+                            puntos: _puntosDelContador,
+                            avanceDelDestello: _avanceDeLosPuntos,
+                            cerrando: _cerrando,
+                            onContinuar: () => _avanzarDesdeElRevelado(intento),
+                          ),
+                        ),
                 ),
+              ),
               Positioned(
                 left: 0,
                 right: 0,
@@ -1013,13 +1059,17 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
                   ),
                 ),
               ),
-              if (_mensaje != null)
-                Positioned(
-                  left: 20,
-                  right: 20,
-                  bottom: 110,
-                  child: _Aviso(texto: _mensaje!),
+              Positioned(
+                left: 20,
+                right: 20,
+                bottom: 110,
+                child: Presencia(
+                  visible: _mensaje != null,
+                  child: _mensaje == null
+                      ? const SizedBox.shrink()
+                      : _Aviso(texto: _mensaje!),
                 ),
+              ),
             ],
           );
         },
@@ -1488,47 +1538,50 @@ class _ControlesAdivinar extends StatelessWidget {
               const SizedBox(height: 14),
               Align(child: _PildoraDeIndicacion(pin: pin)),
               const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(18),
-                    gradient: habilitado
-                        ? const LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [_teal, _azul],
-                          )
-                        : null,
-                    color: habilitado
-                        ? null
-                        : Colors.white.withValues(alpha: 0.08),
-                    boxShadow: habilitado
-                        ? const [
-                            BoxShadow(
-                              color: Color(0x990B4266),
-                              offset: Offset(0, 6),
-                            ),
-                          ]
-                        : null,
-                  ),
-                  child: TextButton(
-                    key: const Key('nivel-juego-confirmar'),
-                    onPressed: habilitado ? onConfirmar : null,
-                    style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 19),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(18),
-                      ),
+              Pulsable(
+                habilitado: habilitado,
+                child: SizedBox(
+                  width: double.infinity,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(18),
+                      gradient: habilitado
+                          ? const LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [_teal, _azul],
+                            )
+                          : null,
+                      color: habilitado
+                          ? null
+                          : Colors.white.withValues(alpha: 0.08),
+                      boxShadow: habilitado
+                          ? const [
+                              BoxShadow(
+                                color: Color(0x990B4266),
+                                offset: Offset(0, 6),
+                              ),
+                            ]
+                          : null,
                     ),
-                    child: Text(
-                      'Confirmar',
-                      style: GoogleFonts.baloo2(
-                        color: habilitado
-                            ? Colors.white
-                            : Colors.white.withValues(alpha: 0.34),
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
+                    child: TextButton(
+                      key: const Key('nivel-juego-confirmar'),
+                      onPressed: habilitado ? onConfirmar : null,
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 19),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                      ),
+                      child: Text(
+                        'Confirmar',
+                        style: GoogleFonts.baloo2(
+                          color: habilitado
+                              ? Colors.white
+                              : Colors.white.withValues(alpha: 0.34),
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
                     ),
                   ),
@@ -1555,54 +1608,56 @@ class _BotonVerPista extends StatelessWidget {
       curve: Curves.easeOutBack,
       builder: (context, valor, hijo) =>
           Transform.scale(scale: valor.clamp(0.0, 1.2), child: hijo),
-      child: InkWell(
-        key: const Key('nivel-juego-ver-pista'),
-        onTap: onPressed,
-        borderRadius: BorderRadius.circular(999),
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(10, 9, 15, 9),
-          decoration: BoxDecoration(
-            color: _ink.withValues(alpha: 0.78),
-            border: Border.all(color: _teal.withValues(alpha: 0.5)),
-            borderRadius: BorderRadius.circular(999),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x59000000),
-                blurRadius: 20,
-                offset: Offset(0, 8),
-              ),
-            ],
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 28,
-                height: 28,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [_teal, _azul],
+      child: Pulsable(
+        child: InkWell(
+          key: const Key('nivel-juego-ver-pista'),
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(999),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(10, 9, 15, 9),
+            decoration: BoxDecoration(
+              color: _ink.withValues(alpha: 0.78),
+              border: Border.all(color: _teal.withValues(alpha: 0.5)),
+              borderRadius: BorderRadius.circular(999),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x59000000),
+                  blurRadius: 20,
+                  offset: Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 28,
+                  height: 28,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [_teal, _azul],
+                    ),
+                  ),
+                  child: const Icon(
+                    Icons.lightbulb_outline_rounded,
+                    color: Colors.white,
+                    size: 16,
                   ),
                 ),
-                child: const Icon(
-                  Icons.lightbulb_outline_rounded,
-                  color: Colors.white,
-                  size: 16,
+                const SizedBox(width: 9),
+                Text(
+                  'Ver la pista',
+                  style: GoogleFonts.outfit(
+                    color: Colors.white.withValues(alpha: 0.9),
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 9),
-              Text(
-                'Ver la pista',
-                style: GoogleFonts.outfit(
-                  color: Colors.white.withValues(alpha: 0.9),
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -1796,82 +1851,76 @@ class _HojaDeRevelado extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0, end: 1),
-      duration: const Duration(milliseconds: 420),
-      curve: const Cubic(0.2, 0.9, 0.3, 1),
-      builder: (context, entrada, hijo) => Transform.translate(
-        offset: Offset(0, 46 * (1 - entrada.clamp(0.0, 1.0))),
-        child: Opacity(opacity: entrada.clamp(0.0, 1.0), child: hijo),
-      ),
-      child: Container(
-        key: const Key('nivel-juego-revelado'),
-        decoration: BoxDecoration(
-          color: _cardBg,
-          border: Border(
-            top: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
-          ),
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x73000000),
-              blurRadius: 44,
-              offset: Offset(0, -18),
-            ),
-          ],
+    return Container(
+      key: const Key('nivel-juego-revelado'),
+      decoration: BoxDecoration(
+        color: _cardBg,
+        border: Border(
+          top: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
         ),
-        child: SafeArea(
-          top: false,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    _MiniaturaDeLaPista(desafio: revelado.desafio),
-                    const SizedBox(width: 13),
-                    Expanded(child: _LugarRevelado(revelado: revelado)),
-                  ],
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x73000000),
+            blurRadius: 44,
+            offset: Offset(0, -18),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  _MiniaturaDeLaPista(desafio: revelado.desafio),
+                  const SizedBox(width: 13),
+                  Expanded(child: _LugarRevelado(revelado: revelado)),
+                ],
+              ),
+              const SizedBox(height: 16),
+              // Sin pin no hay distancia que contar (D13 de `design.md`):
+              // solo la tarjeta de puntos, a toda anchura.
+              if (distanciaKm case final distancia?)
+                // Las dos tarjetas miden lo mismo aunque una de ellas parta
+                // el texto de su cabecera en dos líneas.
+                IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(
+                        child: _TarjetaDeDistancia(kilometros: distancia),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _TarjetaDePuntos(
+                          puntos: puntos,
+                          avanceDelDestello: avanceDelDestello,
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              else
+                _TarjetaDePuntos(
+                  puntos: puntos,
+                  avanceDelDestello: avanceDelDestello,
                 ),
-                const SizedBox(height: 16),
-                // Sin pin no hay distancia que contar (D13 de `design.md`):
-                // solo la tarjeta de puntos, a toda anchura.
-                if (distanciaKm case final distancia?)
-                  // Las dos tarjetas miden lo mismo aunque una de ellas parta
-                  // el texto de su cabecera en dos líneas.
-                  IntrinsicHeight(
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Expanded(
-                          child: _TarjetaDeDistancia(kilometros: distancia),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: _TarjetaDePuntos(
-                            puntos: puntos,
-                            avanceDelDestello: avanceDelDestello,
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
-                else
-                  _TarjetaDePuntos(
-                    puntos: puntos,
-                    avanceDelDestello: avanceDelDestello,
-                  ),
-                // El desglose de precisión/bonus solo tiene sentido con un
-                // pin colocado: sin pin, precisión y bonus son ambos 0 (D14).
-                if (distanciaKm != null)
-                  _DesgloseDePuntaje(
-                    puntosDistancia: revelado.respuesta.puntosDistancia,
-                    puntosBonus: revelado.respuesta.puntosBonus,
-                  ),
-                const SizedBox(height: 16),
-                SizedBox(
+              // El desglose de precisión/bonus solo tiene sentido con un
+              // pin colocado: sin pin, precisión y bonus son ambos 0 (D14).
+              if (distanciaKm != null)
+                _DesgloseDePuntaje(
+                  puntosDistancia: revelado.respuesta.puntosDistancia,
+                  puntosBonus: revelado.respuesta.puntosBonus,
+                ),
+              const SizedBox(height: 16),
+              Pulsable(
+                habilitado: !cerrando,
+                child: SizedBox(
                   width: double.infinity,
                   child: DecoratedBox(
                     decoration: BoxDecoration(
@@ -1919,8 +1968,8 @@ class _HojaDeRevelado extends StatelessWidget {
                     ),
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
@@ -1958,6 +2007,7 @@ class _MiniaturaDeLaPista extends StatelessWidget {
           desafio.imagenUrl!,
           key: const Key('nivel-juego-miniatura-imagen'),
           fit: BoxFit.cover,
+          frameBuilder: apareceAlCargar,
           errorBuilder: (_, _, _) => _distintivoDelTipo(desafio.tipo),
         ),
         _ => _distintivoDelTipo(desafio.tipo),
@@ -2349,22 +2399,24 @@ class _BotonDeCristal extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Semantics(
-      button: true,
-      label: etiqueta,
-      child: InkWell(
-        key: clave,
-        onTap: onPressed,
-        borderRadius: BorderRadius.circular(15),
-        child: Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-            color: _ink.withValues(alpha: 0.6),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
-            borderRadius: BorderRadius.circular(15),
+    return Pulsable(
+      child: Semantics(
+        button: true,
+        label: etiqueta,
+        child: InkWell(
+          key: clave,
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(15),
+          child: Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: _ink.withValues(alpha: 0.6),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
+              borderRadius: BorderRadius.circular(15),
+            ),
+            child: Center(child: child),
           ),
-          child: Center(child: child),
         ),
       ),
     );
@@ -2490,12 +2542,21 @@ class _ModalSalir extends StatelessWidget {
 
 class _ToastPista extends StatelessWidget {
   const _ToastPista({
+    required this.visible,
+    required this.retraso,
     required this.desafio,
     required this.objetivoGlobal,
     required this.posicion,
     required this.onListo,
     required this.topeDeLectura,
   });
+
+  /// Se monta siempre y entra o sale según esto (INT-152): así la tarjeta se
+  /// anima también al cerrarse en vez de desaparecer de golpe.
+  final bool visible;
+
+  /// Espera antes de entrar; solo al llegar desde un revelado (D2).
+  final Duration retraso;
 
   final DesafioJuego desafio;
   final String objetivoGlobal;
@@ -2509,44 +2570,35 @@ class _ToastPista extends StatelessWidget {
       children: [
         Positioned.fill(
           child: IgnorePointer(
-            child: TweenAnimationBuilder<double>(
-              tween: Tween(begin: 0, end: 1),
-              duration: const Duration(milliseconds: 220),
-              builder: (context, valor, _) => ColoredBox(
-                color: const Color(0xFF060E14).withValues(alpha: 0.82 * valor),
-              ),
+            child: Presencia(
+              visible: visible,
+              retraso: retraso,
+              child: const ColoredBox(color: Color(0xD1060E14)),
             ),
           ),
         ),
         // El cierre al tocar fuera envuelve toda la capa de contenido, no
         // solo el fondo pintado: si no, el área vacía del scroll se comería
-        // el toque y la pista no se cerraría.
+        // el toque y la pista no se cerraría. Va dentro de la `Presencia`
+        // para que, con la pista oculta, no quede una capa que se trague los
+        // toques del mapa.
         Positioned.fill(
-          child: GestureDetector(
-            key: const Key('nivel-juego-fondo-pista'),
-            onTap: onListo,
-            behavior: HitTestBehavior.opaque,
-            child: SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(18, 108, 18, 24),
-                child: SingleChildScrollView(
-                  child: GestureDetector(
-                    // La tarjeta no cierra: solo lo hacen sus botones.
-                    onTap: () {},
-                    child: TweenAnimationBuilder<double>(
-                      tween: Tween(begin: 0, end: 1),
-                      duration: const Duration(milliseconds: 320),
-                      curve: const Cubic(0.2, 0.9, 0.3, 1),
-                      builder: (context, valor, hijo) => Opacity(
-                        opacity: valor.clamp(0.0, 1.0),
-                        child: Transform.translate(
-                          offset: Offset(0, 26 * (1 - valor)),
-                          child: Transform.scale(
-                            scale: 0.97 + 0.03 * valor,
-                            child: hijo,
-                          ),
-                        ),
-                      ),
+          child: Presencia(
+            visible: visible,
+            retraso: retraso,
+            estilo: EstiloDePresencia.deslizar,
+            desde: const Offset(0, 26),
+            child: GestureDetector(
+              key: const Key('nivel-juego-fondo-pista'),
+              onTap: onListo,
+              behavior: HitTestBehavior.opaque,
+              child: SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(18, 108, 18, 24),
+                  child: SingleChildScrollView(
+                    child: GestureDetector(
+                      // La tarjeta no cierra: solo lo hacen sus botones.
+                      onTap: () {},
                       child: _TarjetaDePista(
                         desafio: desafio,
                         objetivoGlobal: objetivoGlobal,
@@ -2640,41 +2692,43 @@ class _TarjetaDePista extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 15),
-          SizedBox(
-            width: double.infinity,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
-                gradient: const LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [_teal, _azul],
-                ),
-                boxShadow: const [
-                  BoxShadow(color: Color(0x990B4266), offset: Offset(0, 6)),
-                ],
-              ),
-              child: TextButton(
-                key: const Key('nivel-juego-boton-listo'),
-                onPressed: onListo,
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 18),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
+          Pulsable(
+            child: SizedBox(
+              width: double.infinity,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  gradient: const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [_teal, _azul],
                   ),
+                  boxShadow: const [
+                    BoxShadow(color: Color(0x990B4266), offset: Offset(0, 6)),
+                  ],
                 ),
-                child: Text(
-                  'Listo, voy a adivinar',
-                  // Aviso estático del tope para el lector de pantalla, en
-                  // lugar de la barra que cambia cada fotograma (INT-143).
-                  semanticsLabel: segundosDeLectura == null
-                      ? null
-                      : 'Listo, voy a adivinar. Tienes $segundosDeLectura '
-                            'segundos para leer la pista',
-                  style: GoogleFonts.baloo2(
-                    color: Colors.white,
-                    fontSize: 17,
-                    fontWeight: FontWeight.w800,
+                child: TextButton(
+                  key: const Key('nivel-juego-boton-listo'),
+                  onPressed: onListo,
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 18),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  child: Text(
+                    'Listo, voy a adivinar',
+                    // Aviso estático del tope para el lector de pantalla, en
+                    // lugar de la barra que cambia cada fotograma (INT-143).
+                    semanticsLabel: segundosDeLectura == null
+                        ? null
+                        : 'Listo, voy a adivinar. Tienes $segundosDeLectura '
+                              'segundos para leer la pista',
+                    style: GoogleFonts.baloo2(
+                      color: Colors.white,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                 ),
               ),
@@ -2849,6 +2903,7 @@ class _PistaImagen extends StatelessWidget {
           url,
           key: const Key('nivel-juego-imagen'),
           fit: BoxFit.cover,
+          frameBuilder: apareceAlCargar,
           errorBuilder: (_, _, _) => const ColoredBox(color: Colors.black26),
         ),
       ),
@@ -2979,6 +3034,55 @@ class _PistaVideoState extends State<_PistaVideo> {
             }
             return VideoPlayer(_controller);
           },
+        ),
+      ),
+    );
+  }
+}
+
+/// Carga del intento con el estilo del juego, en vez del indicador circular
+/// de la plataforma (INT-152, D6 de `design.md`).
+class _CargandoIntento extends StatelessWidget {
+  const _CargandoIntento();
+
+  @override
+  Widget build(BuildContext context) {
+    final logo = Image.asset(
+      'assets/branding/geoquest-logo.png',
+      width: 96,
+      height: 96,
+    );
+    return Center(
+      child: Semantics(
+        key: const Key('nivel-juego-cargando'),
+        label: 'Preparando el nivel',
+        liveRegion: true,
+        child: ExcludeSemantics(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (movimientoReducido(context))
+                logo
+              else
+                logo
+                    .animate(onPlay: (c) => c.repeat(reverse: true))
+                    .scaleXY(
+                      begin: 0.94,
+                      end: 1.04,
+                      duration: Movimiento.entrada,
+                      curve: Movimiento.estandar,
+                    ),
+              const SizedBox(height: 18),
+              Text(
+                'Preparando el nivel…',
+                style: GoogleFonts.outfit(
+                  color: Colors.white.withValues(alpha: 0.72),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

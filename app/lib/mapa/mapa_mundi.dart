@@ -5,8 +5,10 @@ import 'dart:ui' show PointMode;
 import 'package:flutter/gestures.dart' show kDoubleTapTimeout;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show OverflowBoxFit;
+import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:google_fonts/google_fonts.dart';
 
+import '../motion/movimiento.dart';
 import 'circulo_radio.dart';
 import 'gran_circulo.dart';
 import 'guiones.dart';
@@ -143,7 +145,8 @@ class _MapaMundiState extends State<MapaMundi>
     // descartar que venga un segundo (D9): es la acción principal de la
     // pantalla de juego.
     _pinAntesDelUltimoToque = widget.controller.pin;
-    widget.controller.colocarPinEn(punto);
+    // Vibración leve al clavar el pin (INT-152, D4).
+    if (widget.controller.colocarPinEn(punto)) HapticFeedback.selectionClick();
     _ultimoToque = punto;
     _plazoDelDobleToque = Timer(kDoubleTapTimeout, _olvidarElToque);
   }
@@ -296,6 +299,7 @@ class _MapaMundiState extends State<MapaMundi>
                       ),
                     if (pin != null)
                       _PinDelMapa(
+                        cae: true,
                         punto: controller.coordenadasAPantalla(pin),
                         coordenada: pin,
                         relleno: _pinRelleno,
@@ -433,7 +437,11 @@ class _PinDelMapa extends StatelessWidget {
     this.colorDelRotulo,
     this.rotuloDebajo = false,
     this.clave,
+    this.cae = false,
   });
+
+  /// Altura desde la que cae al colocarse (INT-152, D3 de `design.md`).
+  static const double _alturaDeCaida = 18;
 
   static const double _lado = 160;
   static const double _alturaPin = 45;
@@ -458,9 +466,14 @@ class _PinDelMapa extends StatelessWidget {
 
   final Key? clave;
 
+  /// Si el pin cae con rebote al colocarse: el del jugador sí; el real lo
+  /// presenta la coreografía del revelado (INT-152).
+  final bool cae;
+
   @override
   Widget build(BuildContext context) {
     if (punto == null) return const SizedBox.shrink();
+    final reducido = movimientoReducido(context);
 
     return Positioned(
       key: clave,
@@ -473,9 +486,10 @@ class _PinDelMapa extends StatelessWidget {
           // La clave cambia con cada coordenada nueva, así que reposicionar
           // el pin lo vuelve a animar en su sitio.
           key: ValueKey(coordenada),
-          tween: Tween(begin: 0, end: 1),
-          duration: const Duration(milliseconds: 320),
-          curve: Curves.easeOutBack,
+          // Con «reducir movimiento» el pin aparece ya en su sitio.
+          tween: Tween(begin: reducido ? 1 : 0, end: 1),
+          duration: Movimiento.media,
+          curve: Movimiento.rebote,
           builder: (context, entrada, _) => Stack(
             alignment: Alignment.center,
             children: [
@@ -483,7 +497,11 @@ class _PinDelMapa extends StatelessWidget {
               Align(
                 alignment: Alignment.center,
                 child: Transform.translate(
-                  offset: const Offset(0, -_alturaPin / 2),
+                  offset: Offset(
+                    0,
+                    -_alturaPin / 2 -
+                        (cae ? _alturaDeCaida * (1 - entrada) : 0),
+                  ),
                   child: Transform.scale(
                     scale: entrada,
                     alignment: Alignment.bottomCenter,

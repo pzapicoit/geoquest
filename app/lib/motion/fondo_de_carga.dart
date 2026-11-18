@@ -66,3 +66,34 @@ class _FondoDeCargaState extends State<FondoDeCarga>
     );
   }
 }
+
+/// `frameBuilder` para imágenes de red que deben esperar con estilo (INT-152,
+/// D7 de `design.md`):
+///
+/// - si la imagen llega de la caché (`deCache`, p. ej. por la precarga de
+///   INT-120), se pinta sin más, sin fondo ni fundido;
+/// - si llega de la red, su hueco muestra [FondoDeCarga] hasta el primer
+///   fotograma y la imagen entra con un fundido.
+///
+/// Solo envuelve lo que pinta: no cambia el provider de la imagen, que es la
+/// clave de la caché compartida con la precarga.
+Widget apareceAlCargar(
+  BuildContext context,
+  Widget imagen,
+  int? fotograma,
+  bool deCache,
+) {
+  if (deCache) return imagen;
+  return Stack(
+    fit: StackFit.expand,
+    children: [
+      if (fotograma == null) const FondoDeCarga(key: Key('imagen-cargando')),
+      AnimatedOpacity(
+        opacity: fotograma == null ? 0 : 1,
+        duration: Movimiento.media,
+        curve: Movimiento.llegada,
+        child: imagen,
+      ),
+    ],
+  );
+}

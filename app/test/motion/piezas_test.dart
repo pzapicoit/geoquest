@@ -223,4 +223,65 @@ void main() {
       );
     });
   });
+
+  group('apareceAlCargar', () {
+    late BuildContext contexto;
+    Future<void> capturarContexto(WidgetTester tester) async {
+      await tester.pumpWidget(
+        Builder(
+          builder: (context) {
+            contexto = context;
+            return const SizedBox();
+          },
+        ),
+      );
+    }
+
+    const imagen = SizedBox(key: Key('la-imagen'));
+
+    testWidgets('de caché se pinta tal cual', (tester) async {
+      await capturarContexto(tester);
+      expect(apareceAlCargar(contexto, imagen, null, true), same(imagen));
+    });
+
+    testWidgets('de red sin fotograma muestra el fondo y la oculta', (
+      tester,
+    ) async {
+      await capturarContexto(tester);
+      await tester.pumpWidget(
+        envolver(
+          SizedBox(
+            width: 100,
+            height: 100,
+            child: apareceAlCargar(contexto, imagen, null, false),
+          ),
+        ),
+      );
+      expect(find.byType(FondoDeCarga), findsOneWidget);
+      expect(
+        tester.widget<AnimatedOpacity>(find.byType(AnimatedOpacity)).opacity,
+        0,
+      );
+    });
+
+    testWidgets('de red con fotograma quita el fondo y la muestra', (
+      tester,
+    ) async {
+      await capturarContexto(tester);
+      await tester.pumpWidget(
+        envolver(
+          SizedBox(
+            width: 100,
+            height: 100,
+            child: apareceAlCargar(contexto, imagen, 0, false),
+          ),
+        ),
+      );
+      expect(find.byType(FondoDeCarga), findsNothing);
+      expect(
+        tester.widget<AnimatedOpacity>(find.byType(AnimatedOpacity)).opacity,
+        1,
+      );
+    });
+  });
 }
