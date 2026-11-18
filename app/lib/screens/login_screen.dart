@@ -14,6 +14,7 @@ import 'entry_backdrop.dart';
 import 'entry_motion.dart';
 import 'entry_widgets.dart';
 import 'username_screen.dart';
+import '../motion/rutas.dart';
 
 /// Pantalla de entrada (INT-108): decide entre el estado "primera vez"
 /// ([UsernameScreen]) y el estado "regreso" ([_ReturningWelcome]) según si
@@ -207,9 +208,8 @@ class _ReturningWelcomeState extends State<_ReturningWelcome> {
   }
 
   void _onContinue() {
-    Navigator.of(
-      context,
-    ).pushReplacement(MaterialPageRoute(builder: (_) => const CaminoScreen()));
+    Navigator.of(context)
+        .pushReplacement(rutaDeRelevo((_) => const CaminoScreen()));
   }
 
   @override
