@@ -16,10 +16,13 @@ allá de cuándo aparecen sus cifras.
 
 ## Decisions
 
-**D1. Encoger antes que cortar en la cabecera del camino.** El apodo y la línea
-de progreso van en `FittedBox(fit: scaleDown, alignment: centerLeft)`. Con el
-ancho normal se ven igual que hoy; solo se encogen cuando la píldora de puntos
-crece. El formato compacto «Nivel N/M · E/T ★» reduce cuánto hay que encoger.
+**D1. Encoger con suelo, y cortar solo si hace falta.** El apodo y la línea de
+progreso usan `_TextoQueCabe`: mide el texto con `TextPainter` y reduce el tamaño
+de letra lo justo para caber, pero nunca por debajo del 75 %. Por debajo de eso
+corta con puntos suspensivos. Un `FittedBox` sin suelo dejaba el apodo al 16 %
+con 6 cifras de puntos (revisión adversarial). La píldora de puntos lleva un
+ancho máximo y un `FittedBox`, sin `Flexible`, para no competir por flex con el
+texto.
 - *Alternativa:* quitar elementos de la barra. Se descarta porque es un cambio
   de diseño.
 
@@ -58,7 +61,11 @@ después de la revisión de `ecc:database-reviewer`.
 
 ## Risks / Trade-offs
 
-- [Texto encogido en la cabecera del camino] → Con 16 caracteres y 6 cifras de
-  puntos baja a ~85 % del tamaño, legible. Es mejor que una elipsis.
+- [Texto encogido en la cabecera del camino] → Con apodos habituales y puntos de
+  4-5 cifras cabe entero, algo más pequeño. Con apodos muy largos y 6 cifras se
+  corta, pero a un tamaño legible.
+- [Rótulos que se solapan entre sí] → Preexistente (INT-104): con pines a
+  100-130 px en vertical, «TU PIN» y el rótulo real pueden solaparse. Este
+  cambio no lo empeora; va en una issue aparte.
 - [Tarjeta de progreso más alta] → Unos 14 px más de mapa tapado arriba. Se
   acepta a cambio de leer el nombre de la parada.

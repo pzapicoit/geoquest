@@ -2048,15 +2048,17 @@ class _TarjetaDeDistancia extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(width: 5),
-              Text(
-                'km',
-                style: GoogleFonts.outfit(
-                  color: Colors.white.withValues(alpha: 0.5),
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
+              // «—» a secas mientras no cuenta: «— km» parecía una cifra.
+              if (contando) const SizedBox(width: 5),
+              if (contando)
+                Text(
+                  'km',
+                  style: GoogleFonts.outfit(
+                    color: Colors.white.withValues(alpha: 0.5),
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-              ),
             ],
           ),
         ],

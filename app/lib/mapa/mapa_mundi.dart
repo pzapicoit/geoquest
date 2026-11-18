@@ -883,6 +883,12 @@ class _RotuloDentroDelMapa extends SingleChildLayoutDelegate {
     final ancho = anchoDelMapa;
     if (ancho == null) return Offset(centrado, y);
 
+    // Con el pin fuera del mapa (p. ej. mientras la cámara del revelado aún
+    // no lo ha encuadrado) el rótulo se va con él, en vez de quedarse pegado
+    // al borde sin pin al que señalar.
+    final xDelPin = izquierdaDelPin + size.width / 2;
+    if (xDelPin < 0 || xDelPin > ancho) return Offset(centrado, y);
+
     final minimo = _margen - izquierdaDelPin;
     final maximo = ancho - _margen - izquierdaDelPin - childSize.width;
     // Un rótulo más ancho que el propio mapa no cabe por ningún lado: se

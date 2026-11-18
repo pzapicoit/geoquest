@@ -636,38 +636,28 @@ class _BarraSuperior extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // Encoger antes que cortar (INT-147): con la píldora de
-                      // puntos creciendo, la elipsis se comía el apodo y el
-                      // progreso («RutaSal…», «Nivel 1 de 8 · …»).
-                      FittedBox(
-                        fit: BoxFit.scaleDown,
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          nickname,
-                          key: const Key('camino-nickname'),
-                          maxLines: 1,
-                          style: GoogleFonts.baloo2(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.w800,
-                          ),
+                      // Encoger antes que cortar, con suelo (INT-147): con la
+                      // píldora de puntos creciendo, la elipsis se comía el
+                      // apodo y el progreso («RutaSal…», «Nivel 1 de 8 · …»).
+                      _TextoQueCabe(
+                        nickname,
+                        clave: const Key('camino-nickname'),
+                        estilo: GoogleFonts.baloo2(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
                         ),
                       ),
                       const SizedBox(height: 2),
-                      FittedBox(
-                        fit: BoxFit.scaleDown,
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          'Nivel $posicion/$total · '
-                          '$estrellasGanadas/$estrellasPosibles ★',
-                          key: const Key('camino-progreso'),
-                          maxLines: 1,
-                          style: GoogleFonts.outfit(
-                            color: Colors.white.withValues(alpha: 0.45),
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: 1,
-                          ),
+                      _TextoQueCabe(
+                        'Nivel $posicion/$total · '
+                        '$estrellasGanadas/$estrellasPosibles ★',
+                        clave: const Key('camino-progreso'),
+                        estilo: GoogleFonts.outfit(
+                          color: Colors.white.withValues(alpha: 0.45),
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 1,
                         ),
                       ),
                     ],
@@ -676,10 +666,9 @@ class _BarraSuperior extends StatelessWidget {
                 const SizedBox(width: 8),
                 _PildoraComodines(total: totalComodines, onTap: onTapComodines),
                 const SizedBox(width: 8),
-                // Con 6 cifras de puntos la fila ya no cabía en 390 px y
-                // desbordaba (INT-147): la píldora se encoge si pasa de un
-                // ancho máximo. Sin `Flexible`, que competiría por flex con el
-                // texto y le quitaría la mitad del sitio libre aunque sobrara.
+                // Tope de ancho para la píldora (INT-147): con muchas cifras
+                // se encoge en vez de empujar la fila fuera de la pantalla.
+                // Sin `Flexible`, que competiría por flex con el texto.
                 ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 104),
                   child: FittedBox(
@@ -1320,6 +1309,49 @@ class _ErrorCamino extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Texto de una línea que se encoge para caber, pero solo hasta
+/// [escalaMinima] (75 %) de su tamaño; si aun así no cabe, se corta con puntos
+/// suspensivos (INT-147). Encoger sin suelo dejaba el apodo ilegible con
+/// muchos puntos en la cabecera; cortar siempre lo dejaba en «RutaSal…»
+/// aunque cupiera un poco más pequeño.
+class _TextoQueCabe extends StatelessWidget {
+  const _TextoQueCabe(this.texto, {required this.estilo, this.clave});
+
+  final String texto;
+  final TextStyle estilo;
+  final Key? clave;
+
+  /// Por debajo del 75 % el apodo dejaba de leerse bien en la cabecera.
+  static const escalaMinima = 0.75;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, restricciones) {
+        final medida = TextPainter(
+          text: TextSpan(text: texto, style: estilo),
+          maxLines: 1,
+          textDirection: Directionality.of(context),
+          textScaler: MediaQuery.textScalerOf(context),
+        )..layout();
+        final natural = medida.width;
+        medida.dispose();
+
+        final escala = natural <= restricciones.maxWidth
+            ? 1.0
+            : (restricciones.maxWidth / natural).clamp(escalaMinima, 1.0);
+        return Text(
+          texto,
+          key: clave,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: estilo.copyWith(fontSize: (estilo.fontSize ?? 14) * escala),
+        );
+      },
     );
   }
 }

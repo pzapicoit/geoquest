@@ -1042,41 +1042,39 @@ void main() {
   });
 
   group('cabecera sin cortes (INT-147)', () {
-    testWidgets('apodo largo y muchos puntos se encogen, no se cortan', (
-      tester,
-    ) async {
-      SharedPreferences.setMockInitialValues({'username': 'TrotaMundos12345'});
-      tester.view.physicalSize = const Size(390, 844);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.reset);
+    testWidgets(
+      'apodo largo y muchos puntos: encoge con suelo, sin desbordar',
+      (tester) async {
+        SharedPreferences.setMockInitialValues({
+          'username': 'TrotaMundos12345',
+        });
+        tester.view.physicalSize = const Size(390, 844);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.reset);
 
-      await tester.pumpWidget(
-        _pantalla(
-          FakeCaminoGateway(
-            CaminoJugador(
-              entradas: _caminoDePrueba.entradas,
-              puntosTotales: 123456,
+        await tester.pumpWidget(
+          _pantalla(
+            FakeCaminoGateway(
+              CaminoJugador(
+                entradas: _caminoDePrueba.entradas,
+                puntosTotales: 123456,
+              ),
             ),
           ),
-        ),
-      );
-      await tester.pumpAndSettle();
+        );
+        await tester.pumpAndSettle();
 
-      expect(tester.takeException(), isNull);
-      final apodo = tester.widget<Text>(
-        find.byKey(const Key('camino-nickname')),
-      );
-      expect(apodo.data, 'TrotaMundos12345');
-      expect(apodo.overflow, isNot(TextOverflow.ellipsis));
-      expect(
-        find.ancestor(
-          of: find.byKey(const Key('camino-nickname')),
-          matching: find.byType(FittedBox),
-        ),
-        findsOneWidget,
-      );
-      expect(find.text('Nivel 2/3 · 2/9 ★'), findsOneWidget);
-    });
+        expect(tester.takeException(), isNull);
+        final apodo = tester.widget<Text>(
+          find.byKey(const Key('camino-nickname')),
+        );
+        expect(apodo.data, 'TrotaMundos12345');
+        // Se encoge, pero nunca por debajo del 75 % (18 px → 13,5 px): antes
+        // de eso, mejor cortar que dejarlo ilegible.
+        expect(apodo.style!.fontSize, greaterThanOrEqualTo(18 * 0.75));
+        expect(find.text('Nivel 2/3 · 2/9 ★'), findsOneWidget);
+      },
+    );
 
     testWidgets('con pocos puntos el apodo no se encoge sin necesidad', (
       tester,
@@ -1084,17 +1082,10 @@ void main() {
       SharedPreferences.setMockInitialValues({'username': 'Ana'});
       await _pump(tester, FakeCaminoGateway(_caminoDePrueba));
 
-      final caja = tester.getSize(
-        find
-            .ancestor(
-              of: find.byKey(const Key('camino-nickname')),
-              matching: find.byType(FittedBox),
-            )
-            .first,
+      final apodo = tester.widget<Text>(
+        find.byKey(const Key('camino-nickname')),
       );
-      final texto = tester.getSize(find.byKey(const Key('camino-nickname')));
-      // El FittedBox no reduce: el texto se pinta a su tamaño natural.
-      expect(caja.height, closeTo(texto.height, 0.5));
+      expect(apodo.style!.fontSize, 18);
     });
 
     testWidgets('el trofeo se anuncia como «Clasificación»', (tester) async {
