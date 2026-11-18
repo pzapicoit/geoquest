@@ -210,6 +210,70 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.iOS),
   );
 
+  /// La pantalla de debajo llega por un relevo, como el camino en la app real:
+  /// así la nativa de iOS le aplica su `delegatedTransition`.
+  Widget appConCaminoPorRelevo({required bool reducirMovimiento}) {
+    return appDePrueba(
+      reducirMovimiento: reducirMovimiento,
+      navegar: (nav) => nav.pushReplacement(
+        rutaDeRelevo<void>(
+          (context) => Scaffold(
+            body: TextButton(
+              onPressed: () =>
+                  Navigator.of(context)
+                      .push(MaterialPageRoute<void>(builder: destino)),
+              child: const Text('camino'),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Finder desplazamientosDe(String texto) => find.ancestor(
+    of: find.text(texto),
+    matching: find.byWidgetPredicate(
+      (w) => w is SlideTransition && w.position.value != Offset.zero,
+    ),
+  );
+
+  testWidgets(
+    'en iOS con «reducir movimiento» la pantalla de debajo tampoco se desplaza',
+    (tester) async {
+      await tester.pumpWidget(appConCaminoPorRelevo(reducirMovimiento: true));
+      await tester.tap(find.text('ir'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('camino'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+
+      expect(desplazamientosDe('camino'), findsNothing);
+
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('destino')), findsOneWidget);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.iOS),
+  );
+
+  testWidgets(
+    'en iOS sin «reducir movimiento» la pantalla de debajo se aparta como en iOS',
+    (tester) async {
+      await tester.pumpWidget(appConCaminoPorRelevo(reducirMovimiento: false));
+      await tester.tap(find.text('ir'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('camino'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+
+      expect(desplazamientosDe('camino'), findsWidgets);
+
+      await tester.pumpAndSettle();
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.iOS),
+  );
+
   group('rutaDeRelevo', () {
     testWidgets('sustituye con fundido cruzado y termina', (tester) async {
       await tester.pumpWidget(

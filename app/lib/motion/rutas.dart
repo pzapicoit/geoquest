@@ -56,9 +56,33 @@ class TransicionNativaDeIOS extends PageTransitionsBuilder {
   Duration get reverseTransitionDuration =>
       _cupertino.reverseTransitionDuration;
 
+  /// Lo que la nueva pantalla le hace a la de debajo cuando esta no comparte
+  /// transición (por ejemplo, el camino, que llega por [rutaDeRelevo]).
+  /// Cupertino la desplaza a un lado sin mirar «reducir movimiento»; con el
+  /// ajuste activo se devuelve `null` y la de debajo usa su propio fundido.
+  ///
+  /// Es una función estática, siempre la misma referencia: `didChangeNext`
+  /// compara delegados con `!=` para decidir si aplicarlo.
+  static Widget? _delegadoSinMovimientoReducido(
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    bool allowSnapshotting,
+    Widget? child,
+  ) {
+    if (movimientoReducido(context)) return null;
+    return CupertinoPageTransition.delegatedTransition(
+      context,
+      animation,
+      secondaryAnimation,
+      allowSnapshotting,
+      child,
+    );
+  }
+
   @override
   DelegatedTransitionBuilder? get delegatedTransition =>
-      _cupertino.delegatedTransition;
+      _delegadoSinMovimientoReducido;
 
   @override
   Widget buildTransitions<T>(
