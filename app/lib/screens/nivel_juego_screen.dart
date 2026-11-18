@@ -201,6 +201,13 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
   /// Posición dentro del intento: avanza al pulsar "Siguiente".
   int _indice = 0;
   bool _pistaVisible = true;
+
+  /// Desafío cuya cuenta atrás ya arrancó (INT-143). Arranca la primera vez
+  /// que se cierra su pista, no al mostrarse; reabrirla después no la para.
+  String? _relojArrancadoPara;
+
+  /// Cierra la pista sola al agotarse [segundosDeLecturaDePista] (INT-143).
+  Timer? _topeDeLectura;
   bool _enviando = false;
   bool _cerrando = false;
   int _puntaje = 0;
@@ -265,6 +272,7 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
   @override
   void dispose() {
     _temporizadorDelMensaje?.cancel();
+    _topeDeLectura?.cancel();
     _cuentaAtras.dispose();
     _coreografia.dispose();
     _zoomComodin.dispose();
@@ -291,7 +299,7 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
 
   void _alCargarElIntento(IntentoNivel intento) {
     if (!mounted || intento.desafios.isEmpty) return;
-    _arrancarCuentaAtras(intento, intento.desafios[_indice].id);
+    _prepararCuentaAtras(intento);
     // Sin `await` a propósito (D1 de `design.md`): la partida no espera a la
     // precarga, que corre de fondo mientras el jugador juega.
     _precargarImagenesDelIntento(intento);
@@ -473,7 +481,36 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
         MotivoRechazoComodin.desconocido => 'No se pudo usar el comodín',
       };
 
-  void _cerrarPista() => setState(() => _pistaVisible = false);
+  /// Cierra la pista. La primera vez para cada desafío arranca su cuenta
+  /// atrás y lo marca como mostrado en el servidor (INT-143): el tiempo de
+  /// respuesta y el bonus por rapidez se miden desde aquí, no desde que se
+  /// enseñó la pista.
+  void _cerrarPista() {
+    _topeDeLectura?.cancel();
+    _topeDeLectura = null;
+    setState(() => _pistaVisible = false);
+
+    final intento = _intento;
+    if (intento == null || _revelado != null) return;
+    final desafioId = intento.desafios[_indice].id;
+    if (_relojArrancadoPara == desafioId) return;
+    _relojArrancadoPara = desafioId;
+    _arrancarCuentaAtras(intento, desafioId);
+  }
+
+  /// Deja la cuenta atrás del desafío actual llena y quieta y arma el tope de
+  /// lectura de su pista, que se acaba de abrir (INT-143).
+  void _prepararCuentaAtras(IntentoNivel intento) {
+    _intento = intento;
+    _cuentaAtras.preparar(Duration(seconds: intento.segundosPorDesafio));
+    _topeDeLectura?.cancel();
+    _topeDeLectura = Timer(
+      const Duration(seconds: segundosDeLecturaDePista),
+      () {
+        if (mounted && _pistaVisible) _cerrarPista();
+      },
+    );
+  }
 
   void _abrirPista() => setState(() => _pistaVisible = true);
 
@@ -746,7 +783,7 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
       _tamanoDelRevelado = null;
       _barraInferiorDelRevelado = null;
     });
-    _arrancarCuentaAtras(intento, intento.desafios[siguiente].id);
+    _prepararCuentaAtras(intento);
   }
 
   /// Cierra el intento al terminar el último desafío y, si sale bien, entra
@@ -889,6 +926,9 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
                     objetivoGlobal: intento.objetivoGlobal,
                     posicion: _indice + 1,
                     onListo: _cerrarPista,
+                    // Solo la primera vez: con el reloj ya en marcha, reabrir
+                    // la pista no tiene tope (INT-143).
+                    conTopeDeLectura: _relojArrancadoPara != desafioActual.id,
                   ),
                 ),
               // La bandeja solo se ofrece en la fase de adivinar (INT-119):
@@ -2422,12 +2462,14 @@ class _ToastPista extends StatelessWidget {
     required this.objetivoGlobal,
     required this.posicion,
     required this.onListo,
+    required this.conTopeDeLectura,
   });
 
   final DesafioJuego desafio;
   final String objetivoGlobal;
   final int posicion;
   final VoidCallback onListo;
+  final bool conTopeDeLectura;
 
   @override
   Widget build(BuildContext context) {
@@ -2478,6 +2520,7 @@ class _ToastPista extends StatelessWidget {
                         objetivoGlobal: objetivoGlobal,
                         posicion: posicion,
                         onListo: onListo,
+                        conTopeDeLectura: conTopeDeLectura,
                       ),
                     ),
                   ),
@@ -2497,12 +2540,16 @@ class _TarjetaDePista extends StatelessWidget {
     required this.objetivoGlobal,
     required this.posicion,
     required this.onListo,
+    required this.conTopeDeLectura,
   });
 
   final DesafioJuego desafio;
   final String objetivoGlobal;
   final int posicion;
   final VoidCallback onListo;
+
+  /// Enseña la barra del tope de lectura bajo "Listo" (INT-143).
+  final bool conTopeDeLectura;
 
   @override
   Widget build(BuildContext context) {
@@ -2592,11 +2639,38 @@ class _TarjetaDePista extends StatelessWidget {
               ),
             ),
           ),
+          if (conTopeDeLectura) ...[
+            const SizedBox(height: 10),
+            // Cuánto queda del tope de lectura: al vaciarse, la pista se
+            // cierra sola y arranca el reloj (INT-143). La clave por desafío
+            // reinicia la animación en cada pista nueva.
+            TweenAnimationBuilder<double>(
+              key: ValueKey('tope-de-lectura-$posicion'),
+              tween: Tween(begin: 1, end: 0),
+              duration: const Duration(seconds: segundosDeLecturaDePista),
+              builder: (context, valor, _) => ClipRRect(
+                borderRadius: BorderRadius.circular(99),
+                child: LinearProgressIndicator(
+                  key: const Key('nivel-juego-tope-de-lectura'),
+                  value: valor,
+                  minHeight: 3,
+                  backgroundColor: Colors.white.withValues(alpha: 0.08),
+                  color: Colors.white.withValues(alpha: 0.35),
+                  semanticsLabel: 'Tiempo para leer la pista',
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
   }
 }
+
+/// Tope de lectura de la pista antes de que arranque el reloj (INT-143). Sin
+/// tope se podría estudiar la imagen sin límite con la cuenta atrás parada y
+/// contestar al instante con el bonus por rapidez completo.
+const segundosDeLecturaDePista = 20;
 
 /// Pie explicativo fijo por tipo de pista (D10 de `design.md`): `desafios` no
 /// tiene ninguna columna equivalente y el texto no varía por desafío.

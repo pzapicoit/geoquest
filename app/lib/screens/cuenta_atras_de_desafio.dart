@@ -100,6 +100,17 @@ class CuentaAtrasDeDesafio extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Deja la cuenta atrás llena y quieta para el desafío que se acaba de
+  /// volver el actual, sin empezar a contar (INT-143): el tiempo de respuesta
+  /// arranca después, con [arrancar], al cerrar el jugador la pista.
+  void preparar(Duration total) {
+    _ticker.stop();
+    _total = total > Duration.zero ? total : Duration.zero;
+    _restante = _total;
+    _fin = null;
+    notifyListeners();
+  }
+
   /// Deja la cuenta atrás quieta donde esté: se confirmó la respuesta, la
   /// pantalla se va, o el jugador consumió el comodín "tiempo" (INT-119
   /// delta-1: deja la pregunta sin límite de tiempo, no solo un margen
