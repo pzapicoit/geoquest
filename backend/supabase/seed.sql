@@ -238,7 +238,7 @@ on conflict (id) do update set
 insert into camino
   (id, orden, tematica_id, dificultad, nombre, activo, preguntas_por_partida, segundos_por_desafio, created_at)
 values
-  ('5d240f52-2141-4237-b7ee-253fa822087c', 1, '8821607f-3386-433c-a87f-96de4b4de257', 'facil', 'Monumentos de Europa', true, 4, 25, '2026-08-17T09:08:14.782224+00:00'),
+  ('5d240f52-2141-4237-b7ee-253fa822087c', 1, '8821607f-3386-433c-a87f-96de4b4de257', 'facil', 'Monumentos del Mundo', true, 4, 25, '2026-08-17T09:08:14.782224+00:00'),
   ('44814954-8e87-46c0-8ae3-56520d613cc6', 2, 'f6d78a61-6678-4fcf-89a0-e525aa5988df', 'facil', null, true, 4, 25, '2026-08-19T10:26:18.034312+00:00'),
   ('495a339e-d358-4e99-b809-28d9786070c4', 3, '6ade75ce-8417-4442-9069-0bb6a4aece57', 'facil', 'Banderas del Mundo 01', true, 4, 25, '2026-08-17T22:43:56.987666+00:00'),
   ('d1e64044-8dd7-4791-8134-8e9b159e8d2a', 4, '8821607f-3386-433c-a87f-96de4b4de257', 'normal', null, true, 4, 25, '2026-08-19T15:04:21.028413+00:00'),
