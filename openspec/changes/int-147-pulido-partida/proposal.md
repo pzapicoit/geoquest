@@ -64,5 +64,10 @@ Ninguna.
   `resumen_nivel_screen.dart` y `login_screen.dart`.
 - `app/lib/mapa/mapa_mundi.dart`.
 - Tests de esas pantallas y del mapa.
-- `backend/supabase/migrations/<nueva>_tilde_peliculas.sql` y `seed.sql`.
+- `backend/supabase/migrations/20261118130000_tilde_tematica_peliculas.sql` y
+  `seed.sql`.
+- La rama incluye también `20261118120000_titulo_parada_monumentos_del_mundo.sql`,
+  la migración de INT-142, ya aplicada en producción. No es parte de este
+  cambio: está para que el historial local coincida con el remoto y
+  `db push` funcione. El fichero es idéntico al del PR de INT-142.
 - No cambian las dependencias.

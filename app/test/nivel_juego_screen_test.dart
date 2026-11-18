@@ -1727,6 +1727,7 @@ void main() {
       String texto(String clave) =>
           tester.widget<Text>(find.byKey(Key(clave))).data!;
       expect(texto('nivel-juego-distancia'), '—');
+      expect(find.text('km'), findsNothing);
       expect(texto('nivel-juego-puntos-ganados'), '—');
       final desglose = tester.widget<Opacity>(
         find
@@ -1750,6 +1751,16 @@ void main() {
       await tester.pump(const Duration(milliseconds: 5600));
       expect(texto('nivel-juego-distancia'), isNot('—'));
       expect(texto('nivel-juego-puntos-ganados'), '+4.381');
+      expect(find.text('km'), findsOneWidget);
+      final desgloseFinal = tester.widget<Opacity>(
+        find
+            .ancestor(
+              of: find.text('4.301 puntos de precisión'),
+              matching: find.byType(Opacity),
+            )
+            .first,
+      );
+      expect(desgloseFinal.opacity, 1);
       semantica.dispose();
     });
 

@@ -18,8 +18,8 @@ allá de cuándo aparecen sus cifras.
 
 **D1. Encoger con suelo, y cortar solo si hace falta.** El apodo y la línea de
 progreso usan `_TextoQueCabe`: mide el texto con `TextPainter` y reduce el tamaño
-de letra lo justo para caber, pero nunca por debajo del 75 %. Por debajo de eso
-corta con puntos suspensivos. Un `FittedBox` sin suelo dejaba el apodo al 16 %
+de letra lo justo para caber, pero nunca por debajo de un mínimo absoluto (13,5 px
+el apodo, 9 px el progreso). Por debajo de eso corta con puntos suspensivos. Un `FittedBox` sin suelo dejaba el apodo al 16 %
 con 6 cifras de puntos (revisión adversarial). La píldora de puntos lleva un
 ancho máximo y un `FittedBox`, sin `Flexible`, para no competir por flex con el
 texto.
@@ -61,9 +61,11 @@ después de la revisión de `ecc:database-reviewer`.
 
 ## Risks / Trade-offs
 
-- [Texto encogido en la cabecera del camino] → Con apodos habituales y puntos de
-  4-5 cifras cabe entero, algo más pequeño. Con apodos muy largos y 6 cifras se
-  corta, pero a un tamaño legible.
+- [Cabecera saturada con 6 cifras de puntos] → La barra tiene seis elementos en
+  ~354 px. Con apodos habituales y puntos de 4-5 cifras cabe entero, algo más
+  pequeño. Con apodos muy largos y 6 cifras se corta, a un tamaño legible:
+  decisión consciente frente a rediseñar la barra, que queda fuera de este
+  pulido.
 - [Rótulos que se solapan entre sí] → Preexistente (INT-104): con pines a
   100-130 px en vertical, «TU PIN» y el rótulo real pueden solaparse. Este
   cambio no lo empeora; va en una issue aparte.

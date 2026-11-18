@@ -642,6 +642,7 @@ class _BarraSuperior extends StatelessWidget {
                       _TextoQueCabe(
                         nickname,
                         clave: const Key('camino-nickname'),
+                        tamanoMinimo: 13.5,
                         estilo: GoogleFonts.baloo2(
                           color: Colors.white,
                           fontSize: 18,
@@ -653,6 +654,7 @@ class _BarraSuperior extends StatelessWidget {
                         'Nivel $posicion/$total · '
                         '$estrellasGanadas/$estrellasPosibles ★',
                         clave: const Key('camino-progreso'),
+                        tamanoMinimo: 9,
                         estilo: GoogleFonts.outfit(
                           color: Colors.white.withValues(alpha: 0.45),
                           fontSize: 10,
@@ -1314,19 +1316,26 @@ class _ErrorCamino extends StatelessWidget {
 }
 
 /// Texto de una línea que se encoge para caber, pero solo hasta
-/// [escalaMinima] (75 %) de su tamaño; si aun así no cabe, se corta con puntos
+/// [tamanoMinimo] de letra; si aun así no cabe, se corta con puntos
 /// suspensivos (INT-147). Encoger sin suelo dejaba el apodo ilegible con
 /// muchos puntos en la cabecera; cortar siempre lo dejaba en «RutaSal…»
 /// aunque cupiera un poco más pequeño.
 class _TextoQueCabe extends StatelessWidget {
-  const _TextoQueCabe(this.texto, {required this.estilo, this.clave});
+  const _TextoQueCabe(
+    this.texto, {
+    required this.estilo,
+    required this.tamanoMinimo,
+    this.clave,
+  });
 
   final String texto;
   final TextStyle estilo;
   final Key? clave;
 
-  /// Por debajo del 75 % el apodo dejaba de leerse bien en la cabecera.
-  static const escalaMinima = 0.75;
+  /// Tamaño de letra por debajo del cual se corta en vez de encoger más. Es
+  /// absoluto, no un porcentaje: un 75 % de los 10 px del progreso dejaba
+  /// 7,5 px, ilegibles con cualquier fuente.
+  final double tamanoMinimo;
 
   @override
   Widget build(BuildContext context) {
@@ -1343,7 +1352,10 @@ class _TextoQueCabe extends StatelessWidget {
 
         final escala = natural <= restricciones.maxWidth
             ? 1.0
-            : (restricciones.maxWidth / natural).clamp(escalaMinima, 1.0);
+            : (restricciones.maxWidth / natural).clamp(
+                tamanoMinimo / (estilo.fontSize ?? 14),
+                1.0,
+              );
         return Text(
           texto,
           key: clave,

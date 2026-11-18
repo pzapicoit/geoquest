@@ -1071,7 +1071,11 @@ void main() {
         expect(apodo.data, 'TrotaMundos12345');
         // Se encoge, pero nunca por debajo del 75 % (18 px → 13,5 px): antes
         // de eso, mejor cortar que dejarlo ilegible.
-        expect(apodo.style!.fontSize, greaterThanOrEqualTo(18 * 0.75));
+        expect(apodo.style!.fontSize, greaterThanOrEqualTo(13.5));
+        final progreso = tester.widget<Text>(
+          find.byKey(const Key('camino-progreso')),
+        );
+        expect(progreso.style!.fontSize, greaterThanOrEqualTo(9));
         expect(find.text('Nivel 2/3 · 2/9 ★'), findsOneWidget);
       },
     );
