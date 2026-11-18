@@ -300,4 +300,14 @@ void main() {
       expect(find.byType(UsernameScreen), findsOneWidget);
     },
   );
+
+  test('cada causa tiene un motivo legible y distinto (INT-145)', () {
+    final motivos = CausaFalloSesion.values.map(motivoDeFalloSesion).toSet();
+
+    expect(motivos, hasLength(CausaFalloSesion.values.length));
+    for (final motivo in motivos) {
+      expect(motivo, isNot(contains('Exception')));
+      expect(motivo, isNot(contains('http')));
+    }
+  });
 }
