@@ -30,4 +30,5 @@
 
 - [x] 6.1 `flutter analyze`, `dart format` y `flutter test` en verde
 - [x] 6.2 Revisión `ecc:a11y-architect` de los dos botones y de la cabecera encogida
-- [ ] 6.3 Prueba en web (Chrome DevTools o Playwright): cabeceras, rótulos al borde, hoja de resultado, resumen y bienvenida
+- [x] 6.3 Prueba en web (Chrome DevTools o Playwright): cabeceras, rótulos al borde, hoja de resultado, resumen y bienvenida
+  - Hecha el 2026-11-18 con Playwright y el Chrome del sistema contra `flutter run -d web-server` (390×844, invitado nuevo, fuentes reales); el Chrome DevTools de ECC estaba desconectado. Cabecera de partida: «Desafío 1 de 4» y debajo «MONUMENTOS DEL MUNDO» completo. Pista: «IMAGEN · PISTA 1» y solo «Coloca tu pin lo más cerca que puedas.». Hoja: al aparecer, «—» en distancia y puntos, sin «km» ni desglose; al terminar, «12.798 km», «+51» y «51 puntos de precisión». Rótulo «SAN FRANCISCO», con el pin junto al borde izquierdo, dentro del mapa. Resumen con un 4 %: «¡Sigue intentándolo!» y «Cada intento cuenta.».
