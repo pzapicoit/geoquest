@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:geoquest/route_observer.dart';
@@ -172,7 +174,11 @@ void main() {
 
       expect(indicador('nivel-superado'), '300');
       expect(indicador('nivel-actual'), '800');
-      expect(indicador('nivel-bloqueado'), '800');
+      // INT-146: la bloqueada no enseña cifra, aunque el acumulado sea 800.
+      expect(
+        find.byKey(const Key('parada-puntos-nivel-bloqueado')),
+        findsNothing,
+      );
     },
   );
 
@@ -212,11 +218,7 @@ void main() {
     await _pump(tester, FakeCaminoGateway(_caminoDePrueba));
 
     final valores = [
-      for (final caminoId in [
-        'nivel-superado',
-        'nivel-actual',
-        'nivel-bloqueado',
-      ])
+      for (final caminoId in ['nivel-superado', 'nivel-actual'])
         int.parse(
           tester
               .widget<Text>(find.byKey(Key('parada-puntos-$caminoId')))
@@ -240,13 +242,22 @@ void main() {
     'el acumulado de la última parada coincide con la píldora de la cabecera '
     '(INT-123)',
     (tester) async {
-      await _pump(tester, FakeCaminoGateway(_caminoDePrueba));
+      // Desde INT-146 la coincidencia se exige con la última desbloqueada.
+      await _pump(
+        tester,
+        FakeCaminoGateway(
+          const CaminoJugador(
+            entradas: [_monumentos, _monumentos2],
+            puntosTotales: 800,
+          ),
+        ),
+      );
 
       final pildora = tester
           .widget<Text>(find.byKey(const Key('camino-puntos')))
           .data;
       final ultima = tester
-          .widget<Text>(find.byKey(const Key('parada-puntos-nivel-bloqueado')))
+          .widget<Text>(find.byKey(const Key('parada-puntos-nivel-actual')))
           .data;
 
       expect(ultima, pildora);
@@ -1040,4 +1051,183 @@ void main() {
       expect(find.text('Comodines'), findsOneWidget);
     });
   });
+
+  group('al volver de jugar (INT-146)', () {
+    ParadaCamino nivel(int orden, {required int actual}) => ParadaCamino(
+      orden: orden,
+      caminoId: 'nivel-$orden',
+      tematicaId: 'monumentos',
+      tematicaNombre: 'Monumentos',
+      superado: orden < actual,
+      estrellasObtenidas: orden < actual ? 3 : 0,
+      estrellasRequeridas: 0,
+      estrellasAcumuladasUsuario: 0,
+      desbloqueado: orden <= actual,
+      esActual: orden == actual,
+      mejorPuntaje: 0,
+      puntosAcumulados: 0,
+    );
+
+    CaminoJugador camino({required int actual}) => CaminoJugador(
+      entradas: [for (var o = 1; o <= 8; o++) nivel(o, actual: actual)],
+      puntosTotales: 0,
+    );
+
+    Future<_CaminoEnCola> montar(WidgetTester tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      final gateway = _CaminoEnCola()..siguiente.complete(camino(actual: 1));
+      await tester.pumpWidget(
+        MaterialApp(
+          navigatorObservers: [routeObserver],
+          home: CaminoScreen(
+            caminoGateway: gateway,
+            usernameStorage: UsernameStorage(),
+            comodinesGateway: FakeComodinesGateway(),
+            anunciosGateway: FakeAnunciosGateway(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      return gateway;
+    }
+
+    /// Empuja una ruta encima del camino y la cierra, como al volver del
+    /// resumen de un nivel. Deja la recarga pendiente de [gateway].
+    Future<void> irYVolver(WidgetTester tester, _CaminoEnCola gateway) async {
+      gateway.siguiente = Completer<CaminoJugador>();
+      final navigator = Navigator.of(tester.element(find.byType(CaminoScreen)));
+      navigator.push(MaterialPageRoute<void>(builder: (_) => const Scaffold()));
+      await tester.pumpAndSettle();
+      navigator.pop();
+      await tester.pumpAndSettle();
+    }
+
+    double centroDe(WidgetTester tester, String caminoId) =>
+        tester.getRect(find.byKey(Key('parada-$caminoId'))).center.dy;
+
+    testWidgets('mientras recarga no vacía la pantalla con un spinner', (
+      tester,
+    ) async {
+      final gateway = await montar(tester);
+
+      await irYVolver(tester, gateway);
+
+      expect(gateway.llamadas, 2);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      expect(find.byKey(const Key('parada-nivel-1')), findsOneWidget);
+
+      gateway.siguiente.complete(camino(actual: 1));
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('sin cambios, no le mueve el scroll al jugador', (
+      tester,
+    ) async {
+      final gateway = await montar(tester);
+
+      // El jugador desplaza a mano para mirar otras paradas…
+      await tester.drag(
+        find.byKey(const Key('parada-nivel-3')),
+        const Offset(0, 300),
+      );
+      await tester.pumpAndSettle();
+      final antes = centroDe(tester, 'nivel-1');
+
+      // …y vuelve, p. ej., de la clasificación sin que nada cambie.
+      await irYVolver(tester, gateway);
+      gateway.siguiente.complete(camino(actual: 1));
+      await tester.pumpAndSettle();
+
+      expect(centroDe(tester, 'nivel-1'), closeTo(antes, 1));
+    });
+
+    testWidgets('si la recarga falla, se ve el error con su reintento', (
+      tester,
+    ) async {
+      // Documenta lo que acepta el diseño (INT-146, Riesgos): un fallo al
+      // recargar no conserva el camino anterior, enseña el error.
+      final gateway = await montar(tester);
+
+      await irYVolver(tester, gateway);
+      gateway.siguiente.completeError(Exception('sin red'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Reintentar'), findsOneWidget);
+      expect(find.byKey(const Key('parada-nivel-1')), findsNothing);
+    });
+
+    testWidgets('el reintento tras un error enseña el spinner', (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      final gateway = _CaminoEnCola();
+      await tester.pumpWidget(
+        MaterialApp(
+          navigatorObservers: [routeObserver],
+          home: CaminoScreen(
+            caminoGateway: gateway,
+            usernameStorage: UsernameStorage(),
+            comodinesGateway: FakeComodinesGateway(),
+            anunciosGateway: FakeAnunciosGateway(),
+          ),
+        ),
+      );
+      await tester.pump();
+      gateway.siguiente.completeError(Exception('sin red'));
+      await tester.pumpAndSettle();
+      expect(find.text('Reintentar'), findsOneWidget);
+
+      gateway.siguiente = Completer<CaminoJugador>();
+      await tester.tap(find.text('Reintentar'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+
+      gateway.siguiente.complete(camino(actual: 1));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('parada-nivel-1')), findsOneWidget);
+    });
+
+    testWidgets('si se desbloqueó una parada, centra la nueva actual', (
+      tester,
+    ) async {
+      final gateway = await montar(tester);
+
+      await irYVolver(tester, gateway);
+      gateway.siguiente.complete(camino(actual: 4));
+      await tester.pumpAndSettle();
+
+      expect(centroDe(tester, 'nivel-4'), greaterThan(844 * 0.25));
+      expect(centroDe(tester, 'nivel-4'), lessThan(844 * 0.75));
+    });
+
+    testWidgets('las paradas bloqueadas no muestran cifra en el riel', (
+      tester,
+    ) async {
+      await montar(tester);
+
+      expect(find.byKey(const Key('parada-puntos-nivel-1')), findsOneWidget);
+      for (var o = 2; o <= 8; o++) {
+        expect(find.byKey(Key('parada-puntos-nivel-$o')), findsNothing);
+      }
+    });
+  });
+}
+
+/// Camino cuyas lecturas resuelve el test a mano, para ver la Home mientras
+/// recarga y decidir qué trae la recarga (INT-146).
+class _CaminoEnCola implements CaminoGateway {
+  Completer<CaminoJugador> siguiente = Completer<CaminoJugador>();
+  int llamadas = 0;
+
+  @override
+  Future<CaminoJugador> fetchCamino() {
+    llamadas++;
+    return siguiente.future;
+  }
 }

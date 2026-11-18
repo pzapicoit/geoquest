@@ -73,6 +73,14 @@ const _grayscale = <double>[
   0, 0, 0, 1, 0, //
 ];
 
+/// Estilo de la cifra del riel. Compartido con el hueco de las paradas
+/// bloqueadas para que ocupe exactamente el mismo alto (INT-146).
+TextStyle get _estiloPuntosRiel => GoogleFonts.baloo2(
+  color: Colors.white.withValues(alpha: 0.85),
+  fontSize: 11,
+  fontWeight: FontWeight.w800,
+);
+
 String _formatMiles(int n) {
   final texto = n.toString();
   final buffer = StringBuffer();
@@ -134,6 +142,13 @@ class _CaminoScreenState extends State<CaminoScreen> with RouteAware {
   late Future<CaminoJugador> _futuro;
   String _nickname = 'Explorador';
   bool _autoScrolled = false;
+
+  /// Parada `esActual` en la que se centró el scroll por última vez (`null`
+  /// si el camino está completo). Al volver de otra pantalla solo se vuelve a
+  /// centrar si ha cambiado (INT-146): así un desbloqueo lleva a la parada
+  /// nueva, pero volver de la clasificación no le quita al jugador la posición
+  /// a la que había desplazado a mano.
+  String? _paradaCentrada;
   bool _mostrarBotonMiNivel = false;
   double _offsetObjetivo = 0;
 
@@ -239,8 +254,16 @@ class _CaminoScreenState extends State<CaminoScreen> with RouteAware {
   /// INT-105) — SHALL usar exactamente esos valores, o el centrado se
   /// desincroniza de lo que se pinta.
   void _autoScroll(List<ParadaCamino> entradas, List<double> tops) {
-    if (_autoScrolled) return;
+    // Solo se centra una vez por parada actual (INT-146): al volver de otra
+    // pantalla se repite únicamente si la recarga trae otra `esActual`.
+    final indice = entradas.indexWhere((e) => e.esActual);
+    final actual = indice == -1 ? null : entradas[indice].caminoId;
+    if (_autoScrolled && actual == _paradaCentrada) return;
     _autoScrolled = true;
+    // Se anota ya, no en el post-frame: un `build` intermedio (p. ej. el
+    // `setState` del apodo) no debe ver aún la parada anterior y programar
+    // un segundo centrado.
+    _paradaCentrada = actual;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !_controller.hasClients) return;
@@ -390,7 +413,14 @@ class _CaminoScreenState extends State<CaminoScreen> with RouteAware {
         child: FutureBuilder<CaminoJugador>(
           future: _futuro,
           builder: (context, snapshot) {
-            if (snapshot.connectionState != ConnectionState.done) {
+            // El spinner solo mientras no hay camino que enseñar: la primera
+            // carga y el reintento tras un error (INT-146). Al recargar con
+            // datos, `FutureBuilder` los conserva y se sigue pintando ese
+            // camino, con su scroll, hasta que llega el nuevo. Cambiarlo por
+            // el spinner desmontaba la lista, que reaparecía en el offset 0
+            // (la última parada, arriba del todo).
+            if (!snapshot.hasData &&
+                snapshot.connectionState != ConnectionState.done) {
               return const Center(
                 child: CircularProgressIndicator(color: _teal),
               );
@@ -445,7 +475,11 @@ class _CaminoScreenState extends State<CaminoScreen> with RouteAware {
                 ? 0.0
                 : tops[indiceActual] + _paradaAltura / 2;
 
-            _autoScroll(entradas, tops);
+            // Centrar solo con datos definitivos: mientras recarga, `entradas`
+            // son las de antes y la parada actual puede haber cambiado.
+            if (snapshot.connectionState == ConnectionState.done) {
+              _autoScroll(entradas, tops);
+            }
 
             return Stack(
               children: [
@@ -882,22 +916,23 @@ class _ParadaTile extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 5),
-                Text(
-                  // Los puntos acumulados HASTA esta parada, no el total del
-                  // jugador repetido en todas (como hacía INT-112): el riel se
-                  // lee como una barra de progreso, y el indicador de la
-                  // última parada coincide con la píldora de la cabecera por
-                  // construcción (INT-123, D3).
-                  _formatMiles(parada.puntosAcumulados),
-                  key: Key('parada-puntos-${parada.caminoId}'),
-                  style: GoogleFonts.baloo2(
-                    color: Colors.white.withValues(
-                      alpha: bloqueado ? 0.4 : 0.85,
-                    ),
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
+                // Las paradas bloqueadas no enseñan cifra (INT-146): repetían
+                // el acumulado anterior y parecían tener ya puntos. Un texto
+                // vacío con el mismo estilo deja el mismo alto, así que la
+                // marca no se mueve, y no se anuncia al lector de pantalla.
+                if (bloqueado)
+                  ExcludeSemantics(child: Text(' ', style: _estiloPuntosRiel))
+                else
+                  Text(
+                    // Los puntos acumulados HASTA esta parada, no el total del
+                    // jugador repetido en todas (como hacía INT-112): el riel
+                    // se lee como una barra de progreso, y el indicador de la
+                    // última parada desbloqueada coincide con la píldora de la
+                    // cabecera por construcción (INT-123, D3).
+                    _formatMiles(parada.puntosAcumulados),
+                    key: Key('parada-puntos-${parada.caminoId}'),
+                    style: _estiloPuntosRiel,
                   ),
-                ),
               ],
             ),
           ),
