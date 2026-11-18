@@ -1078,11 +1078,37 @@ void main() {
       expect(find.text('Nivel 2/3 · 2/9 ★'), findsOneWidget);
     });
 
+    testWidgets('con pocos puntos el apodo no se encoge sin necesidad', (
+      tester,
+    ) async {
+      SharedPreferences.setMockInitialValues({'username': 'Ana'});
+      await _pump(tester, FakeCaminoGateway(_caminoDePrueba));
+
+      final caja = tester.getSize(
+        find
+            .ancestor(
+              of: find.byKey(const Key('camino-nickname')),
+              matching: find.byType(FittedBox),
+            )
+            .first,
+      );
+      final texto = tester.getSize(find.byKey(const Key('camino-nickname')));
+      // El FittedBox no reduce: el texto se pinta a su tamaño natural.
+      expect(caja.height, closeTo(texto.height, 0.5));
+    });
+
     testWidgets('el trofeo se anuncia como «Clasificación»', (tester) async {
       final semantica = tester.ensureSemantics();
       await _pump(tester, FakeCaminoGateway(_caminoDePrueba));
 
-      expect(find.bySemanticsLabel('Clasificación'), findsOneWidget);
+      expect(
+        tester.getSemantics(find.bySemanticsLabel('Clasificación')),
+        matchesSemantics(
+          label: 'Clasificación',
+          isButton: true,
+          hasTapAction: true,
+        ),
+      );
       semantica.dispose();
     });
   });

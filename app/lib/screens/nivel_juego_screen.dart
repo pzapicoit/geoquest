@@ -1135,11 +1135,16 @@ class _HudJuego extends StatelessWidget {
                 ),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: _TarjetaDeProgreso(
-                    posicion: posicion,
-                    total: total,
-                    resueltos: resueltos,
-                    nombreDelNivel: nombreDelNivel,
+                  // Tope de escala (INT-147): sus textos se encogen para caber
+                  // y sin tope quedarían ilegibles con escala de sistema alta.
+                  child: MediaQuery.withClampedTextScaling(
+                    maxScaleFactor: 1.3,
+                    child: _TarjetaDeProgreso(
+                      posicion: posicion,
+                      total: total,
+                      resueltos: resueltos,
+                      nombreDelNivel: nombreDelNivel,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -1722,6 +1727,29 @@ class _HojaDeRevelado extends StatelessWidget {
   /// "Ver resultados" del último desafío (INT-94).
   final bool cerrando;
 
+  /// Distancia y puntos lado a lado. Las dos tarjetas miden lo mismo aunque
+  /// una de ellas parta el texto de su cabecera en dos líneas.
+  Widget _filaDeTarjetas(double distancia) => IntrinsicHeight(
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(
+          child: _TarjetaDeDistancia(
+            kilometros: distancia,
+            contando: avanceDeLaDistancia > 0,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _TarjetaDePuntos(
+            puntos: puntos,
+            avanceDelDestello: avanceDelDestello,
+          ),
+        ),
+      ],
+    ),
+  );
+
   /// Única acción de la hoja: bajo el botón de continuar no hay ninguna otra
   /// (INT-121), para no gastar altura de hoja en algo que no sea seguir
   /// jugando.
@@ -1771,34 +1799,18 @@ class _HojaDeRevelado extends StatelessWidget {
                 const SizedBox(height: 16),
                 // Sin pin no hay distancia que contar (D13 de `design.md`):
                 // solo la tarjeta de puntos, a toda anchura.
-                if (distanciaKm case final distancia?)
-                  // Las dos tarjetas miden lo mismo aunque una de ellas parta
-                  // el texto de su cabecera en dos líneas.
-                  IntrinsicHeight(
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Expanded(
-                          child: _TarjetaDeDistancia(
-                            kilometros: distancia,
-                            contando: avanceDeLaDistancia > 0,
-                          ),
+                // El lector de pantalla oye siempre los valores finales, no
+                // «—» ni una cifra a medio contar (INT-147).
+                Semantics(
+                  label: _resultadoParaLector(revelado.respuesta),
+                  excludeSemantics: true,
+                  child: distanciaKm != null
+                      ? _filaDeTarjetas(distanciaKm!)
+                      : _TarjetaDePuntos(
+                          puntos: puntos,
+                          avanceDelDestello: avanceDelDestello,
                         ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: _TarjetaDePuntos(
-                            puntos: puntos,
-                            avanceDelDestello: avanceDelDestello,
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
-                else
-                  _TarjetaDePuntos(
-                    puntos: puntos,
-                    avanceDelDestello: avanceDelDestello,
-                  ),
+                ),
                 // El desglose de precisión/bonus solo tiene sentido con un
                 // pin colocado: sin pin, precisión y bonus son ambos 0 (D14).
                 // Aparece a la vez que cuentan los puntos (INT-147): antes se
@@ -2691,22 +2703,33 @@ class _CabeceraDePista extends StatelessWidget {
             container: true,
             button: true,
             label: 'Cerrar pista',
+            // La acción va aquí: con `excludeSemantics` el lector no ve la
+            // del InkWell de dentro.
+            onTap: onCerrar,
             excludeSemantics: true,
             child: InkWell(
               key: const Key('nivel-juego-cerrar-pista'),
               onTap: onCerrar,
               borderRadius: BorderRadius.circular(10),
-              child: Container(
-                width: 30,
-                height: 30,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(
-                  Icons.close_rounded,
-                  size: 15,
-                  color: Colors.white.withValues(alpha: 0.75),
+              // Diana de 44 px; el aspecto sigue siendo el botón de 30
+              // centrado (INT-147).
+              child: SizedBox(
+                width: 44,
+                height: 44,
+                child: Center(
+                  child: Container(
+                    width: 30,
+                    height: 30,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(
+                      Icons.close_rounded,
+                      size: 15,
+                      color: Colors.white.withValues(alpha: 0.75),
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -2888,4 +2911,15 @@ class _PistaVideoState extends State<_PistaVideo> {
       ),
     );
   }
+}
+
+/// Lo que oye el lector de pantalla en la hoja de resultado: siempre los
+/// valores finales de la respuesta, aunque los contadores sigan animando
+/// (INT-147).
+String _resultadoParaLector(RespuestaDesafio respuesta) {
+  final puntos = 'Has ganado ${formatearPuntaje(respuesta.puntos)} puntos';
+  final distancia = respuesta.distanciaKm;
+  if (distancia == null) return puntos;
+  return 'Te has desviado ${formatearDistancia(distancia)} kilómetros. '
+      '$puntos';
 }

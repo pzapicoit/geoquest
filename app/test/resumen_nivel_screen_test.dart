@@ -317,7 +317,9 @@ void main() {
   group('ánimo del no superado por tramos (INT-147)', () {
     test('cada tramo tiene su título y su frase', () {
       expect(animoNoSuperado(38).titulo, '¡Sigue intentándolo!');
-      expect(animoNoSuperado(49.9).titulo, '¡Sigue intentándolo!');
+      expect(animoNoSuperado(49.4).titulo, '¡Sigue intentándolo!');
+      // Se decide con el porcentaje redondeado, el que se enseña.
+      expect(animoNoSuperado(79.6).titulo, '¡Casi lo tienes!');
       expect(animoNoSuperado(50).titulo, '¡Vas bien!');
       expect(animoNoSuperado(79).titulo, '¡Vas bien!');
       expect(animoNoSuperado(80).titulo, '¡Casi lo tienes!');

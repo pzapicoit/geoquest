@@ -617,70 +617,78 @@ class _BarraSuperior extends StatelessWidget {
       ),
       child: SafeArea(
         bottom: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(18, 10, 18, 22),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              _BotonPerfil(nickname: nickname),
-              const SizedBox(width: 8),
-              _BotonRanking(onTap: onTapRanking),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Encoger antes que cortar (INT-147): con la píldora de
-                    // puntos creciendo, la elipsis se comía el apodo y el
-                    // progreso («RutaSal…», «Nivel 1 de 8 · …»).
-                    FittedBox(
-                      fit: BoxFit.scaleDown,
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        nickname,
-                        key: const Key('camino-nickname'),
-                        maxLines: 1,
-                        style: GoogleFonts.baloo2(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
+        // Tope de escala de texto en la barra (INT-147): sus textos se
+        // encogen para caber, y sin tope una escala de sistema alta los
+        // dejaría ilegibles en vez de más grandes.
+        child: MediaQuery.withClampedTextScaling(
+          maxScaleFactor: 1.3,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 10, 18, 22),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                _BotonPerfil(nickname: nickname),
+                const SizedBox(width: 8),
+                _BotonRanking(onTap: onTapRanking),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Encoger antes que cortar (INT-147): con la píldora de
+                      // puntos creciendo, la elipsis se comía el apodo y el
+                      // progreso («RutaSal…», «Nivel 1 de 8 · …»).
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          nickname,
+                          key: const Key('camino-nickname'),
+                          maxLines: 1,
+                          style: GoogleFonts.baloo2(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 2),
-                    FittedBox(
-                      fit: BoxFit.scaleDown,
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        'Nivel $posicion/$total · '
-                        '$estrellasGanadas/$estrellasPosibles ★',
-                        key: const Key('camino-progreso'),
-                        maxLines: 1,
-                        style: GoogleFonts.outfit(
-                          color: Colors.white.withValues(alpha: 0.45),
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 1,
+                      const SizedBox(height: 2),
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'Nivel $posicion/$total · '
+                          '$estrellasGanadas/$estrellasPosibles ★',
+                          key: const Key('camino-progreso'),
+                          maxLines: 1,
+                          style: GoogleFonts.outfit(
+                            color: Colors.white.withValues(alpha: 0.45),
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 1,
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              _PildoraComodines(total: totalComodines, onTap: onTapComodines),
-              const SizedBox(width: 8),
-              // Con 6 cifras de puntos la fila ya no cabía en 390 px y
-              // desbordaba (INT-147): la píldora también se encoge si hace
-              // falta, en vez de empujar fuera de la pantalla.
-              Flexible(
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: _PildoraPuntos(puntos: camino.puntosTotales),
+                const SizedBox(width: 8),
+                _PildoraComodines(total: totalComodines, onTap: onTapComodines),
+                const SizedBox(width: 8),
+                // Con 6 cifras de puntos la fila ya no cabía en 390 px y
+                // desbordaba (INT-147): la píldora se encoge si pasa de un
+                // ancho máximo. Sin `Flexible`, que competiría por flex con el
+                // texto y le quitaría la mitad del sitio libre aunque sobrara.
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 104),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: _PildoraPuntos(puntos: camino.puntosTotales),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -739,6 +747,9 @@ class _BotonRanking extends StatelessWidget {
     return Semantics(
       button: true,
       label: 'Clasificación',
+      // La acción va aquí: con `excludeSemantics` el lector no ve la del
+      // GestureDetector de dentro.
+      onTap: onTap,
       excludeSemantics: true,
       child: GestureDetector(
         key: const Key('camino-ranking-boton'),

@@ -517,7 +517,10 @@ class _PinDelMapa extends StatelessWidget {
                     // quedar dentro del mapa si el pin está cerca de un borde
                     // (INT-147). Antes se centraba siempre y se cortaba.
                     child: SizedBox(
-                      height: _altoRotulo,
+                      // Crece con la escala de texto del sistema, para no
+                      // recortar el rótulo (INT-147).
+                      height: MediaQuery.textScalerOf(context)
+                          .scale(_altoRotulo),
                       child: CustomSingleChildLayout(
                         delegate: _RotuloDentroDelMapa(
                           izquierdaDelPin: punto!.dx - _lado / 2,

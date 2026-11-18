@@ -704,9 +704,7 @@ class _TarjetaCuantoFalto extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final faltan = math.max(0, puntajeMinimoSuperar - puntajeTotal);
-    final pct = puntajeMinimoSuperar > 0
-        ? (puntajeTotal / puntajeMinimoSuperar * 100).clamp(0, 100)
-        : 100.0;
+    final pct = porcentajeDelMinimo(puntajeTotal, puntajeMinimoSuperar);
 
     return Container(
       width: double.infinity,
@@ -768,7 +766,7 @@ class _TarjetaCuantoFalto extends StatelessWidget {
           const SizedBox(height: 11),
           Text(
             'Ya tienes el ${pct.round()}% del mínimo de este nivel. '
-            '${animoNoSuperado(pct.toDouble()).frase}',
+            '${animoNoSuperado(pct).frase}',
             style: GoogleFonts.outfit(
               color: Colors.white.withValues(alpha: 0.5),
               fontSize: 13,
@@ -876,8 +874,11 @@ double porcentajeDelMinimo(int puntajeTotal, int puntajeMinimoSuperar) =>
 /// Título y frase de ánimo del resumen no superado según lo cerca que se quedó
 /// el jugador del mínimo (INT-147). Siempre en positivo, pero sin decir
 /// «¡Estás cerca!» a quien se quedó en un 38 %.
+///
+/// El tramo se decide con el porcentaje **redondeado**, el mismo que se
+/// enseña («Ya tienes el 80 %…»), para que el texto no contradiga la cifra.
 ({String titulo, String frase}) animoNoSuperado(double porcentaje) =>
-    switch (porcentaje) {
+    switch (porcentaje.roundToDouble()) {
       >= 80 => (titulo: '¡Casi lo tienes!', frase: '¡Estás cerca!'),
       >= 50 => (titulo: '¡Vas bien!', frase: '¡Vas por buen camino!'),
       _ => (titulo: '¡Sigue intentándolo!', frase: 'Cada intento cuenta.'),

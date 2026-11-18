@@ -617,7 +617,23 @@ void main() {
       final semantica = tester.ensureSemantics();
       await _abrirNivel(tester, _gatewayCon(const [_desafioImagen]));
 
-      expect(find.bySemanticsLabel('Cerrar pista'), findsOneWidget);
+      expect(
+        tester.getSemantics(find.bySemanticsLabel('Cerrar pista')),
+        matchesSemantics(
+          label: 'Cerrar pista',
+          isButton: true,
+          hasTapAction: true,
+        ),
+      );
+      final x = tester.getSize(
+        find
+            .descendant(
+              of: find.byKey(const Key('nivel-juego-cerrar-pista')),
+              matching: find.byType(SizedBox),
+            )
+            .first,
+      );
+      expect(x.width, greaterThanOrEqualTo(44));
       semantica.dispose();
     });
 
@@ -1683,6 +1699,7 @@ void main() {
     testWidgets('no enseña cifras antes de contarlas (INT-147)', (
       tester,
     ) async {
+      final semantica = tester.ensureSemantics();
       final gateway = _gatewayCon(const [_desafioTexto])
         ..respuesta = respuestaDePrueba(
           distanciaKm: 12,
@@ -1721,9 +1738,19 @@ void main() {
       );
       expect(desglose.opacity, 0);
 
+      // A mitad del conteo, el lector de pantalla ya oye los valores finales,
+      // no la cifra que se está animando.
+      await tester.pump(const Duration(milliseconds: 1500));
+      expect(texto('nivel-juego-puntos-ganados'), isNot('+4.381'));
+      expect(
+        find.bySemanticsLabel(RegExp(r'Has ganado 4\.381 puntos')),
+        findsOneWidget,
+      );
+
       await tester.pump(const Duration(milliseconds: 5600));
       expect(texto('nivel-juego-distancia'), isNot('—'));
       expect(texto('nivel-juego-puntos-ganados'), '+4.381');
+      semantica.dispose();
     });
 
     testWidgets('muestra precisión y bonus cuando el bonus es mayor que 0', (

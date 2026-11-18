@@ -582,6 +582,24 @@ void main() {
       expect(rotulo.right, lessThanOrEqualTo(390 - 8));
     });
 
+    testWidgets('un pin junto al borde derecho tampoco lo corta', (
+      tester,
+    ) async {
+      final controlador = await _montar(tester, interactivo: false);
+
+      controlador.colocarPin(const Coordenada(latitud: 10, longitud: 0));
+      controlador.revelarUbicacion(
+        const Coordenada(latitud: 10, longitud: 179),
+        nombre: 'Isla del Otro Borde',
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      final rotulo = tester.getRect(find.text('ISLA DEL OTRO BORDE'));
+      expect(rotulo.left, greaterThanOrEqualTo(8));
+      expect(rotulo.right, lessThanOrEqualTo(390 - 8));
+    });
+
     testWidgets('lejos de los bordes el rótulo sigue centrado sobre el pin', (
       tester,
     ) async {
