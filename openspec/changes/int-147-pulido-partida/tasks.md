@@ -24,7 +24,7 @@
 ## 5. «Películas»
 
 - [x] 5.1 Migración de datos `tematicas.nombre` «Peliculas» → «Películas», condicionada al valor viejo, y `seed.sql`
-- [ ] 5.2 Revisión `ecc:database-reviewer`, simulación con `db push --dry-run` y aplicación en producción **solo con luz verde explícita**
+- [x] 5.2 Revisión `ecc:database-reviewer`, simulación con `db push --dry-run` y aplicación en producción **solo con luz verde explícita**
 
 ## 6. Cierre
 
