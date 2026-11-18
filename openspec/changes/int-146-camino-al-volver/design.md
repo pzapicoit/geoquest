@@ -10,7 +10,8 @@ paradas se pintan de arriba (orden mayor) abajo (orden 1), el offset 0 es la
 
 El centrado (`_autoScroll`) solo se ejecuta una vez por vida de la pantalla:
 `_autoScrolled` queda a `true` tras la primera carga y nadie lo reinicia al
-volver. El botón de reintento tras error sí lo reinicia.
+volver (antes de este cambio). El botón de reintento tras error sí lo
+reiniciaba.
 
 ## Goals / Non-Goals
 
@@ -40,7 +41,9 @@ también se dispara al volver de Clasificación o Comodines: el jugador perderí
 la posición a la que había desplazado a mano. Por eso la pantalla recuerda en qué
 parada centró (`_paradaCentrada`, anotada al programar el centrado). Con datos
 definitivos (`connectionState == done`), `_autoScroll` decide por sí mismo: solo
-vuelve a centrar si la `es_actual` nueva es otra, sin tocar estado en `build`. Es lo que pasa tras un desbloqueo.
+vuelve a centrar si la `es_actual` nueva es otra, sin que el `builder` lo
+decida. `_autoScroll` sigue anotando su estado al llamarse desde el `builder`,
+como antes de este cambio. Es lo que pasa tras un desbloqueo.
 
 **D2b. Spinner también en el reintento tras error.**
 El spinner se pinta mientras no hay datos y la lectura no ha terminado
