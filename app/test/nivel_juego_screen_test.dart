@@ -2617,6 +2617,36 @@ void main() {
       expect(find.text('Desafío 2 de 3'), findsOneWidget);
     });
 
+    testWidgets('mientras la pista siguiente espera, un toque no clava el pin '
+        'y el zoom sigue a la vista', (tester) async {
+      final gateway = _gatewayCon(const [_desafioTexto, _desafioImagen])
+        ..respuesta = respuestaDePrueba(distanciaKm: 12, puntos: 1200);
+      final vibraciones = espiarVibraciones(tester);
+
+      await _abrirNivel(tester, gateway);
+      await _cerrarPista(tester);
+      await _colocarPin(tester);
+      await _confirmarYRevelar(tester);
+      vibraciones.clear();
+
+      await tester.tap(find.byKey(const Key('nivel-juego-siguiente')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 60));
+      await tester.tapAt(const Offset(80, 300));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(vibraciones, isEmpty);
+      expect(find.byKey(const Key('mapa-acercar')), findsOneWidget);
+
+      // Con la pista ya cerrada, el pin vuelve a clavarse.
+      await _esperarSalida(tester);
+      await _asentar(tester);
+      await _cerrarPista(tester);
+      await _colocarPin(tester);
+      expect(vibraciones, ['HapticFeedbackType.selectionClick']);
+    });
+
     testWidgets('Confirmar responde al pulsarlo solo cuando está habilitado', (
       tester,
     ) async {

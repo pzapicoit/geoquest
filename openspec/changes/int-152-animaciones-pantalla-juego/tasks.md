@@ -31,7 +31,8 @@
 - [x] 5.2 «Reducir movimiento» en «Ver la pista», el punto que late y el destello de los puntos; spec acotada a lo decorativo
 - [x] 5.3 Guardas contra un segundo envío por teclado, mapa inerte durante el paso al siguiente desafío y Confirmar sin parpadeo al salir
 - [x] 5.4 Tests: pista y «Ver la pista» con «reducir movimiento», destello con y sin el ajuste, tiempo agotado con pin sin vibrar como confirmar y doble «Siguiente» durante la salida
-- [x] 5.5 Sección de movimiento de `.devplugin/architecture.md` con las piezas nuevas y la vibración
+- [x] 5.5 `aceptaPin` en `MapaMundi` para bloquear el pin sin ocultar el zoom, botones de zoom con fundido y árbol del mapa estable, con tests
+- [x] 5.6 Sección de movimiento de `.devplugin/architecture.md` con las piezas nuevas y la vibración
 
 ## 6. Verificación
 

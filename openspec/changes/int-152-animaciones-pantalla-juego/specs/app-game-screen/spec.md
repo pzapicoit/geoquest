@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Las fases de la pantalla de juego entran y salen con transición
-Ningún elemento de la pantalla de juego SHALL aparecer o desaparecer sin transición al cambiar de fase (pista, adivinar, revelado). La tarjeta de pista y la hoja del revelado SHALL entrar y salir deslizándose. Los controles de adivinar, la bandeja de comodines, los avisos, el marco de tiempo crítico y la barra de cuenta atrás del HUD SHALL entrar y salir con un fundido, y el HUD SHALL cambiar de alto sin saltos cuando la barra aparece o desaparece. Las duraciones y curvas SHALL salir de la base de movimiento común (`app-motion`).
+Ningún elemento de la pantalla de juego SHALL aparecer o desaparecer sin transición al cambiar de fase (pista, adivinar, revelado). La tarjeta de pista y la hoja del revelado SHALL entrar y salir deslizándose. Los controles de adivinar, la bandeja de comodines, los avisos, el marco de tiempo crítico, la barra de cuenta atrás del HUD y los botones de zoom del mapa SHALL entrar y salir con un fundido, y el HUD SHALL cambiar de alto sin saltos cuando la barra aparece o desaparece. Las duraciones y curvas SHALL salir de la base de movimiento común (`app-motion`).
 
 #### Scenario: Cerrar la pista
 - **WHEN** el jugador cierra la tarjeta de pista
@@ -20,7 +20,7 @@ Ningún elemento de la pantalla de juego SHALL aparecer o desaparecer sin transi
 - **THEN** el aviso entra con un fundido y, al caducar, sale con otro fundido en vez de desaparecer de golpe
 
 ### Requirement: Paso de un desafío al siguiente
-Al continuar desde el revelado a un desafío que no es el último, la hoja del revelado SHALL salir antes de que entre la tarjeta de pista del siguiente desafío, de modo que el jugador perciba el cambio de desafío como un paso y no como un salto.
+Al continuar desde el revelado a un desafío que no es el último, la hoja del revelado SHALL salir antes de que entre la tarjeta de pista del siguiente desafío, de modo que el jugador perciba el cambio de desafío como un paso y no como un salto. Mientras la tarjeta de pista espera para entrar, un toque sobre el mapa SHALL NOT clavar el pin del siguiente desafío.
 
 #### Scenario: Continuar al siguiente desafío
 - **WHEN** el jugador pulsa continuar en el revelado de un desafío que no es el último

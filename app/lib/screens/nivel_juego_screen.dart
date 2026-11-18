@@ -936,11 +936,12 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
                   cargador: widget.cargadorDeMundo,
                   // La jugada ya está cerrada: el encuadre lo lleva la
                   // coreografía y el pin no se mueve de donde se confirmó.
-                  // Tampoco mientras sale la hoja y la pista siguiente espera
-                  // para entrar: un toque ahí clavaría el pin del desafío
-                  // nuevo bajo una pista que aún no se ve (INT-152).
-                  interactivo:
-                      !revelando && !(_pistaVisible && _pistaTrasRevelado),
+                  interactivo: !revelando,
+                  // Mientras sale la hoja y la pista siguiente espera para
+                  // entrar, un toque clavaría el pin del desafío nuevo bajo
+                  // una pista que aún no se ve (INT-152). Solo se bloquea el
+                  // pin: el zoom sigue visible y usable.
+                  aceptaPin: !(_pistaVisible && _pistaTrasRevelado),
                 ),
               ),
               const Positioned(
@@ -1279,10 +1280,7 @@ class _HudJuego extends StatelessWidget {
               ],
             ),
             // Entra y sale con fundido, y el HUD cambia de alto sin saltos
-            // (INT-152): la barra no corre durante el revelado (D11). Con
-            // «reducir movimiento» el alto cambia sin animar: un
-            // `AnimatedSize` de duración cero falla al terminar dentro de su
-            // propio layout.
+            // (INT-152): la barra no corre durante el revelado (D11).
             _AltoSuave(
               child: Presencia(
                 visible: cuentaAtras != null,
@@ -1803,10 +1801,10 @@ class _PuntoQueLateState extends State<_PuntoQueLate>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    // Solo se para: el valor quieto lo fija `build`, porque cambiarlo aquí
+    // notificaría al `AnimatedBuilder` en mitad de la construcción.
     if (movimientoReducido(context)) {
-      _controlador
-        ..stop()
-        ..value = 0;
+      _controlador.stop();
     } else if (!_controlador.isAnimating) {
       _controlador.repeat(reverse: true);
     }
@@ -1823,7 +1821,9 @@ class _PuntoQueLateState extends State<_PuntoQueLate>
     return AnimatedBuilder(
       animation: _controlador,
       builder: (context, _) {
-        final t = Curves.easeInOut.transform(_controlador.value);
+        final t = movimientoReducido(context)
+            ? 0.0
+            : Curves.easeInOut.transform(_controlador.value);
         return Transform.scale(
           scale: 1 + t * 0.14,
           child: Opacity(
@@ -3129,8 +3129,8 @@ class _CargandoIntento extends StatelessWidget {
   }
 }
 
-/// Anima los cambios de alto de su hijo, salvo con «reducir movimiento»
-/// (INT-152).
+/// Anima los cambios de alto de su hijo; con «reducir movimiento», al
+/// instante (INT-152).
 class _AltoSuave extends StatelessWidget {
   const _AltoSuave({required this.child});
 
@@ -3138,9 +3138,14 @@ class _AltoSuave extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (movimientoReducido(context)) return child;
+    // Siempre el mismo árbol, para no rehacer el hijo al cambiar el ajuste a
+    // media partida. Con «reducir movimiento», 1 ms en vez de cero: un
+    // `AnimatedSize` de duración cero termina dentro de su propio layout y
+    // Flutter lo rechaza.
     return AnimatedSize(
-      duration: Movimiento.media,
+      duration: movimientoReducido(context)
+          ? const Duration(milliseconds: 1)
+          : Movimiento.media,
       curve: Movimiento.estandar,
       alignment: Alignment.topCenter,
       child: child,

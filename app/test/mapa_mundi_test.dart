@@ -11,6 +11,7 @@ import 'fakes/mundo_de_prueba.dart';
 Future<MapaMundiController> _montar(
   WidgetTester tester, {
   bool interactivo = true,
+  bool aceptaPin = true,
 }) async {
   tester.view.physicalSize = const Size(390, 844);
   tester.view.devicePixelRatio = 1;
@@ -26,6 +27,7 @@ Future<MapaMundiController> _montar(
           controller: controlador,
           cargador: cargarMundoDePrueba,
           interactivo: interactivo,
+          aceptaPin: aceptaPin,
         ),
       ),
     ),
@@ -325,6 +327,50 @@ void main() {
 
       expect(find.byKey(const Key('mapa-acercar')), findsNothing);
       expect(find.byKey(const Key('mapa-alejar')), findsNothing);
+    });
+
+    testWidgets('sin aceptar pin, un toque no lo clava pero el zoom sigue', (
+      tester,
+    ) async {
+      final controlador = await _montar(tester, aceptaPin: false);
+
+      await tester.tapAt(const Offset(195, 422));
+      await tester.pump(kDoubleTapTimeout);
+      expect(controlador.pin, isNull);
+
+      final antes = controlador.camara;
+      await tester.tap(find.byKey(const Key('mapa-acercar')));
+      await tester.pumpAndSettle();
+      expect(controlador.camara, isNot(antes));
+    });
+
+    testWidgets('al dejar de ser interactivo, los botones de zoom se '
+        'desvanecen en vez de desaparecer de golpe (INT-152)', (tester) async {
+      final controlador = MapaMundiController();
+      addTearDown(controlador.dispose);
+      Widget mapa(bool interactivo) => MaterialApp(
+        home: Scaffold(
+          body: MapaMundi(
+            controller: controlador,
+            cargador: cargarMundoDePrueba,
+            interactivo: interactivo,
+          ),
+        ),
+      );
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(mapa(true));
+      await tester.pump();
+      await tester.pumpAndSettle();
+
+      await tester.pumpWidget(mapa(false));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(find.byKey(const Key('mapa-acercar')), findsOneWidget);
+
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('mapa-acercar')), findsNothing);
     });
 
     testWidgets('en modo no interactivo el doble toque no hace nada', (

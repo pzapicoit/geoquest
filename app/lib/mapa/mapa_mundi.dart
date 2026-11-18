@@ -9,6 +9,7 @@ import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:google_fonts/google_fonts.dart';
 
 import '../motion/movimiento.dart';
+import '../motion/presencia.dart';
 import 'circulo_radio.dart';
 import 'gran_circulo.dart';
 import 'guiones.dart';
@@ -47,6 +48,7 @@ class MapaMundi extends StatefulWidget {
     required this.controller,
     this.cargador,
     this.interactivo = true,
+    this.aceptaPin = true,
   });
 
   final MapaMundiController controller;
@@ -57,6 +59,11 @@ class MapaMundi extends StatefulWidget {
   /// Con `false` el mapa no acepta gestos ni enseña los botones de zoom: la
   /// jugada ya está cerrada y el encuadre lo decide la pantalla (INT-93).
   final bool interactivo;
+
+  /// Con `false`, los toques sobre el mapa no clavan el pin, pero el mapa
+  /// sigue interactivo (zoom y desplazamiento). La pantalla de juego lo usa
+  /// mientras la pista del siguiente desafío espera para entrar (INT-152).
+  final bool aceptaPin;
 
   @override
   State<MapaMundi> createState() => _MapaMundiState();
@@ -122,6 +129,7 @@ class _MapaMundiState extends State<MapaMundi>
   }
 
   void _alTocar(TapUpDetails detalles) {
+    if (!widget.aceptaPin) return;
     final punto = detalles.localPosition;
     final anterior = _ultimoToque;
     final pinAntes = _pinAntesDelUltimoToque;
@@ -322,20 +330,28 @@ class _MapaMundiState extends State<MapaMundi>
                         rotulo: controller.nombrePinReal,
                         colorDelRotulo: _pinRealRotulo,
                       ),
-                    if (widget.interactivo)
-                      _BotonesDeZoom(controller: controller),
+                    // Siempre montados y con fundido: al cerrarse la jugada
+                    // se desvanecen en vez de desaparecer de golpe (INT-152).
+                    _BotonesDeZoom(
+                      visible: widget.interactivo,
+                      controller: controller,
+                    ),
                   ],
                 );
               },
             );
 
-            if (!widget.interactivo) return mapa;
-
+            // Mismo árbol con y sin interacción, solo sin gestos: si el mapa
+            // cambiara de forma al cerrarse la jugada, sus hijos se reharían y
+            // los botones de zoom no podrían desvanecerse (INT-152).
+            final interactivo = widget.interactivo;
             return GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTapUp: _alTocar,
-              onScaleStart: _alEmpezarGesto,
-              onScaleUpdate: _alActualizarGesto,
+              behavior: interactivo
+                  ? HitTestBehavior.opaque
+                  : HitTestBehavior.deferToChild,
+              onTapUp: interactivo ? _alTocar : null,
+              onScaleStart: interactivo ? _alEmpezarGesto : null,
+              onScaleUpdate: interactivo ? _alActualizarGesto : null,
               child: mapa,
             );
           },
@@ -768,8 +784,9 @@ class _PintorPin extends CustomPainter {
 }
 
 class _BotonesDeZoom extends StatelessWidget {
-  const _BotonesDeZoom({required this.controller});
+  const _BotonesDeZoom({required this.visible, required this.controller});
 
+  final bool visible;
   final MapaMundiController controller;
 
   @override
@@ -778,35 +795,38 @@ class _BotonesDeZoom extends StatelessWidget {
       right: 14,
       top: 0,
       bottom: 0,
-      child: Center(
-        child: Container(
-          decoration: BoxDecoration(
-            color: const Color(0xFF0E1620).withValues(alpha: 0.72),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          padding: const EdgeInsets.all(4),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _BotonDeZoom(
-                clave: const Key('mapa-acercar'),
-                etiqueta: 'Acercar',
-                simbolo: '+',
-                onPressed: controller.acercar,
-              ),
-              Container(
-                height: 1,
-                width: 24,
-                color: Colors.white.withValues(alpha: 0.14),
-              ),
-              _BotonDeZoom(
-                clave: const Key('mapa-alejar'),
-                etiqueta: 'Alejar',
-                simbolo: '−',
-                onPressed: controller.alejar,
-              ),
-            ],
+      child: Presencia(
+        visible: visible,
+        child: Center(
+          child: Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFF0E1620).withValues(alpha: 0.72),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            padding: const EdgeInsets.all(4),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _BotonDeZoom(
+                  clave: const Key('mapa-acercar'),
+                  etiqueta: 'Acercar',
+                  simbolo: '+',
+                  onPressed: controller.acercar,
+                ),
+                Container(
+                  height: 1,
+                  width: 24,
+                  color: Colors.white.withValues(alpha: 0.14),
+                ),
+                _BotonDeZoom(
+                  clave: const Key('mapa-alejar'),
+                  etiqueta: 'Alejar',
+                  simbolo: '−',
+                  onPressed: controller.alejar,
+                ),
+              ],
+            ),
           ),
         ),
       ),

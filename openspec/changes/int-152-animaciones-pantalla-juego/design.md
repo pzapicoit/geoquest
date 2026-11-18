@@ -64,7 +64,10 @@ La entrada de `_ToastPista` y la de `_HojaDeRevelado` pasan a `Presencia` con `M
 - El marco de tiempo crítico y la barra de cuenta atrás del HUD también pasan por `Presencia`. La barra va dentro de un `AnimatedSize` para que el HUD no salte de alto, salvo con «reducir movimiento»: ahí cambia sin animar, porque un `AnimatedSize` de duración cero falla al terminar dentro de su propio layout.
 - «Reducir movimiento» se aplica también a tres animaciones decorativas que ya existían: el rebote de «Ver la pista», el punto que late y el destello de los puntos. Los movimientos de cámara del mapa quedan fuera de forma explícita (spec).
 - `_confirmar` y `_confirmarSinPin` no hacen nada con un revelado en marcha: `IgnorePointer` no bloquea el teclado, y un Enter sobre Confirmar mientras sale podría enviar otra respuesta.
-- El mapa no acepta toques mientras sale la hoja y la pista siguiente espera para entrar. Un toque ahí clavaría el pin del nuevo desafío bajo una pista invisible.
+- Mientras sale la hoja y la pista siguiente espera para entrar, el mapa no clava el pin. Un toque ahí clavaría el pin del nuevo desafío bajo una pista invisible. Se hace con un parámetro nuevo de `MapaMundi`, `aceptaPin`, y no con `interactivo`, que además oculta los botones de zoom.
+- Los botones de zoom van siempre montados dentro de una `Presencia` y se desvanecen al cerrarse la jugada. Para eso `MapaMundi` mantiene el mismo árbol con y sin interacción (el `GestureDetector` se queda, sin gestos); si cambiara de forma, la `Presencia` se reharía y no podría animar la salida.
+- La barra del HUD usa siempre `AnimatedSize`, con 1 ms con «reducir movimiento» (uno de cero falla dentro de su propio layout), para no rehacer su `Presencia` al cambiar el ajuste. El HUD encoge al terminar el fundido de la barra, no a la vez: es un paso en dos tiempos, sin salto.
+- «Ver la pista» no lleva fundido propio con «reducir movimiento»: entra con el fundido de los controles de adivinar, de los que forma parte.
 - Los controles leen en vivo si hay revelado para pintar Confirmar deshabilitado durante su salida, en vez de parpadear al aspecto habilitado.
 
 ## Risks / Trade-offs
