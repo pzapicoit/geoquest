@@ -206,8 +206,19 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
   /// que se cierra su pista, no al mostrarse; reabrirla después no la para.
   String? _relojArrancadoPara;
 
-  /// Cierra la pista sola al agotarse [segundosDeLecturaDePista] (INT-143).
-  Timer? _topeDeLectura;
+  /// Tope de lectura de la pista (INT-143): una sola fuente de verdad que
+  /// mueve la barra de la tarjeta y, al completarse, cierra la pista. Al ir
+  /// con el `vsync` de la pantalla, se pausa con ella (`TickerMode`) en vez
+  /// de cerrar la pista con la barra a medias.
+  late final AnimationController _topeDeLectura =
+      AnimationController(
+        vsync: this,
+        duration: const Duration(seconds: segundosDeLecturaDePista),
+      )..addStatusListener((estado) {
+        if (estado == AnimationStatus.completed && mounted && _pistaVisible) {
+          _cerrarPista();
+        }
+      });
   bool _enviando = false;
   bool _cerrando = false;
   int _puntaje = 0;
@@ -272,7 +283,7 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
   @override
   void dispose() {
     _temporizadorDelMensaje?.cancel();
-    _topeDeLectura?.cancel();
+    _topeDeLectura.dispose();
     _cuentaAtras.dispose();
     _coreografia.dispose();
     _zoomComodin.dispose();
@@ -486,8 +497,7 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
   /// respuesta y el bonus por rapidez se miden desde aquí, no desde que se
   /// enseñó la pista.
   void _cerrarPista() {
-    _topeDeLectura?.cancel();
-    _topeDeLectura = null;
+    _topeDeLectura.stop();
     setState(() => _pistaVisible = false);
 
     final intento = _intento;
@@ -503,13 +513,13 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
   void _prepararCuentaAtras(IntentoNivel intento) {
     _intento = intento;
     _cuentaAtras.preparar(Duration(seconds: intento.segundosPorDesafio));
-    _topeDeLectura?.cancel();
-    _topeDeLectura = Timer(
-      const Duration(seconds: segundosDeLecturaDePista),
-      () {
-        if (mounted && _pistaVisible) _cerrarPista();
-      },
-    );
+    // Con el lector de pantalla activo no hay tope (WCAG 2.2.1, tiempo
+    // ajustable): leer la pista con él lleva más que mirarla.
+    if (MediaQuery.maybeAccessibleNavigationOf(context) ?? false) {
+      _topeDeLectura.reset();
+      return;
+    }
+    _topeDeLectura.forward(from: 0);
   }
 
   void _abrirPista() => setState(() => _pistaVisible = true);
@@ -928,7 +938,11 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
                     onListo: _cerrarPista,
                     // Solo la primera vez: con el reloj ya en marcha, reabrir
                     // la pista no tiene tope (INT-143).
-                    conTopeDeLectura: _relojArrancadoPara != desafioActual.id,
+                    topeDeLectura:
+                        _relojArrancadoPara != desafioActual.id &&
+                            _topeDeLectura.isAnimating
+                        ? _topeDeLectura
+                        : null,
                   ),
                 ),
               // La bandeja solo se ofrece en la fase de adivinar (INT-119):
@@ -2462,14 +2476,14 @@ class _ToastPista extends StatelessWidget {
     required this.objetivoGlobal,
     required this.posicion,
     required this.onListo,
-    required this.conTopeDeLectura,
+    required this.topeDeLectura,
   });
 
   final DesafioJuego desafio;
   final String objetivoGlobal;
   final int posicion;
   final VoidCallback onListo;
-  final bool conTopeDeLectura;
+  final Animation<double>? topeDeLectura;
 
   @override
   Widget build(BuildContext context) {
@@ -2520,7 +2534,7 @@ class _ToastPista extends StatelessWidget {
                         objetivoGlobal: objetivoGlobal,
                         posicion: posicion,
                         onListo: onListo,
-                        conTopeDeLectura: conTopeDeLectura,
+                        topeDeLectura: topeDeLectura,
                       ),
                     ),
                   ),
@@ -2540,7 +2554,7 @@ class _TarjetaDePista extends StatelessWidget {
     required this.objetivoGlobal,
     required this.posicion,
     required this.onListo,
-    required this.conTopeDeLectura,
+    required this.topeDeLectura,
   });
 
   final DesafioJuego desafio;
@@ -2548,8 +2562,9 @@ class _TarjetaDePista extends StatelessWidget {
   final int posicion;
   final VoidCallback onListo;
 
-  /// Enseña la barra del tope de lectura bajo "Listo" (INT-143).
-  final bool conTopeDeLectura;
+  /// Avance del tope de lectura (INT-143): con él, una barra bajo "Listo"
+  /// enseña cuánto queda antes de que la pista se cierre sola.
+  final Animation<double>? topeDeLectura;
 
   @override
   Widget build(BuildContext context) {
@@ -2630,6 +2645,13 @@ class _TarjetaDePista extends StatelessWidget {
                 ),
                 child: Text(
                   'Listo, voy a adivinar',
+                  // Aviso estático del tope para el lector de pantalla, en
+                  // lugar de la barra que cambia cada fotograma (INT-143).
+                  semanticsLabel: topeDeLectura == null
+                      ? null
+                      : 'Listo, voy a adivinar. Tienes '
+                            '$segundosDeLecturaDePista segundos para leer la '
+                            'pista',
                   style: GoogleFonts.baloo2(
                     color: Colors.white,
                     fontSize: 17,
@@ -2639,24 +2661,24 @@ class _TarjetaDePista extends StatelessWidget {
               ),
             ),
           ),
-          if (conTopeDeLectura) ...[
+          if (topeDeLectura case final tope?) ...[
             const SizedBox(height: 10),
             // Cuánto queda del tope de lectura: al vaciarse, la pista se
-            // cierra sola y arranca el reloj (INT-143). La clave por desafío
-            // reinicia la animación en cada pista nueva.
-            TweenAnimationBuilder<double>(
-              key: ValueKey('tope-de-lectura-$posicion'),
-              tween: Tween(begin: 1, end: 0),
-              duration: const Duration(seconds: segundosDeLecturaDePista),
-              builder: (context, valor, _) => ClipRRect(
-                borderRadius: BorderRadius.circular(99),
-                child: LinearProgressIndicator(
-                  key: const Key('nivel-juego-tope-de-lectura'),
-                  value: valor,
-                  minHeight: 3,
-                  backgroundColor: Colors.white.withValues(alpha: 0.08),
-                  color: Colors.white.withValues(alpha: 0.35),
-                  semanticsLabel: 'Tiempo para leer la pista',
+            // cierra sola y arranca el reloj (INT-143). Fuera del árbol de
+            // semántica: su valor cambia en cada fotograma y el lector de
+            // pantalla lo anunciaría sin parar; el botón ya dice el tope.
+            ExcludeSemantics(
+              child: AnimatedBuilder(
+                animation: tope,
+                builder: (context, _) => ClipRRect(
+                  borderRadius: BorderRadius.circular(99),
+                  child: LinearProgressIndicator(
+                    key: const Key('nivel-juego-tope-de-lectura'),
+                    value: 1 - tope.value,
+                    minHeight: 3,
+                    backgroundColor: Colors.white.withValues(alpha: 0.12),
+                    color: Colors.white.withValues(alpha: 0.6),
+                  ),
                 ),
               ),
             ),

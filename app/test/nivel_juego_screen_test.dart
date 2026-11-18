@@ -1265,6 +1265,47 @@ void main() {
       expect(gateway.desafiosMarcadosMostrados, ['d3']);
     });
 
+    testWidgets('cerrar la pista a mano cancela su tope de lectura (INT-143)', (
+      tester,
+    ) async {
+      await _abrirNivel(
+        tester,
+        _gatewayCon(const [_desafioTexto], segundosPorDesafio: 120),
+      );
+      await _cerrarPista(tester);
+      await tester.tap(find.text('Ver la pista'));
+      await tester.pump();
+
+      // Si el tope siguiera vivo, a los 20 s cerraría la pista reabierta.
+      await tester.pump(const Duration(seconds: segundosDeLecturaDePista + 5));
+
+      expect(find.byKey(const Key('nivel-juego-boton-listo')), findsOneWidget);
+    });
+
+    testWidgets('el tope de lectura se rearma en cada desafío (INT-143)', (
+      tester,
+    ) async {
+      final gateway = _gatewayCon(
+        const [_desafioTexto, _desafioImagen],
+        segundosPorDesafio: 30,
+      )..respuesta = respuestaDePrueba(distanciaKm: 12, puntos: 1200);
+
+      await _abrirNivel(tester, gateway);
+      await _cerrarPista(tester);
+      await _colocarPin(tester);
+      await _confirmarYRevelar(tester);
+      await _avanzarDesdeElRevelado(tester);
+
+      expect(
+        find.byKey(const Key('nivel-juego-tope-de-lectura')),
+        findsOneWidget,
+      );
+      await tester.pump(const Duration(seconds: segundosDeLecturaDePista));
+      await tester.pump();
+      expect(find.byKey(const Key('nivel-juego-boton-listo')), findsNothing);
+      expect(gateway.desafiosMarcadosMostrados, ['d3', 'd1']);
+    });
+
     testWidgets('la pista se cierra sola al agotar su tope de lectura '
         '(INT-143)', (tester) async {
       final gateway = _gatewayCon(const [

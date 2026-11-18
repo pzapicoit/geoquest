@@ -25,10 +25,16 @@ llama a `_arrancarCuentaAtras` si el desafío actual aún no lo tiene. Los punto
 donde hoy se arranca pasan a solo preparar la barra llena: un método
 `_prepararCuentaAtras` que muestra los segundos completos sin correr.
 
-**D2. Tope de lectura de 20 s, visible.** Un `Timer` de 20 s se arma al abrir la
-pista de un desafío que aún no ha arrancado. Al vencer, llama a `_cerrarPista`.
-La tarjeta muestra el tope como una barra fina bajo el botón «Listo», con un
-`AnimationController` de 20 s. Se cancela al cerrar la pista o al salir.
+**D2. Tope de lectura de 20 s, visible, con una sola fuente de verdad.** Un
+`AnimationController` de 20 s, con el `vsync` de la pantalla, se lanza al
+preparar cada desafío. Mueve la barra fina bajo «Listo» y, al completarse,
+cierra la pista. Se para al cerrar la pista a mano. Al ir con el `vsync`, se
+pausa con la pantalla (`TickerMode`), en vez de que un `Timer` aparte cierre la
+pista con la barra a medias (revisión de `ecc:flutter-reviewer`).
+- Accesibilidad: la barra queda fuera del árbol de semántica, porque su valor
+  cambia en cada fotograma. El botón «Listo» anuncia el tope una vez («Tienes 20
+  segundos para leer la pista»). Con el lector de pantalla activo
+  (`accessibleNavigation`) no hay tope, por WCAG 2.2.1 (tiempo ajustable).
 - *Alternativa:* sin tope. Se descarta: permitiría estudiar la imagen sin límite
   y contestar al instante con el bonus completo.
 - *Alternativa:* un número en el botón. Se descarta: es más ruido visual que una

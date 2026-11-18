@@ -51,7 +51,7 @@ class CuentaAtrasDeDesafio extends ChangeNotifier {
   DateTime? _fin;
 
   /// Tiempo completo del desafío en curso. `Duration.zero` antes del primer
-  /// [arrancar].
+  /// [preparar] o [arrancar].
   Duration get total => _total;
 
   /// Lo que queda, nunca por debajo de cero.

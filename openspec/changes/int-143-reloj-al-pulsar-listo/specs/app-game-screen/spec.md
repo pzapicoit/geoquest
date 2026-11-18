@@ -12,7 +12,8 @@ o el fondo— y no al mostrarse la pista. Mientras la pista de un desafío no se
 ha cerrado nunca, la barra SHALL mostrarse llena y quieta. La pista SHALL
 tener un tope de lectura de 20 segundos, visible en la propia tarjeta: al
 agotarse, la pista se cierra sola y arranca la cuenta atrás, como si el
-jugador hubiera pulsado "Listo". Si el jugador vuelve a abrir la pista ("Ver
+jugador hubiera pulsado "Listo". Con el lector de pantalla activo, la pista
+SHALL NOT tener tope de lectura. Si el jugador vuelve a abrir la pista ("Ver
 la pista") con la cuenta atrás ya en marcha, la cuenta atrás SHALL seguir
 corriendo, igual que el resto del HUD. La barra SHALL
 mostrarse en teal mientras quede más de la mitad del tiempo, en ámbar entre
@@ -83,6 +84,11 @@ presentación.
 - **WHEN** transcurren 8 segundos de reloj real sin que se entregue ningún
   fotograma y luego se entrega uno, en un desafío de 60 segundos
 - **THEN** el tiempo restante es 52 segundos, no 60
+
+#### Scenario: Sin tope de lectura con lector de pantalla
+- **WHEN** el jugador usa un lector de pantalla y deja la pista abierta más de
+  20 segundos
+- **THEN** la pista sigue abierta y la cuenta atrás sigue llena y quieta
 
 #### Scenario: Reabrir la pista no para la cuenta atrás
 - **WHEN** el jugador vuelve a abrir la pista con "Ver la pista" después de
