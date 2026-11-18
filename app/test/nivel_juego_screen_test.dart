@@ -1265,6 +1265,29 @@ void main() {
       expect(gateway.desafiosMarcadosMostrados, ['d3']);
     });
 
+    testWidgets('con lector de pantalla la pista no tiene tope (INT-143)', (
+      tester,
+    ) async {
+      tester.platformDispatcher.accessibilityFeaturesTestValue =
+          const FakeAccessibilityFeatures(accessibleNavigation: true);
+      addTearDown(
+        tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+      );
+      final gateway = _gatewayCon(const [
+        _desafioTexto,
+      ], segundosPorDesafio: 30);
+
+      await _abrirNivel(tester, gateway);
+      expect(
+        find.byKey(const Key('nivel-juego-tope-de-lectura')),
+        findsNothing,
+      );
+      await tester.pump(const Duration(seconds: segundosDeLecturaDePista + 5));
+
+      expect(find.byKey(const Key('nivel-juego-boton-listo')), findsOneWidget);
+      expect(gateway.desafiosMarcadosMostrados, isEmpty);
+    });
+
     testWidgets('cerrar la pista a mano cancela su tope de lectura (INT-143)', (
       tester,
     ) async {
