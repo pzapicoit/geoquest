@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:geoquest/config/app_config.dart';
@@ -30,6 +32,7 @@ Widget _pantalla({
   required AnonymousSessionService service,
   Duration minDuration = Duration.zero,
   CaminoGateway? caminoGateway,
+  Random? azar,
 }) {
   final usernameStorage = UsernameStorage();
 
@@ -49,6 +52,7 @@ Widget _pantalla({
         roster: PlayerRosterStorage(),
       ),
       minDuration: minDuration,
+      azar: azar,
     ),
   );
 }
@@ -238,7 +242,12 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 100));
 
-    expect(find.textContaining('desbloquear su pregunta'), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (w) => w is Text && consejosDeCarga.contains(w.data),
+      ),
+      findsOneWidget,
+    );
 
     await tester.pump(const Duration(milliseconds: 400));
     await tester.pumpAndSettle();
@@ -271,4 +280,42 @@ void main() {
       expect(find.byType(UsernameScreen), findsOneWidget);
     },
   );
+
+  group('consejo de carga (INT-144)', () {
+    test('ningún consejo habla de acercarse físicamente ni de metros', () {
+      expect(consejosDeCarga, isNotEmpty);
+      for (final consejo in consejosDeCarga) {
+        expect(consejo, isNot(contains(' m ')));
+        expect(consejo.toLowerCase(), isNot(contains('metro')));
+        expect(consejo.toLowerCase(), isNot(contains('acércate a')));
+      }
+    });
+
+    testWidgets('el splash muestra el consejo que toca, no el de GPS', (
+      tester,
+    ) async {
+      final service = AnonymousSessionService(
+        FakeAuthGateway(),
+        DeviceIdService(),
+      );
+
+      // El consejo solo se ve mientras carga: un mínimo largo lo mantiene.
+      await tester.pumpWidget(
+        _pantalla(
+          service: service,
+          minDuration: const Duration(milliseconds: 500),
+          azar: Random(7),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+
+      final esperado =
+          consejosDeCarga[Random(7).nextInt(consejosDeCarga.length)];
+      expect(find.text(esperado), findsOneWidget);
+      expect(find.textContaining('30 m'), findsNothing);
+
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+    });
+  });
 }

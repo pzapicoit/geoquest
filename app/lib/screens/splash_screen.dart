@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -36,6 +38,7 @@ class SplashScreen extends StatefulWidget {
     this.playerSessionService,
     this.rosterStorage,
     this.minDuration = const Duration(milliseconds: 1200),
+    this.azar,
   });
 
   final AppConfig config;
@@ -56,6 +59,10 @@ class SplashScreen extends StatefulWidget {
   /// resuelva al instante, para evitar un parpadeo.
   final Duration minDuration;
 
+  /// Elige el consejo de carga. Inyectable para que el test sea
+  /// determinista; por defecto, uno nuevo en cada arranque (INT-144).
+  final Random? azar;
+
   @override
   State<SplashScreen> createState() => _SplashScreenState();
 }
@@ -69,6 +76,11 @@ class _SplashScreenState extends State<SplashScreen> {
       );
 
   Future<AnonymousSessionResult>? _resolution;
+
+  late final String _consejo =
+      consejosDeCarga[(widget.azar ?? Random()).nextInt(
+        consejosDeCarga.length,
+      )];
 
   @override
   void initState() {
@@ -125,7 +137,11 @@ class _SplashScreenState extends State<SplashScreen> {
               AnonymousSessionFailure(:final reason) => reason,
               _ => null,
             };
-            return _SplashChrome(errorReason: reason, onRetry: _run);
+            return _SplashChrome(
+              errorReason: reason,
+              consejo: _consejo,
+              onRetry: _run,
+            );
           },
         ),
       ),
@@ -133,12 +149,31 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 }
 
+/// Consejos que el splash enseña mientras carga, uno al azar (INT-144).
+/// Describen la mecánica real; el del mock («acércate a menos de 30 m…») era
+/// de un juego por GPS que GeoQuest no es.
+const consejosDeCarga = [
+  'Coloca tu pin en el mapa: cuanto más cerca del lugar real, más puntos.',
+  'Responde rápido: el tiempo que te sobra suma un bonus a tus puntos.',
+  'Consigue estrellas en cada parada para desbloquear las siguientes del '
+      'camino.',
+  '¿Te atascas? Usa un comodín: parar el reloj, ver el país o un círculo de '
+      'acierto. Uno por partida.',
+  'El mapa no tiene nombres: acércate con doble toque o con los botones de '
+      'zoom.',
+];
+
 /// Presentación del splash: logo, marca y, según el estado, un indicador de
 /// carga o el error con opción de reintentar.
 class _SplashChrome extends StatelessWidget {
-  const _SplashChrome({this.errorReason, required this.onRetry});
+  const _SplashChrome({
+    this.errorReason,
+    required this.consejo,
+    required this.onRetry,
+  });
 
   final String? errorReason;
+  final String consejo;
   final VoidCallback onRetry;
 
   @override
@@ -203,8 +238,12 @@ class _SplashChrome extends StatelessWidget {
             else
               RiseIn(
                 delay: const Duration(milliseconds: 400),
-                child: const Column(
-                  children: [_LoadingBar(), SizedBox(height: 16), _TipCard()],
+                child: Column(
+                  children: [
+                    const _LoadingBar(),
+                    const SizedBox(height: 16),
+                    _TipCard(consejo),
+                  ],
                 ),
               ),
             const SizedBox(height: 24),
@@ -388,7 +427,9 @@ class _LoadingBarState extends State<_LoadingBar>
 }
 
 class _TipCard extends StatelessWidget {
-  const _TipCard();
+  const _TipCard(this.texto);
+
+  final String texto;
 
   @override
   Widget build(BuildContext context) {
@@ -422,8 +463,7 @@ class _TipCard extends StatelessWidget {
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              'Acércate a menos de 30 m de cada parada para desbloquear su '
-              'pregunta.',
+              texto,
               style: GoogleFonts.outfit(
                 fontSize: 12.5,
                 color: Colors.white.withValues(alpha: 0.72),
