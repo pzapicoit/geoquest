@@ -2,9 +2,7 @@
 
 ## Purpose
 TBD - created by archiving change int-88-app-splash. Update Purpose after archive.
-
 ## Requirements
-
 ### Requirement: Branding visible durante la carga
 La pantalla inicial de la app SHALL mostrar el logo/branding de GeoQuest mientras se resuelve la sesión del jugador, sin dejar ningún instante con una pantalla en blanco o solo un indicador de carga genérico.
 
@@ -76,3 +74,15 @@ La app instalada SHALL mostrar en el launcher/home screen del sistema operativo 
 #### Scenario: App instalada en iOS
 - **WHEN** la app se instala en un dispositivo iOS
 - **THEN** el icono que aparece en la pantalla de inicio es el icono de marca de GeoQuest, no el icono por defecto de Flutter
+
+### Requirement: El consejo de carga describe la mecánica real del juego
+El splash SHALL mostrar, mientras carga, un consejo elegido al azar de una lista fija de consejos que describen la mecánica real de GeoQuest: colocar el pin en el mapa, la puntuación por distancia, el bonus por rapidez, las estrellas que desbloquean paradas y los comodines. No SHALL mostrar consejos de mecánicas que el juego no tiene, como desbloquear preguntas por proximidad física o GPS.
+
+#### Scenario: El splash muestra un consejo
+- **WHEN** el splash se está mostrando mientras se resuelve la sesión
+- **THEN** se ve uno de los consejos de la lista de mecánica real
+
+#### Scenario: Ningún consejo habla de proximidad física
+- **WHEN** se revisa la lista de consejos de carga
+- **THEN** ninguno pide acercarse físicamente a un lugar ni menciona distancias en metros al jugador
+
