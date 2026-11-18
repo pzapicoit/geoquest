@@ -2504,6 +2504,119 @@ void main() {
       expect(vibraciones, isNot(contains('HapticFeedbackType.mediumImpact')));
     });
 
+    testWidgets('con «reducir movimiento» la pista sale sin desplazarse', (
+      tester,
+    ) async {
+      await _abrirNivel(
+        tester,
+        _gatewayCon(const [_desafioTexto]),
+        reducirAnimaciones: true,
+      );
+
+      await tester.tap(find.byKey(const Key('nivel-juego-boton-listo')));
+      await tester.pump();
+      await tester.pump(Movimiento.media ~/ 3);
+
+      final listo = find.byKey(const Key('nivel-juego-boton-listo'));
+      expect(opacidadDe(tester, listo), inExclusiveRange(0, 1));
+      final desplazamientos = find.ancestor(
+        of: listo,
+        matching: find.byWidgetPredicate(
+          (w) => w is Transform && w.transform.getTranslation().y.abs() > 0.01,
+        ),
+      );
+      expect(desplazamientos, findsNothing);
+      await _esperarSalida(tester);
+    });
+
+    testWidgets('con «reducir movimiento» «Ver la pista» aparece sin rebote', (
+      tester,
+    ) async {
+      await _abrirNivel(
+        tester,
+        _gatewayCon(const [_desafioTexto]),
+        reducirAnimaciones: true,
+      );
+      await tester.tap(find.byKey(const Key('nivel-juego-boton-listo')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 60));
+
+      final escalas = find.ancestor(
+        of: find.byKey(const Key('nivel-juego-ver-pista')),
+        matching: find.byWidgetPredicate(
+          (w) =>
+              w is Transform &&
+              (w.transform.getMaxScaleOnAxis() - 1).abs() > 0.001,
+        ),
+      );
+      expect(escalas, findsNothing);
+      await _esperarSalida(tester);
+    });
+
+    for (final reducir in [false, true]) {
+      testWidgets('el destello de los puntos ${reducir ? 'no ' : ''}se '
+          'pinta${reducir ? ' con «reducir movimiento»' : ''}', (tester) async {
+        final gateway = _gatewayCon(const [_desafioTexto])
+          ..respuesta = respuestaDePrueba(distanciaKm: 12, puntos: 1200);
+        await _abrirNivel(tester, gateway, reducirAnimaciones: reducir);
+        await _cerrarPista(tester);
+        await _colocarPin(tester);
+        await tester.tap(find.byKey(const Key('nivel-juego-confirmar')));
+        await _asentar(tester);
+
+        final destello = find.byWidgetPredicate(
+          (w) => w.runtimeType.toString() == '_Destello',
+        );
+        var visto = false;
+        for (var i = 0; i < 70 && !visto; i++) {
+          await tester.pump(const Duration(milliseconds: 80));
+          visto = destello.evaluate().isNotEmpty;
+        }
+        expect(visto, !reducir);
+        await tester.pump(const Duration(seconds: 6));
+      });
+    }
+
+    testWidgets('agotar el tiempo con un pin colocado tampoco vibra como '
+        'confirmar', (tester) async {
+      final vibraciones = espiarVibraciones(tester);
+      final gateway = _gatewayCon(const [_desafioTexto], segundosPorDesafio: 3)
+        ..respuesta = respuestaDePrueba(puntos: 0);
+
+      await _abrirNivel(tester, gateway);
+      await _cerrarPista(tester);
+      await _colocarPin(tester);
+      await tester.pump(const Duration(seconds: 5));
+      await tester.pump(const Duration(milliseconds: 5600));
+
+      expect(gateway.respuestasEnviadas, hasLength(1));
+      expect(vibraciones, ['HapticFeedbackType.selectionClick']);
+    });
+
+    testWidgets('pulsar «Siguiente» dos veces durante la salida avanza un '
+        'solo desafío', (tester) async {
+      final gateway = _gatewayCon(const [
+        _desafioTexto,
+        _desafioImagen,
+        _desafioImagen2,
+      ])..respuesta = respuestaDePrueba(distanciaKm: 12, puntos: 1200);
+
+      await _abrirNivel(tester, gateway);
+      await _cerrarPista(tester);
+      await _colocarPin(tester);
+      await _confirmarYRevelar(tester);
+
+      final siguiente = find.byKey(const Key('nivel-juego-siguiente'));
+      await tester.tap(siguiente);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 60));
+      await tester.tap(siguiente, warnIfMissed: false);
+      await _esperarSalida(tester);
+      await _asentar(tester);
+
+      expect(find.text('Desafío 2 de 3'), findsOneWidget);
+    });
+
     testWidgets('Confirmar responde al pulsarlo solo cuando está habilitado', (
       tester,
     ) async {

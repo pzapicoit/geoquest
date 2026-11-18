@@ -592,7 +592,9 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
 
   Future<void> _confirmar(IntentoNivel intento) async {
     final pin = _mapa.pin;
-    if (pin == null || _enviando) return;
+    // Con el revelado en marcha, un Confirmar que llegue por teclado mientras
+    // los controles salen no debe enviar otra respuesta (INT-152).
+    if (pin == null || _enviando || _revelado != null) return;
 
     setState(() => _enviando = true);
     try {
@@ -630,7 +632,7 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
   /// consecuencia (sin pin del jugador, sin línea, sin contador de
   /// distancia).
   Future<void> _confirmarSinPin(IntentoNivel intento) async {
-    if (_enviando) return;
+    if (_enviando || _revelado != null) return;
 
     setState(() => _enviando = true);
     try {
@@ -934,7 +936,11 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
                   cargador: widget.cargadorDeMundo,
                   // La jugada ya está cerrada: el encuadre lo lleva la
                   // coreografía y el pin no se mueve de donde se confirmó.
-                  interactivo: !revelando,
+                  // Tampoco mientras sale la hoja y la pista siguiente espera
+                  // para entrar: un toque ahí clavaría el pin del desafío
+                  // nuevo bajo una pista que aún no se ve (INT-152).
+                  interactivo:
+                      !revelando && !(_pistaVisible && _pistaTrasRevelado),
                 ),
               ),
               const Positioned(
@@ -946,9 +952,10 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
               ),
               // Aviso periférico de que se acaba el tiempo: por encima del
               // mapa, por debajo del HUD y sin recibir toques (D7).
-              if (!revelando)
-                Positioned.fill(
-                  child: IgnorePointer(
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: Presencia(
+                    visible: !revelando,
                     child: AnimatedBuilder(
                       animation: _cuentaAtras,
                       builder: (context, _) => _MarcoDeTiempoCritico(
@@ -961,6 +968,7 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
                     ),
                   ),
                 ),
+              ),
               Positioned(
                 left: 0,
                 right: 0,
@@ -971,7 +979,10 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
                     animation: _mapa,
                     builder: (context, _) => _ControlesAdivinar(
                       pin: _mapa.pin,
-                      enviando: _enviando,
+                      // Leído en vivo del estado y no de `revelando`: mientras
+                      // los controles salen, su `builder` es el del fotograma
+                      // anterior al revelado (INT-152).
+                      enviando: _enviando || _revelado != null,
                       onVerPista: _abrirPista,
                       onConfirmar: () {
                         HapticFeedback.mediumImpact();
@@ -1267,10 +1278,22 @@ class _HudJuego extends StatelessWidget {
                 _PildoraDePuntaje(puntaje: puntaje),
               ],
             ),
-            if (cuentaAtras != null) ...[
-              const SizedBox(height: 8),
-              _CuentaAtras(cuentaAtras: cuentaAtras!),
-            ],
+            // Entra y sale con fundido, y el HUD cambia de alto sin saltos
+            // (INT-152): la barra no corre durante el revelado (D11). Con
+            // «reducir movimiento» el alto cambia sin animar: un
+            // `AnimatedSize` de duración cero falla al terminar dentro de su
+            // propio layout.
+            _AltoSuave(
+              child: Presencia(
+                visible: cuentaAtras != null,
+                child: cuentaAtras == null
+                    ? const SizedBox.shrink()
+                    : Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: _CuentaAtras(cuentaAtras: cuentaAtras!),
+                      ),
+              ),
+            ),
           ],
         ),
       ),
@@ -1603,7 +1626,8 @@ class _BotonVerPista extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0, end: 1),
+      // Con «reducir movimiento» aparece ya a su tamaño, sin rebote (INT-152).
+      tween: Tween(begin: movimientoReducido(context) ? 1 : 0, end: 1),
       duration: const Duration(milliseconds: 280),
       curve: Curves.easeOutBack,
       builder: (context, valor, hijo) =>
@@ -1773,7 +1797,20 @@ class _PuntoQueLateState extends State<_PuntoQueLate>
   late final AnimationController _controlador = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 1600),
-  )..repeat(reverse: true);
+  );
+
+  /// Con «reducir movimiento» el punto se queda quieto (INT-152).
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (movimientoReducido(context)) {
+      _controlador
+        ..stop()
+        ..value = 0;
+    } else if (!_controlador.isAnimating) {
+      _controlador.repeat(reverse: true);
+    }
+  }
 
   @override
   void dispose() {
@@ -2232,7 +2269,10 @@ class _TarjetaDePuntos extends StatelessWidget {
               ],
             ),
           ),
-          if (avanceDelDestello > 0 && avanceDelDestello < 1)
+          // El brillo barre la tarjeta: con «reducir movimiento» no se pinta.
+          if (avanceDelDestello > 0 &&
+              avanceDelDestello < 1 &&
+              !movimientoReducido(context))
             Positioned.fill(
               child: IgnorePointer(child: _Destello(avance: avanceDelDestello)),
             ),
@@ -3085,6 +3125,25 @@ class _CargandoIntento extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Anima los cambios de alto de su hijo, salvo con «reducir movimiento»
+/// (INT-152).
+class _AltoSuave extends StatelessWidget {
+  const _AltoSuave({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    if (movimientoReducido(context)) return child;
+    return AnimatedSize(
+      duration: Movimiento.media,
+      curve: Movimiento.estandar,
+      alignment: Alignment.topCenter,
+      child: child,
     );
   }
 }

@@ -23,9 +23,17 @@
 
 - [x] 4.1 `_CargandoIntento` con logo, pulso y texto en lugar del `CircularProgressIndicator` de la carga del intento
 - [x] 4.2 `frameBuilder` en `_PistaImagen` y `_MiniaturaDeLaPista`: `FondoDeCarga` y fundido si la imagen llega de red, directa si viene de caché
-- [x] 4.3 Actualizar los tests que buscaban `CircularProgressIndicator` y añadir tests de imagen de caché frente a imagen de red, comprobando que el provider sigue coincidiendo con la precarga (INT-120)
+- [x] 4.3 Actualizar los tests que buscaban `CircularProgressIndicator` y probar los tres casos de `apareceAlCargar` (caché, red sin fotograma, red con fotograma); los tests de INT-120 que comparan el provider siguen pasando sin cambios
 
-## 5. Verificación
+## 5. Correcciones de la revisión adversarial
 
-- [x] 5.1 Suite completa de `flutter test`, `flutter analyze` y `dart format`
-- [ ] 5.2 Prueba en el iPhone en release: fases, cambio de desafío, pin, vibración y carga de imágenes, con y sin «reducir movimiento»
+- [x] 5.1 Marco de tiempo crítico y barra de cuenta atrás con `Presencia`, y HUD sin salto de alto
+- [x] 5.2 «Reducir movimiento» en «Ver la pista», el punto que late y el destello de los puntos; spec acotada a lo decorativo
+- [x] 5.3 Guardas contra un segundo envío por teclado, mapa inerte durante el paso al siguiente desafío y Confirmar sin parpadeo al salir
+- [x] 5.4 Tests: pista y «Ver la pista» con «reducir movimiento», destello con y sin el ajuste, tiempo agotado con pin sin vibrar como confirmar y doble «Siguiente» durante la salida
+- [x] 5.5 Sección de movimiento de `.devplugin/architecture.md` con las piezas nuevas y la vibración
+
+## 6. Verificación
+
+- [x] 6.1 Suite completa de `flutter test`, `flutter analyze` y `dart format`
+- [ ] 6.2 Prueba en el iPhone en release: fases, cambio de desafío, pin, vibración y carga de imágenes, con y sin «reducir movimiento»

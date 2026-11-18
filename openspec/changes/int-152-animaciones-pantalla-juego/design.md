@@ -33,13 +33,14 @@ Alternativa descartada: `AnimatedSwitcher`. Está pensado para cambiar un hijo p
 Consecuencia: el tope de lectura del siguiente desafío empieza a correr unos 300 ms antes de que se vea la tarjeta. Se acepta frente a 20 s de tope; se anota en riesgos.
 
 **D3. Caída del pin en `_PinDelMapa`, que se rehace con cada coordenada nueva.**
-`_PinDelMapa` envuelve su dibujo en un `TweenAnimationBuilder` con `key: ValueKey(coordenada)`, así que la animación vuelve a empezar cada vez que el pin se mueve. La caída son 18 px hacia abajo con una escala de 0,7 a 1, en `Movimiento.media` con `Movimiento.rebote`. Con «reducir movimiento» aparece directamente, sin animación.
+`_PinDelMapa` envuelve su dibujo en un `TweenAnimationBuilder` con `key: ValueKey(coordenada)`, así que la animación vuelve a empezar cada vez que el pin se mueve. La caída son 18 px hacia abajo, sumados al crecimiento de escala de 0 a 1 que el pin ya tenía, en `Movimiento.media` con `Movimiento.rebote`. Con «reducir movimiento» aparece directamente, sin animación.
 Solo cae el pin del jugador. El pin real lo presenta la coreografía del revelado, que no se toca.
 
 **D4. Vibración con `HapticFeedback`, sin dependencias.**
 - Pin: `selectionClick` en el manejador de toque de `MapaMundi`, cuando `colocarPinEn` devuelve true.
 - Confirmar: `mediumImpact` al empezar `_confirmar` y `_confirmarSinPin` solo si es un toque del jugador. La confirmación automática por tiempo agotado no vibra, porque el jugador no ha hecho nada.
 - Éxito: `heavyImpact` una sola vez por revelado, cuando `_avanceDeLosPuntos` llega a 1 con `puntos > 0`. Se controla con un flag en `_Revelado`. Flutter no expone el patrón «success» de iOS; `heavyImpact` es lo más parecido sin añadir un plugin.
+El primer toque de un doble toque para acercar también vibra, aunque el segundo deshaga ese pin: la pantalla no puede saber en el primer toque si vendrá otro, y esperar retrasaría la vibración de todos los toques sueltos. Se acepta.
 En web `HapticFeedback` no hace nada. Los tests interceptan la llamada `HapticFeedback.vibrate` del canal `SystemChannels.platform`.
 
 **D5. `Pulsable`: escala al pulsar con un `Listener`.**
@@ -58,6 +59,13 @@ El `errorBuilder` no cambia. El test de INT-120 que compara providers sigue vali
 
 **D8. Las entradas que ya existían pasan a la base común.**
 La entrada de `_ToastPista` y la de `_HojaDeRevelado` pasan a `Presencia` con `Movimiento.media`/`Movimiento.pantalla` y `Movimiento.llegada`, en vez de sus `TweenAnimationBuilder` con valores propios. El fundido del fondo oscuro de la pista acompaña a la tarjeta en la entrada y en la salida.
+
+**D9. Correcciones tras la revisión adversarial.**
+- El marco de tiempo crítico y la barra de cuenta atrás del HUD también pasan por `Presencia`. La barra va dentro de un `AnimatedSize` para que el HUD no salte de alto, salvo con «reducir movimiento»: ahí cambia sin animar, porque un `AnimatedSize` de duración cero falla al terminar dentro de su propio layout.
+- «Reducir movimiento» se aplica también a tres animaciones decorativas que ya existían: el rebote de «Ver la pista», el punto que late y el destello de los puntos. Los movimientos de cámara del mapa quedan fuera de forma explícita (spec).
+- `_confirmar` y `_confirmarSinPin` no hacen nada con un revelado en marcha: `IgnorePointer` no bloquea el teclado, y un Enter sobre Confirmar mientras sale podría enviar otra respuesta.
+- El mapa no acepta toques mientras sale la hoja y la pista siguiente espera para entrar. Un toque ahí clavaría el pin del nuevo desafío bajo una pista invisible.
+- Los controles leen en vivo si hay revelado para pintar Confirmar deshabilitado durante su salida, en vez de parpadear al aspecto habilitado.
 
 ## Risks / Trade-offs
 

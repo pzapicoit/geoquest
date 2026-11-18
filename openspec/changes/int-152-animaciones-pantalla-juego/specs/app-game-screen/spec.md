@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Las fases de la pantalla de juego entran y salen con transición
-Ningún elemento de la pantalla de juego SHALL aparecer o desaparecer sin transición al cambiar de fase (pista, adivinar, revelado). La tarjeta de pista y la hoja del revelado SHALL entrar y salir deslizándose. Los controles de adivinar, la bandeja de comodines y los avisos SHALL entrar y salir con un fundido. Las duraciones y curvas SHALL salir de la base de movimiento común (`app-motion`).
+Ningún elemento de la pantalla de juego SHALL aparecer o desaparecer sin transición al cambiar de fase (pista, adivinar, revelado). La tarjeta de pista y la hoja del revelado SHALL entrar y salir deslizándose. Los controles de adivinar, la bandeja de comodines, los avisos, el marco de tiempo crítico y la barra de cuenta atrás del HUD SHALL entrar y salir con un fundido, y el HUD SHALL cambiar de alto sin saltos cuando la barra aparece o desaparece. Las duraciones y curvas SHALL salir de la base de movimiento común (`app-motion`).
 
 #### Scenario: Cerrar la pista
 - **WHEN** el jugador cierra la tarjeta de pista
@@ -10,6 +10,10 @@ Ningún elemento de la pantalla de juego SHALL aparecer o desaparecer sin transi
 #### Scenario: Confirmar una respuesta
 - **WHEN** el jugador confirma su respuesta y empieza el revelado
 - **THEN** los controles de adivinar y la bandeja desaparecen con un fundido y la hoja del revelado entra deslizándose desde abajo
+
+#### Scenario: Confirmar en tiempo crítico
+- **WHEN** el jugador confirma con el marco de tiempo crítico visible
+- **THEN** el marco y la barra de cuenta atrás del HUD se desvanecen en vez de desaparecer de golpe
 
 #### Scenario: Un aviso aparece y se va
 - **WHEN** la pantalla muestra un aviso temporal (por ejemplo, el resultado de un comodín)
@@ -71,7 +75,7 @@ Mientras se arranca el intento, la pantalla SHALL mostrar un estado de carga con
 - **THEN** la imagen se ve directamente, sin fondo de carga ni fundido
 
 ### Requirement: Reducir movimiento en la pantalla de juego
-Con «reducir movimiento» activo, las animaciones de la pantalla de juego SHALL limitarse a fundidos: sin desplazamientos, cambios de escala ni rebotes, y con el fondo de carga quieto. La vibración SHALL mantenerse.
+Con «reducir movimiento» activo, las animaciones decorativas de la pantalla de juego SHALL limitarse a fundidos: sin desplazamientos, cambios de escala ni rebotes, y con el fondo de carga quieto. Esto incluye las que ya existían: el rebote de «Ver la pista», el punto que late de la indicación y el destello de la tarjeta de puntos. La vibración SHALL mantenerse. Quedan fuera los movimientos de cámara del mapa (encuadre del revelado, acercamiento de los comodines de radio y doble toque para acercar): no son decoración, sino que llevan la vista a la información de la jugada.
 
 #### Scenario: Cerrar la pista con reducir movimiento
 - **WHEN** el jugador tiene activado «reducir movimiento» y cierra la tarjeta de pista
@@ -80,3 +84,7 @@ Con «reducir movimiento» activo, las animaciones de la pantalla de juego SHALL
 #### Scenario: Colocar el pin con reducir movimiento
 - **WHEN** el jugador tiene activado «reducir movimiento» y coloca el pin
 - **THEN** el pin aparece en su posición sin caída ni rebote
+
+#### Scenario: Revelado con reducir movimiento
+- **WHEN** el jugador tiene activado «reducir movimiento» y el contador de puntos del revelado sube
+- **THEN** no se pinta el destello que barre la tarjeta de puntos
