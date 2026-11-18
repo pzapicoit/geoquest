@@ -939,8 +939,9 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
                   interactivo: !revelando,
                   // Mientras sale la hoja y la pista siguiente espera para
                   // entrar, un toque clavaría el pin del desafío nuevo bajo
-                  // una pista que aún no se ve (INT-152). Solo se bloquea el
-                  // pin: el zoom sigue visible y usable.
+                  // una pista que aún no se ve (INT-152). Se bloquean los
+                  // toques (pin y doble toque para acercar); los botones de
+                  // zoom y el pellizco siguen visibles y usables.
                   aceptaPin: !(_pistaVisible && _pistaTrasRevelado),
                 ),
               ),

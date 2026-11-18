@@ -60,8 +60,9 @@ class MapaMundi extends StatefulWidget {
   /// jugada ya está cerrada y el encuadre lo decide la pantalla (INT-93).
   final bool interactivo;
 
-  /// Con `false`, los toques sobre el mapa no clavan el pin, pero el mapa
-  /// sigue interactivo (zoom y desplazamiento). La pantalla de juego lo usa
+  /// Con `false`, los toques sobre el mapa no hacen nada (ni clavan el pin
+  /// ni acercan con doble toque), pero el mapa sigue interactivo: botones de
+  /// zoom, pellizco y desplazamiento. La pantalla de juego lo usa
   /// mientras la pista del siguiente desafío espera para entrar (INT-152).
   final bool aceptaPin;
 
