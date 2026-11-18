@@ -6,8 +6,8 @@
 - `cambiarDeJugador`;
 - `descartarJugador`.
 
-La implementación real delega en `GoTrueClient.signOut()` (`gotrue` 2.27.3,
-`gotrue_client.dart:1081-1113`). Ese método:
+La implementación real delega en `GoTrueClient.signOut()` (`gotrue` 2.27.2, la versión del `pubspec.lock`,
+`gotrue_client.dart:1078-1110`). Ese método:
 
 1. borra la sesión local y avisa a los suscriptores con `signedOut`;
 2. llama a `POST /logout`;
@@ -41,9 +41,12 @@ ese texto tal cual.
 ## Decisions
 
 **D1. La tolerancia vive en `PlayerSessionService`, no en el gateway.**
-Un helper privado `_cerrarSesionLocal()` hace `await _auth.signOut()`. Si lanza,
-comprueba `_auth.currentSession`: si es `null`, traga el error (y lo deja en
-`debugPrint`); si no, lo relanza. Los tres puntos de uso pasan a usarlo.
+Un helper privado `_cerrarSesionLocal()` hace `await _auth.signOut()`. Solo
+captura `AuthException`, porque `gotrue` envuelve en ese tipo tanto la respuesta
+de `/logout` como el fallo de red. Cualquier otra excepción se propaga sin más.
+Con un `AuthException`, mira `_auth.currentSession`: si es `null`, registra el
+error con `dart:developer` y sigue; si no, lo relanza. Los tres puntos de uso
+pasan a usarlo.
 - *Alternativa:* hacerlo en `SupabaseAuthGateway.signOut`. Se descarta porque el
   gateway envuelve un `GoTrueClient` real y no se puede probar sin red, mientras
   que el servicio ya se prueba con `FakeAuthGateway`. Además, la regla («la
@@ -60,20 +63,34 @@ Sin esto, los tests no reproducirían el bug.
 **D3. `AnonymousSessionFailure` lleva una causa clasificada.**
 Un enum `CausaFalloSesion { sinRespuesta, servidor, otra }` más el `detalle`
 técnico. El texto visible lo elige el splash a partir de la causa, así que la
-redacción vive en la UI y el servicio no compone frases. Clasificación:
-- `AuthException` con `statusCode` ≥ 500 → `servidor`;
-- `AuthRetryableFetchException`, `ClientException`, `SocketException` y
-  `TimeoutException` → `sinRespuesta`;
-- cualquier otro error → `otra`.
+redacción vive en la UI y el servicio no compone frases.
 
-`SocketException` no existe en web; se detecta sin importar `dart:io`, por el
-nombre del tipo, o mediante `ClientException`, que es lo que llega en web.
+Desde el alta anónima, `gotrue` envuelve **todo** fallo del cliente HTTP en
+`AuthRetryableFetchException` (`fetch.dart:188-190`): sin código si no hubo
+respuesta, y con código si el servidor contestó 5xx (`fetch.dart:47-53`).
+Clasificación:
+- `AuthException` con `statusCode` ≥ 500 → `servidor`;
+- `AuthRetryableFetchException` sin código → `sinRespuesta`;
+- `ClientException` y `TimeoutException` sin envolver → `sinRespuesta`. Es
+  defensivo: con `gotrue` 2.27 no llegan así;
+- cualquier otro error → `otra`.
 
 ## Risks / Trade-offs
 
-- [Tragar un error real] → Solo se traga si la sesión local ya es `null`, que es
-  justo el estado que buscaba la operación. Si la sesión sigue viva, el error se
-  propaga igual que hoy.
+- [Tragar un error real] → Solo se toleran `AuthException`, y solo si la sesión
+  local ya es `null`, que es justo el estado que buscaba la operación. Con
+  `gotrue` 2.27 la sesión local siempre es `null` cuando `signOut` lanza (la
+  suelta antes de cualquier punto que pueda fallar), así que la rama «sesión
+  viva → relanzar» es **defensiva**: no se alcanza con el SDK actual y protege
+  ante uno que cambie el orden. Los tests la ejercitan con el falso.
+- [Sesión persistida en disco] → `supabase_flutter` 2.17 borra la sesión
+  guardada en un listener asíncrono de `onAuthStateChange`, y si ese borrado
+  falla solo lo registra. En ese caso, tras reiniciar la app podría restaurarse
+  la sesión del jugador anterior con el apodo ya olvidado. Es preexistente y
+  ajeno al error de `/logout`; este cambio no lo empeora en el camino normal.
+- [Sesión remota huérfana] → Si `/logout` falla, el refresh token sigue vivo en
+  el servidor hasta caducar. No da acceso desde este dispositivo, que ya no lo
+  tiene.
 - [Clasificar por tipo de excepción del SDK] → Si `gotrue` cambia sus tipos, la
   causa cae en `otra`, que tiene un mensaje genérico correcto. No hay regresión
   peor que la de hoy.

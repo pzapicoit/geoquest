@@ -16,3 +16,4 @@
 
 - [x] 3.1 `flutter analyze`, `dart format` y `flutter test` en verde
 - [x] 3.2 Prueba manual en web: con la sesión de invitado activa, simular el fallo de `/logout` y comprobar que la entrada como invitado sigue
+  - Hecha el 2026-11-18 con `flutter run -d web-server` y Chrome DevTools, en un contexto de navegador limpio. Un script de inicio sustituye `window.fetch` para que `POST /auth/v1/logout` devuelva `500 {"code":"unexpected_failure"}`. Con la sesión anónima creada por el splash, «Entrar sin cuenta como invitado» llamó una vez a `/logout` (500 simulado) y siguió: `POST /auth/v1/signup` 200, `PATCH profiles` 204 y llegada al camino con el invitado «CazaAtlas». Sin el cambio, el mismo 500 real del 2026-11-18 terminó en «No se pudo completar la entrada».

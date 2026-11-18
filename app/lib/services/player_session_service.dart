@@ -1,4 +1,5 @@
-import 'package:flutter/foundation.dart';
+import 'dart:developer' as developer;
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'auth_gateway.dart';
@@ -308,11 +309,20 @@ class PlayerSessionService {
   Future<void> _cerrarSesionLocal() async {
     try {
       await _auth.signOut();
-    } catch (error) {
+    } on AuthException catch (error) {
+      // Solo errores de Auth: `gotrue` envuelve en `AuthException` tanto la
+      // respuesta de `/logout` como el fallo de red. Cualquier otra excepción
+      // es un fallo de verdad y se propaga sin mirar la sesión.
+      //
+      // Con `gotrue` 2.27 la sesión local ya está a `null` en este punto, así
+      // que la comprobación siguiente es defensiva: protege ante un SDK que
+      // cambie el orden y lance antes de soltar la sesión.
       if (_auth.currentSession != null) rethrow;
-      debugPrint(
-        'Cierre de sesión: el servidor falló, la sesión local ya '
-        'estaba soltada. $error',
+      developer.log(
+        'El servidor falló al cerrar la sesión; la sesión local ya estaba '
+        'soltada.',
+        name: 'geoquest.sesion',
+        error: error,
       );
     }
   }

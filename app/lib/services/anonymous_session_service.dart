@@ -20,7 +20,8 @@ class AnonymousSessionReady extends AnonymousSessionResult {
 /// traducir a un mensaje para el jugador (INT-145).
 enum CausaFalloSesion {
   /// La petición no obtuvo respuesta: sin red, tiempo agotado o servidor caído
-  /// sin contestar. En web los tres llegan igual (`Failed to fetch`).
+  /// sin contestar. En web los tres llegan igual: `Failed to fetch`, envuelto
+  /// por `gotrue` en una `AuthRetryableFetchException` sin código.
   sinRespuesta,
 
   /// El servidor contestó, con un error 5xx.
@@ -53,12 +54,10 @@ CausaFalloSesion clasificarFalloSesion(Object error) {
     }
     return CausaFalloSesion.otra;
   }
+  // `gotrue` envuelve los fallos del cliente HTTP en
+  // `AuthRetryableFetchException`, así que estos tipos no deberían llegar
+  // desde el alta anónima. Se clasifican por si llegan sin envolver.
   if (error is ClientException || error is TimeoutException) {
-    return CausaFalloSesion.sinRespuesta;
-  }
-  // `SocketException` vive en `dart:io`, que no existe en web; se reconoce por
-  // el nombre del tipo para no partir el código por plataforma.
-  if (error.runtimeType.toString() == 'SocketException') {
     return CausaFalloSesion.sinRespuesta;
   }
   return CausaFalloSesion.otra;

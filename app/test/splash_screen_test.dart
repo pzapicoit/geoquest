@@ -204,6 +204,26 @@ void main() {
     },
   );
 
+  testWidgets('un 5xx de Auth dice que el servidor no responde (INT-145)', (
+    tester,
+  ) async {
+    final auth = FakeAuthGateway()
+      ..throwOnNextCall = AuthRetryableFetchException(
+        message: 'Web server is down',
+        statusCode: '521',
+      );
+    final service = AnonymousSessionService(auth, DeviceIdService());
+
+    await tester.pumpWidget(_pantalla(service: service));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(motivoDeFalloSesion(CausaFalloSesion.servidor)),
+      findsOneWidget,
+    );
+    expect(find.textContaining('521'), findsNothing);
+  });
+
   testWidgets('reintentar tras un fallo vuelve a intentar y puede navegar', (
     tester,
   ) async {

@@ -5,7 +5,7 @@ cerrar la sesión anterior. Pasó el 2026-11-18, al reactivar Supabase:
 `POST /auth/v1/logout?scope=local` respondió 500 y el jugador vio «Comprueba tu
 conexión», con la conexión funcionando.
 
-El SDK (`gotrue` 2.27) borra la sesión local **antes** de llamar al servidor y
+El SDK (`gotrue` 2.27.2, el del `pubspec.lock`) borra la sesión local **antes** de llamar al servidor y
 después relanza cualquier error que no sea 401/403/404. La app interpreta esa
 excepción como «no se pudo cerrar la sesión» y aborta, aunque en el dispositivo
 la sesión ya esté cerrada.

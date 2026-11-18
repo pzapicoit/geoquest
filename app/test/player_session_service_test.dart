@@ -358,6 +358,13 @@ void main() {
         );
 
         expect(resultado, isA<EntradaCompletada>());
+        expect(auth.calls, [
+          'signInAnonymously',
+          'signOut',
+          'signInAnonymously',
+          'updateUser',
+        ]);
+        expect(auth.currentSession, isNotNull);
         expect(auth.lastEmail, identidadDeApodo('Pablo'));
       });
 
@@ -384,6 +391,40 @@ void main() {
         expect(resultado, isA<CambioListo>());
         expect(await usernameStorage.read(), isNull);
       });
+    });
+
+    test(
+      'si el cierre falla y la sesión sigue viva, el alta no sigue',
+      () async {
+        estadoApodo.estado = EstadoApodo.libre;
+        await auth.signInAnonymously();
+        auth.calls.clear();
+        auth.throwOnSignOut = const AuthException('sin conexión');
+
+        final resultado = await _servicio().entrar(
+          apodo: 'Pablo',
+          contrasena: 'secreta123',
+        );
+
+        expect(resultado, isA<EntradaFallida>());
+        expect(auth.calls, ['signOut']);
+        expect(profile.updateNicknameCalls, 0);
+      },
+    );
+
+    test('un error que no es de Auth al cerrar se propaga aunque la sesión '
+        'local ya no exista', () async {
+      // Solo se toleran los errores de Auth: cualquier otro es un fallo de
+      // verdad, no la respuesta de `/logout` (INT-145).
+      await auth.signInAnonymously();
+      auth.calls.clear();
+      auth.signOutSueltaLaSesionAntesDeFallar = true;
+      auth.throwOnSignOut = StateError('roto');
+
+      final resultado = await _servicio().entrarComoInvitado(['GeoLince']);
+
+      expect(resultado, isA<EntradaFallida>());
+      expect(auth.calls, ['signOut']);
     });
 
     test('si el cierre falla y la sesión sigue viva, el invitado no entra ni '
