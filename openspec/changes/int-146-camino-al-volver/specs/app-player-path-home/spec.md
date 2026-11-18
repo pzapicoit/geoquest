@@ -1,7 +1,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Auto-centrado en la parada actual al cargar
-Al montar la Home, y cada vez que vuelve a ser visible tras volver de jugar, la app SHALL desplazar automáticamente el scroll del camino hasta dejar visible la parada `es_actual`, sin requerir ninguna acción del jugador. Al volver de jugar, el centrado SHALL hacerse con el camino recién recargado, de modo que, si se acaba de desbloquear una parada, se centre la nueva `es_actual`.
+Al montar la Home, la app SHALL desplazar automáticamente el scroll del camino hasta dejar visible la parada `es_actual`, sin requerir ninguna acción del jugador. Al volver a la Home desde otra pantalla, el scroll SHALL conservarse donde estaba —nunca saltar al principio del contenido ni a la última parada— y SHALL volver a centrarse solo si la recarga trae una parada `es_actual` distinta de aquella en la que se centró, de modo que un desbloqueo lleve a la parada nueva sin quitarle al jugador la posición a la que había desplazado a mano.
 
 #### Scenario: Carga inicial con progreso intermedio
 - **WHEN** la Home termina de cargar el camino de un jugador con
@@ -16,7 +16,11 @@ Al montar la Home, y cada vez que vuelve a ser visible tras volver de jugar, la 
 
 #### Scenario: Vuelve de jugar sin desbloquear nada
 - **WHEN** el jugador vuelve a la Home desde el resumen de un nivel ("Volver al camino") sin haber desbloqueado ninguna parada
-- **THEN** el scroll queda centrado en la misma parada `es_actual`, no en el principio del contenido ni en la última parada del camino
+- **THEN** el scroll queda donde estaba al entrar a jugar (la parada `es_actual` sigue a la vista), no en el principio del contenido ni en la última parada del camino
+
+#### Scenario: Vuelve de otra pantalla tras desplazar a mano
+- **WHEN** el jugador desplaza el camino a mano, abre la clasificación o los comodines y vuelve sin que cambie la parada `es_actual`
+- **THEN** el scroll conserva la posición a la que había desplazado
 
 #### Scenario: Vuelve de jugar habiendo desbloqueado una parada
 - **WHEN** el jugador vuelve a la Home y la recarga trae como `es_actual` una parada distinta de la anterior

@@ -33,12 +33,19 @@ con su offset, y no hay parpadeo.
 - *Alternativa:* solo reiniciar `_autoScrolled`. Arregla el centrado, pero
   mantiene el destello del spinner y un salto de offset 0 a la actual.
 
-**D2. Reiniciar el centrado en `didPopNext`.**
-`_autoScrolled = false` junto a la recarga. Con D1, el `builder` se ejecuta
-primero con los datos viejos y luego con los nuevos. El reinicio tiene que
-centrar con los **nuevos**, que son los que pueden traer otra parada actual. Por
-eso el `builder` solo llama a `_autoScroll` cuando
-`connectionState == done`.
+**D2. Recentrar solo si cambia la parada actual.**
+Con D1 el scroll ya no se pierde al volver, así que el problema original queda
+resuelto sin recentrar. Recentrar siempre en `didPopNext` sería molesto, porque
+también se dispara al volver de Clasificación o Comodines: el jugador perdería
+la posición a la que había desplazado a mano. Por eso la pantalla recuerda en qué
+parada centró (`_paradaCentrada`, anotada al programar el centrado) y, con datos
+definitivos (`connectionState == done`), solo vuelve a centrar si la `es_actual`
+nueva es otra. Es lo que pasa tras un desbloqueo.
+
+**D2b. Spinner también en el reintento tras error.**
+El spinner se pinta mientras no hay datos y la lectura no ha terminado
+(`!hasData && connectionState != done`). Eso cubre la primera carga y el
+reintento desde `_ErrorCamino`, que antes también lo mostraba.
 
 **D3. Cifra del riel solo si la parada está desbloqueada.**
 En la columna del riel, el `Text` del acumulado se sustituye por un hueco del

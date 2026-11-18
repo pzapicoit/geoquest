@@ -142,6 +142,13 @@ class _CaminoScreenState extends State<CaminoScreen> with RouteAware {
   late Future<CaminoJugador> _futuro;
   String _nickname = 'Explorador';
   bool _autoScrolled = false;
+
+  /// Parada `esActual` en la que se centró el scroll por última vez (`null`
+  /// si el camino está completo). Al volver de otra pantalla solo se vuelve a
+  /// centrar si ha cambiado (INT-146): así un desbloqueo lleva a la parada
+  /// nueva, pero volver de la clasificación no le quita al jugador la posición
+  /// a la que había desplazado a mano.
+  String? _paradaCentrada;
   bool _mostrarBotonMiNivel = false;
   double _offsetObjetivo = 0;
 
@@ -194,10 +201,6 @@ class _CaminoScreenState extends State<CaminoScreen> with RouteAware {
   void didPopNext() {
     setState(() {
       _futuro = _cargar();
-      // Volver a centrar con el camino recién leído (INT-146): sin esto, el
-      // centrado solo ocurría en la primera carga y, al volver, el scroll se
-      // quedaba donde cayera.
-      _autoScrolled = false;
     });
     // El inventario puede haber cambiado al volver de jugar (un comodín
     // consumido) o de la propia pantalla Comodines (uno concedido por
@@ -253,6 +256,11 @@ class _CaminoScreenState extends State<CaminoScreen> with RouteAware {
   void _autoScroll(List<ParadaCamino> entradas, List<double> tops) {
     if (_autoScrolled) return;
     _autoScrolled = true;
+    // Se anota ya, no en el post-frame: un `build` intermedio (p. ej. el
+    // `setState` del apodo) no debe ver aún la parada anterior y programar
+    // un segundo centrado.
+    final indice = entradas.indexWhere((e) => e.esActual);
+    _paradaCentrada = indice == -1 ? null : entradas[indice].caminoId;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !_controller.hasClients) return;
@@ -402,12 +410,14 @@ class _CaminoScreenState extends State<CaminoScreen> with RouteAware {
         child: FutureBuilder<CaminoJugador>(
           future: _futuro,
           builder: (context, snapshot) {
-            // El spinner solo en la primera carga (INT-146). Al recargar,
-            // `FutureBuilder` conserva los datos anteriores: se sigue
-            // pintando ese camino, con su scroll, hasta que llega el nuevo.
-            // Cambiarlo por el spinner desmontaba la lista, que reaparecía
-            // en el offset 0 (la última parada, arriba del todo).
-            if (!snapshot.hasData && !snapshot.hasError) {
+            // El spinner solo mientras no hay camino que enseñar: la primera
+            // carga y el reintento tras un error (INT-146). Al recargar con
+            // datos, `FutureBuilder` los conserva y se sigue pintando ese
+            // camino, con su scroll, hasta que llega el nuevo. Cambiarlo por
+            // el spinner desmontaba la lista, que reaparecía en el offset 0
+            // (la última parada, arriba del todo).
+            if (!snapshot.hasData &&
+                snapshot.connectionState != ConnectionState.done) {
               return const Center(
                 child: CircularProgressIndicator(color: _teal),
               );
@@ -465,6 +475,10 @@ class _CaminoScreenState extends State<CaminoScreen> with RouteAware {
             // Centrar solo con datos definitivos: mientras recarga, `entradas`
             // son las de antes y la parada actual puede haber cambiado.
             if (snapshot.connectionState == ConnectionState.done) {
+              final actual = indiceActual == -1
+                  ? null
+                  : entradas[indiceActual].caminoId;
+              if (actual != _paradaCentrada) _autoScrolled = false;
               _autoScroll(entradas, tops);
             }
 

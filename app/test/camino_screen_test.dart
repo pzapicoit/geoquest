@@ -1123,17 +1123,59 @@ void main() {
       await tester.pumpAndSettle();
     });
 
-    testWidgets('vuelve centrado en la misma parada actual', (tester) async {
+    testWidgets('sin cambios, no le mueve el scroll al jugador', (
+      tester,
+    ) async {
       final gateway = await montar(tester);
+
+      // El jugador desplaza a mano para mirar otras paradas…
+      await tester.drag(
+        find.byKey(const Key('parada-nivel-3')),
+        const Offset(0, 300),
+      );
+      await tester.pumpAndSettle();
       final antes = centroDe(tester, 'nivel-1');
 
+      // …y vuelve, p. ej., de la clasificación sin que nada cambie.
       await irYVolver(tester, gateway);
       gateway.siguiente.complete(camino(actual: 1));
       await tester.pumpAndSettle();
 
       expect(centroDe(tester, 'nivel-1'), closeTo(antes, 1));
-      expect(centroDe(tester, 'nivel-1'), greaterThan(844 * 0.25));
-      expect(centroDe(tester, 'nivel-1'), lessThan(844 * 0.75));
+    });
+
+    testWidgets('el reintento tras un error enseña el spinner', (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      final gateway = _CaminoEnCola();
+      await tester.pumpWidget(
+        MaterialApp(
+          navigatorObservers: [routeObserver],
+          home: CaminoScreen(
+            caminoGateway: gateway,
+            usernameStorage: UsernameStorage(),
+            comodinesGateway: FakeComodinesGateway(),
+            anunciosGateway: FakeAnunciosGateway(),
+          ),
+        ),
+      );
+      await tester.pump();
+      gateway.siguiente.completeError(Exception('sin red'));
+      await tester.pumpAndSettle();
+      expect(find.text('Reintentar'), findsOneWidget);
+
+      gateway.siguiente = Completer<CaminoJugador>();
+      await tester.tap(find.text('Reintentar'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+
+      gateway.siguiente.complete(camino(actual: 1));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('parada-nivel-1')), findsOneWidget);
     });
 
     testWidgets('si se desbloqueó una parada, centra la nueva actual', (
