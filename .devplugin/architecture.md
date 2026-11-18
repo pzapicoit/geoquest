@@ -157,6 +157,31 @@ Las transiciones entre pantallas tienen dos formas:
 `flutter_animate` está instalado con `Animate.defaultDuration` y
 `Animate.defaultCurve` tomados de `Movimiento`.
 
+Dentro de las pantallas (INT-152), las piezas de `app/lib/motion/` son:
+
+- `Presencia(visible:)`: anima la entrada **y la salida** de un elemento que
+  aparece o desaparece según el estado. Guarda el último hijo para poder
+  sacarlo después de que el estado ya haya cambiado. Mientras sale, o mientras
+  espera su `retraso`, no recibe toques ni semántica. Lo que antes era un
+  `if (...)` dentro de un `Stack` pasa a ser un `Positioned` fijo con una
+  `Presencia` dentro.
+- `Pulsable`: escala a 0,96 mientras se pulsa, con un `Listener` que no
+  compite con los gestos del botón.
+- `FondoDeCarga` y `apareceAlCargar` (el `frameBuilder` de las imágenes de
+  red): brillo mientras llega la imagen y fundido al aparecer, sin cambiar el
+  provider; así la precarga de INT-120 sigue acertando en caché.
+
+En los tests, una `Presencia` que sale sigue en el árbol: hay que esperar un
+fotograma, algo **más** que su duración (el controlador solo da la animación
+por terminada cuando el tiempo la supera) y otro fotograma
+(`_esperarSalida` en `nivel_juego_screen_test.dart`).
+
+La pantalla de juego vibra con `HapticFeedback` en tres momentos: al clavar el
+pin (`selectionClick`, en `MapaMundi`), al confirmar a mano (`mediumImpact`) y
+al terminar de contar una respuesta con puntos (`heavyImpact`, una vez por
+revelado). En web no hace nada. Los tests la espían en el canal
+`SystemChannels.platform`.
+
 ## Flujo de base de datos
 
 **Remote-first.** Las migraciones se escriben en local y se aplican al proyecto
