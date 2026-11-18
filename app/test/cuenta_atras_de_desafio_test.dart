@@ -37,6 +37,84 @@ Future<void> _correr(WidgetTester tester, Duration cuanto) async {
 }
 
 void main() {
+  group('preparar (INT-143)', () {
+    testWidgets('deja la cuenta atrás llena y quieta', (tester) async {
+      await _conCuentaAtras((cuenta, avisos) async {
+        cuenta.preparar(const Duration(seconds: 25));
+        await _correr(tester, const Duration(seconds: 30));
+
+        expect(cuenta.total, const Duration(seconds: 25));
+        expect(cuenta.restante, const Duration(seconds: 25));
+        expect(cuenta.fraccion, 1);
+        expect(cuenta.corriendo, isFalse);
+        expect(avisos, isEmpty, reason: 'quieta, no puede agotarse');
+      });
+    });
+
+    testWidgets('arrancar después cuenta desde el total completo', (
+      tester,
+    ) async {
+      await _conCuentaAtras((cuenta, _) async {
+        cuenta.preparar(const Duration(seconds: 25));
+        await _correr(tester, const Duration(seconds: 10));
+        cuenta.arrancar(const Duration(seconds: 25));
+        await _correr(tester, const Duration(seconds: 5));
+
+        expect(cuenta.restante, const Duration(seconds: 20));
+        expect(cuenta.corriendo, isTrue);
+      });
+    });
+
+    testWidgets('con una cuenta en marcha, la para y la rellena', (
+      tester,
+    ) async {
+      await _conCuentaAtras((cuenta, avisos) async {
+        cuenta.arrancar(const Duration(seconds: 25));
+        await _correr(tester, const Duration(seconds: 20));
+        cuenta.preparar(const Duration(seconds: 25));
+        await _correr(tester, const Duration(seconds: 30));
+
+        expect(cuenta.restante, const Duration(seconds: 25));
+        expect(cuenta.corriendo, isFalse);
+        expect(avisos, isEmpty);
+      });
+    });
+
+    testWidgets('reanudar sigue desde donde se paró, sin rellenar', (
+      tester,
+    ) async {
+      await _conCuentaAtras((cuenta, avisos) async {
+        cuenta.arrancar(const Duration(seconds: 20));
+        await _correr(tester, const Duration(seconds: 5));
+        cuenta.parar();
+        await _correr(tester, const Duration(seconds: 30));
+        expect(cuenta.restante, const Duration(seconds: 15));
+
+        cuenta.reanudar();
+        await _correr(tester, const Duration(seconds: 5));
+        expect(cuenta.restante, const Duration(seconds: 10));
+        expect(cuenta.fraccion, closeTo(0.5, 0.001));
+
+        await _correr(tester, const Duration(seconds: 11));
+        expect(avisos, hasLength(1));
+      });
+    });
+
+    testWidgets('tras agotarse, prepara el siguiente desafío lleno', (
+      tester,
+    ) async {
+      await _conCuentaAtras((cuenta, avisos) async {
+        cuenta.arrancar(const Duration(seconds: 5));
+        await _correr(tester, const Duration(seconds: 6));
+        expect(avisos, hasLength(1));
+
+        cuenta.preparar(const Duration(seconds: 25));
+        expect(cuenta.restante, const Duration(seconds: 25));
+        expect(cuenta.corriendo, isFalse);
+      });
+    });
+  });
+
   group('arranque', () {
     testWidgets('arranca con el tiempo completo del desafío', (tester) async {
       await _conCuentaAtras((cuenta, _) async {

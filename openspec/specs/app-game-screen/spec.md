@@ -442,10 +442,18 @@ La pantalla SHALL mostrar, en la capa fija del HUD, una barra de cuenta
 atrás con etiqueta `m:ss` para el desafío actual, inicializada al
 `segundos_por_desafio` efectivo de la parada en curso (override propio, o
 el de `dificultad_defaults` para su dificultad si no tiene override). La
-barra SHALL marcar el desafío como mostrado (RPC `marcar_desafio_mostrado`)
-en el instante en que se vuelve el actual —al arrancar el intento para el
-primero, al pulsar "Siguiente" para los demás— y SHALL seguir corriendo con
-el toast de pista abierto, igual que el resto del HUD. La barra SHALL
+barra SHALL arrancar, y marcar el desafío como mostrado (RPC
+`marcar_desafio_mostrado`), en el instante en que el jugador cierra por
+primera vez la pista de ese desafío —al pulsar "Listo, voy a adivinar", la X
+o el fondo— y no al mostrarse la pista. Mientras la pista de un desafío no se
+ha cerrado nunca, la barra SHALL mostrarse llena y quieta. La pista SHALL
+tener un tope de lectura de 20 segundos, visible en la propia tarjeta: al
+agotarse, la pista se cierra sola y arranca la cuenta atrás, como si el
+jugador hubiera pulsado "Listo". Con el lector de pantalla activo, el tope
+de lectura SHALL ser de 60 segundos en vez de 20: se amplía, no se quita,
+para que activar el lector no sirva para estudiar la pista sin límite. Si el jugador vuelve a abrir la pista ("Ver
+la pista") con la cuenta atrás ya en marcha, la cuenta atrás SHALL seguir
+corriendo, igual que el resto del HUD. La barra SHALL
 mostrarse en teal mientras quede más de la mitad del tiempo, en ámbar entre
 la mitad y la zona crítica, y en rojo dentro de la zona crítica. Al
 avanzar a un desafío nuevo, la cuenta atrás SHALL reiniciarse a los
@@ -471,11 +479,22 @@ Nada de esto cambia el cálculo del tiempo transcurrido ni del bonus por
 rapidez, que siguen siendo del servidor: el reloj del cliente es
 presentación.
 
-#### Scenario: La cuenta atrás arranca con el desafío
+#### Scenario: La cuenta atrás espera a que se cierre la pista
 - **WHEN** se muestra el primer desafío de un intento en una parada cuyo
-  `segundos_por_desafio` efectivo es 60
-- **THEN** la barra muestra "1:00" en teal y llama a
+  `segundos_por_desafio` efectivo es 60 y el jugador lleva 10 segundos
+  leyendo la pista
+- **THEN** la barra sigue mostrando "1:00" y todavía no se ha llamado a
+  `marcar_desafio_mostrado`
+
+#### Scenario: La cuenta atrás arranca al pulsar "Listo"
+- **WHEN** el jugador pulsa "Listo, voy a adivinar" en la pista
+- **THEN** la barra arranca desde "1:00" en teal y se llama a
   `marcar_desafio_mostrado` para ese desafío
+
+#### Scenario: La pista se cierra sola al agotar su tope de lectura
+- **WHEN** el jugador deja la pista abierta 20 segundos sin cerrarla
+- **THEN** la pista se cierra, la barra arranca desde los segundos completos
+  y se llama a `marcar_desafio_mostrado`
 
 #### Scenario: La cuenta atrás cambia de color al bajar el tiempo
 - **WHEN** quedan menos de la mitad de los segundos efectivos de la parada
@@ -504,16 +523,24 @@ presentación.
   fotograma y luego se entrega uno, en un desafío de 60 segundos
 - **THEN** el tiempo restante es 52 segundos, no 60
 
-#### Scenario: La cuenta atrás sigue corriendo con la pista abierta
-- **WHEN** el jugador tiene el toast de pista abierto
-- **THEN** la cuenta atrás sigue descontando, visible por encima del toast
+#### Scenario: Tope de lectura ampliado con lector de pantalla
+- **WHEN** el jugador usa un lector de pantalla y deja la pista abierta 25
+  segundos
+- **THEN** la pista sigue abierta y la cuenta atrás sigue llena y quieta
+- **AND** a los 60 segundos la pista se cierra sola y arranca la cuenta atrás
+
+#### Scenario: Reabrir la pista no para la cuenta atrás
+- **WHEN** el jugador vuelve a abrir la pista con "Ver la pista" después de
+  haberla cerrado
+- **THEN** la cuenta atrás sigue descontando, visible por encima del toast,
+  y no se vuelve a llamar a `marcar_desafio_mostrado`
 
 #### Scenario: Avanzar a un desafío nuevo reinicia la cuenta atrás
 - **WHEN** el jugador pulsa "Siguiente" desde el revelado y pasa al
   desafío siguiente
 - **THEN** la cuenta atrás vuelve a mostrar los segundos completos
-  efectivos de la parada y llama a `marcar_desafio_mostrado` para el nuevo
-  desafío
+  efectivos de la parada, quieta hasta que el jugador cierre la pista del
+  nuevo desafío, y solo entonces llama a `marcar_desafio_mostrado` para él
 
 ### Requirement: Comportamiento al agotar el tiempo
 Cuando la cuenta atrás llega a 0 con un pin colocado, la pantalla SHALL
@@ -746,3 +773,4 @@ quede pendiente SHALL NOT tocar el estado de la pantalla ni provocar error.
   precargas sin resolver
 - **THEN** las precargas que se resuelvan después no modifican estado ni
   provocan error
+

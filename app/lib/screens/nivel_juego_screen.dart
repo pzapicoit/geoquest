@@ -203,6 +203,24 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
   /// Posición dentro del intento: avanza al pulsar "Siguiente".
   int _indice = 0;
   bool _pistaVisible = true;
+
+  /// Desafío cuya cuenta atrás ya arrancó (INT-143). Arranca la primera vez
+  /// que se cierra su pista, no al mostrarse; reabrirla después no la para.
+  String? _relojArrancadoPara;
+
+  /// Tope de lectura de la pista (INT-143): una sola fuente de verdad que
+  /// mueve la barra de la tarjeta y, al agotarse, cierra la pista. Va por
+  /// reloj de pared, como la cuenta atrás del desafío (INT-114): si se dejan
+  /// de entregar fotogramas, el tope no se alarga. Los diálogos no pausan los
+  /// tickers de debajo, así que el de «Salir» lo pausa a mano.
+  late final CuentaAtrasDeDesafio _topeDeLectura = CuentaAtrasDeDesafio(
+    vsync: this,
+    ahora: widget.ahora,
+    alAgotarse: () {
+      if (mounted && _pistaVisible) _cerrarPista();
+    },
+  );
+
   bool _enviando = false;
   bool _cerrando = false;
   int _puntaje = 0;
@@ -267,6 +285,7 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
   @override
   void dispose() {
     _temporizadorDelMensaje?.cancel();
+    _topeDeLectura.dispose();
     _cuentaAtras.dispose();
     _coreografia.dispose();
     _zoomComodin.dispose();
@@ -293,7 +312,7 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
 
   void _alCargarElIntento(IntentoNivel intento) {
     if (!mounted || intento.desafios.isEmpty) return;
-    _arrancarCuentaAtras(intento, intento.desafios[_indice].id);
+    _prepararCuentaAtras(intento);
     // Sin `await` a propósito (D1 de `design.md`): la partida no espera a la
     // precarga, que corre de fondo mientras el jugador juega.
     _precargarImagenesDelIntento(intento);
@@ -475,7 +494,39 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
         MotivoRechazoComodin.desconocido => 'No se pudo usar el comodín',
       };
 
-  void _cerrarPista() => setState(() => _pistaVisible = false);
+  /// Cierra la pista. La primera vez para cada desafío arranca su cuenta
+  /// atrás y lo marca como mostrado en el servidor (INT-143): el tiempo de
+  /// respuesta y el bonus por rapidez se miden desde aquí, no desde que se
+  /// enseñó la pista.
+  void _cerrarPista() {
+    _topeDeLectura.parar();
+    setState(() => _pistaVisible = false);
+
+    final intento = _intento;
+    if (intento == null || _revelado != null) return;
+    final desafioId = intento.desafios[_indice].id;
+    if (_relojArrancadoPara == desafioId) return;
+    _relojArrancadoPara = desafioId;
+    _arrancarCuentaAtras(intento, desafioId);
+  }
+
+  /// Deja la cuenta atrás del desafío actual llena y quieta y arma el tope de
+  /// lectura de su pista, que se acaba de abrir (INT-143).
+  void _prepararCuentaAtras(IntentoNivel intento) {
+    _intento = intento;
+    _cuentaAtras.preparar(Duration(seconds: intento.segundosPorDesafio));
+    // Con el lector de pantalla activo el tope es más largo (WCAG 2.2.1, tiempo
+    // ajustable): leer la pista con él lleva más que mirarla. Más largo y no
+    // quitado: sin tope, activar el lector bastaría para estudiar la pista sin
+    // límite y llevarse el bonus por rapidez completo.
+    _topeDeLectura.arrancar(
+      Duration(
+        seconds: _conLectorDePantalla
+            ? segundosDeLecturaConLector
+            : segundosDeLecturaDePista,
+      ),
+    );
+  }
 
   void _abrirPista() => setState(() => _pistaVisible = true);
 
@@ -748,7 +799,7 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
       _tamanoDelRevelado = null;
       _barraInferiorDelRevelado = null;
     });
-    _arrancarCuentaAtras(intento, intento.desafios[siguiente].id);
+    _prepararCuentaAtras(intento);
   }
 
   /// Cierra el intento al terminar el último desafío y, si sale bien, entra
@@ -789,14 +840,26 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
     }
   }
 
+  bool get _conLectorDePantalla =>
+      MediaQuery.maybeAccessibleNavigationOf(context) ?? false;
+
   Future<void> _pedirSalir() async {
+    // El diálogo no es opaco, así que no pausa los tickers de debajo: sin
+    // esto, el tope de lectura seguía corriendo detrás y podía cerrar la
+    // pista y arrancar el reloj mientras el jugador decidía (INT-143).
+    final topeEnMarcha = _topeDeLectura.corriendo;
+    if (topeEnMarcha) _topeDeLectura.parar();
     final salir = await showDialog<bool>(
       context: context,
       barrierColor: const Color(0xC7060E14),
       builder: (_) =>
           _ModalSalir(puntaje: _puntajeConElRevelado, posicion: _indice + 1),
     );
-    if (salir == true && mounted) Navigator.of(context).pop();
+    if (salir == true && mounted) {
+      Navigator.of(context).pop();
+      return;
+    }
+    if (topeEnMarcha && mounted && _pistaVisible) _topeDeLectura.reanudar();
   }
 
   @override
@@ -891,6 +954,13 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
                     objetivoGlobal: intento.objetivoGlobal,
                     posicion: _indice + 1,
                     onListo: _cerrarPista,
+                    // Solo la primera vez: con el reloj ya en marcha, reabrir
+                    // la pista no tiene tope (INT-143).
+                    topeDeLectura:
+                        _relojArrancadoPara != desafioActual.id &&
+                            _topeDeLectura.restante > Duration.zero
+                        ? _topeDeLectura
+                        : null,
                   ),
                 ),
               // La bandeja solo se ofrece en la fase de adivinar (INT-119):
@@ -2424,12 +2494,14 @@ class _ToastPista extends StatelessWidget {
     required this.objetivoGlobal,
     required this.posicion,
     required this.onListo,
+    required this.topeDeLectura,
   });
 
   final DesafioJuego desafio;
   final String objetivoGlobal;
   final int posicion;
   final VoidCallback onListo;
+  final CuentaAtrasDeDesafio? topeDeLectura;
 
   @override
   Widget build(BuildContext context) {
@@ -2480,6 +2552,7 @@ class _ToastPista extends StatelessWidget {
                         objetivoGlobal: objetivoGlobal,
                         posicion: posicion,
                         onListo: onListo,
+                        topeDeLectura: topeDeLectura,
                       ),
                     ),
                   ),
@@ -2499,6 +2572,7 @@ class _TarjetaDePista extends StatelessWidget {
     required this.objetivoGlobal,
     required this.posicion,
     required this.onListo,
+    required this.topeDeLectura,
   });
 
   final DesafioJuego desafio;
@@ -2506,8 +2580,14 @@ class _TarjetaDePista extends StatelessWidget {
   final int posicion;
   final VoidCallback onListo;
 
+  /// Avance del tope de lectura (INT-143): con él, una barra bajo "Listo"
+  /// enseña cuánto queda antes de que la pista se cierre sola.
+  final CuentaAtrasDeDesafio? topeDeLectura;
+
   @override
   Widget build(BuildContext context) {
+    final tope = topeDeLectura;
+    final segundosDeLectura = tope?.total.inSeconds;
     return Container(
       decoration: BoxDecoration(
         color: _cardBg,
@@ -2585,6 +2665,12 @@ class _TarjetaDePista extends StatelessWidget {
                 ),
                 child: Text(
                   'Listo, voy a adivinar',
+                  // Aviso estático del tope para el lector de pantalla, en
+                  // lugar de la barra que cambia cada fotograma (INT-143).
+                  semanticsLabel: segundosDeLectura == null
+                      ? null
+                      : 'Listo, voy a adivinar. Tienes $segundosDeLectura '
+                            'segundos para leer la pista',
                   style: GoogleFonts.baloo2(
                     color: Colors.white,
                     fontSize: 17,
@@ -2594,11 +2680,43 @@ class _TarjetaDePista extends StatelessWidget {
               ),
             ),
           ),
+          if (topeDeLectura case final tope?) ...[
+            const SizedBox(height: 10),
+            // Cuánto queda del tope de lectura: al vaciarse, la pista se
+            // cierra sola y arranca el reloj (INT-143). Fuera del árbol de
+            // semántica: su valor cambia en cada fotograma y el lector de
+            // pantalla lo anunciaría sin parar; en su lugar, el botón «Listo»
+            // dice una vez cuántos segundos hay.
+            ExcludeSemantics(
+              child: AnimatedBuilder(
+                animation: tope,
+                builder: (context, _) => ClipRRect(
+                  borderRadius: BorderRadius.circular(99),
+                  child: LinearProgressIndicator(
+                    key: const Key('nivel-juego-tope-de-lectura'),
+                    value: tope.fraccion,
+                    minHeight: 3,
+                    backgroundColor: Colors.white.withValues(alpha: 0.12),
+                    color: Colors.white.withValues(alpha: 0.6),
+                  ),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
   }
 }
+
+/// Tope de lectura de la pista antes de que arranque el reloj (INT-143). Sin
+/// tope se podría estudiar la imagen sin límite con la cuenta atrás parada y
+/// contestar al instante con el bonus por rapidez completo.
+const segundosDeLecturaDePista = 20;
+
+/// Tope de lectura con el lector de pantalla activo (INT-143): leer la pista
+/// con él lleva más tiempo, y WCAG 2.2.1 pide poder ampliar los límites.
+const segundosDeLecturaConLector = 60;
 
 /// Pie explicativo fijo por tipo de pista (D10 de `design.md`): `desafios` no
 /// tiene ninguna columna equivalente y el texto no varía por desafío.
