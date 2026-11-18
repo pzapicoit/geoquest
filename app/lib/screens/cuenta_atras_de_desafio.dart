@@ -111,6 +111,15 @@ class CuentaAtrasDeDesafio extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Sigue contando desde donde la dejó [parar], sin rellenarla (INT-143,
+  /// tope de lectura de la pista tras cerrar el diálogo «Salir»).
+  void reanudar() {
+    if (_ticker.isActive || _restante <= Duration.zero) return;
+    _fin = _ahora().add(_restante);
+    _ticker.start();
+    notifyListeners();
+  }
+
   /// Deja la cuenta atrás quieta donde esté: se confirmó la respuesta, la
   /// pantalla se va, o el jugador consumió el comodín "tiempo" (INT-119
   /// delta-1: deja la pregunta sin límite de tiempo, no solo un margen

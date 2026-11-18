@@ -80,6 +80,26 @@ void main() {
       });
     });
 
+    testWidgets('reanudar sigue desde donde se paró, sin rellenar', (
+      tester,
+    ) async {
+      await _conCuentaAtras((cuenta, avisos) async {
+        cuenta.arrancar(const Duration(seconds: 20));
+        await _correr(tester, const Duration(seconds: 5));
+        cuenta.parar();
+        await _correr(tester, const Duration(seconds: 30));
+        expect(cuenta.restante, const Duration(seconds: 15));
+
+        cuenta.reanudar();
+        await _correr(tester, const Duration(seconds: 5));
+        expect(cuenta.restante, const Duration(seconds: 10));
+        expect(cuenta.fraccion, closeTo(0.5, 0.001));
+
+        await _correr(tester, const Duration(seconds: 11));
+        expect(avisos, hasLength(1));
+      });
+    });
+
     testWidgets('tras agotarse, prepara el siguiente desafío lleno', (
       tester,
     ) async {

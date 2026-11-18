@@ -1319,6 +1319,12 @@ void main() {
 
       expect(find.byKey(const Key('nivel-juego-boton-listo')), findsOneWidget);
       expect(gateway.desafiosMarcadosMostrados, isEmpty);
+
+      // Y al seguir jugando, el tope se reanuda hasta cerrar la pista.
+      await tester.pump(const Duration(seconds: segundosDeLecturaDePista));
+      await tester.pump();
+      expect(find.byKey(const Key('nivel-juego-boton-listo')), findsNothing);
+      expect(gateway.desafiosMarcadosMostrados, ['d3']);
     });
 
     testWidgets('cerrar la pista a mano cancela su tope de lectura (INT-143)', (
