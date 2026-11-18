@@ -14,6 +14,7 @@ import '../services/username_storage.dart';
 import 'entry_backdrop.dart';
 import 'entry_motion.dart';
 import 'login_screen.dart';
+import '../motion/rutas.dart';
 
 /// Pantalla de carga inicial (INT-88).
 ///
@@ -101,8 +102,8 @@ class _SplashScreenState extends State<SplashScreen> {
   void _navigateNext() {
     if (!mounted) return;
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
-        builder: (_) => LoginScreen(
+      rutaDeRelevo(
+        (_) => LoginScreen(
           usernameStorage: widget.usernameStorage,
           profileGateway: widget.profileGateway,
           caminoGateway: widget.caminoGateway,

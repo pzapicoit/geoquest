@@ -14,6 +14,7 @@ import 'camino_screen.dart';
 import 'entry_backdrop.dart';
 import 'entry_motion.dart';
 import 'entry_widgets.dart';
+import '../motion/rutas.dart';
 
 /// Pantalla de acceso (INT-89, rediseñada en INT-108, convertida en login real
 /// en INT-128): apodo y contraseña, con un solo botón que crea el perfil si el
@@ -188,9 +189,8 @@ class _UsernameScreenState extends State<UsernameScreen> {
   void _resolver(EntradaResult resultado, {bool comoInvitado = false}) {
     switch (resultado) {
       case EntradaCompletada():
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const CaminoScreen()),
-        );
+        Navigator.of(context)
+            .pushReplacement(rutaDeRelevo((_) => const CaminoScreen()));
       case ContrasenaIncorrecta():
         setState(() {
           _saving = false;

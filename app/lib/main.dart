@@ -3,10 +3,13 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'config/app_config.dart';
+import 'motion/movimiento.dart';
+import 'motion/rutas.dart';
 import 'route_observer.dart';
 import 'screens/marco_de_movil.dart';
 import 'screens/splash_screen.dart';
@@ -46,6 +49,11 @@ Future<void> main() async {
     unawaited(MobileAds.instance.initialize());
   }
 
+  // INT-151: las animaciones de `flutter_animate` heredan el ritmo común de
+  // la app salvo que una pantalla pida otro explícitamente.
+  Animate.defaultDuration = Movimiento.media;
+  Animate.defaultCurve = Movimiento.llegada;
+
   runApp(GeoQuestApp(config: config));
 }
 
@@ -60,6 +68,7 @@ class GeoQuestApp extends StatelessWidget {
       title: 'GeoQuest',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF1B6B4C)),
+        pageTransitionsTheme: temaDeTransiciones(web: kIsWeb),
       ),
       navigatorObservers: [routeObserver],
       // Encajona la app en una franja vertical si la ventana es más ancha que

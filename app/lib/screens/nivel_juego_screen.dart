@@ -13,6 +13,8 @@ import '../services/nivel_juego_gateway.dart';
 import 'bandeja_comodines.dart';
 import 'cuenta_atras_de_desafio.dart';
 import 'resumen_nivel_screen.dart';
+import '../motion/movimiento.dart';
+import '../motion/rutas.dart';
 
 const _ink = Color(0xFF0E1620);
 const _cardBg = Color(0xFF16242F);
@@ -814,8 +816,8 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
 
       setState(() => _cerrando = false);
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (_) => ResumenNivelScreen(
+        rutaDeRelevo(
+          (_) => ResumenNivelScreen(
             resultado: resultado,
             caminoId: widget.caminoId,
             nivelNombre: widget.nivelNombre,
@@ -924,7 +926,7 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
                         opacidad: opacidadDelMarcoCritico(
                           restante: _cuentaAtras.restante,
                           umbral: _cuentaAtras.umbralCritico,
-                          conLatido: !MediaQuery.of(context).disableAnimations,
+                          conLatido: !movimientoReducido(context),
                         ),
                       ),
                     ),

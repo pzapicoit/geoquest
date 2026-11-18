@@ -8,6 +8,7 @@ import '../mapa/mapa_mundi.dart';
 import '../services/comodines_gateway.dart';
 import '../services/nivel_juego_gateway.dart';
 import 'nivel_juego_screen.dart' show NivelJuegoScreen, formatearPuntaje;
+import '../motion/rutas.dart';
 
 const _ink = Color(0xFF0E1620);
 const _teal = Color(0xFF2BC0A8);
@@ -132,8 +133,8 @@ class _ResumenNivelScreenState extends State<ResumenNivelScreen> {
 
   void _reintentar() {
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
-        builder: (_) => NivelJuegoScreen(
+      rutaDeRelevo(
+        (_) => NivelJuegoScreen(
           caminoId: widget.caminoId,
           nivelNombre: widget.nivelNombre,
           nivelOrden: widget.nivelOrden,
