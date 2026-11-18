@@ -73,6 +73,14 @@ const _grayscale = <double>[
   0, 0, 0, 1, 0, //
 ];
 
+/// Estilo de la cifra del riel. Compartido con el hueco de las paradas
+/// bloqueadas para que ocupe exactamente el mismo alto (INT-146).
+TextStyle get _estiloPuntosRiel => GoogleFonts.baloo2(
+  color: Colors.white.withValues(alpha: 0.85),
+  fontSize: 11,
+  fontWeight: FontWeight.w800,
+);
+
 String _formatMiles(int n) {
   final texto = n.toString();
   final buffer = StringBuffer();
@@ -186,6 +194,10 @@ class _CaminoScreenState extends State<CaminoScreen> with RouteAware {
   void didPopNext() {
     setState(() {
       _futuro = _cargar();
+      // Volver a centrar con el camino recién leído (INT-146): sin esto, el
+      // centrado solo ocurría en la primera carga y, al volver, el scroll se
+      // quedaba donde cayera.
+      _autoScrolled = false;
     });
     // El inventario puede haber cambiado al volver de jugar (un comodín
     // consumido) o de la propia pantalla Comodines (uno concedido por
@@ -390,7 +402,12 @@ class _CaminoScreenState extends State<CaminoScreen> with RouteAware {
         child: FutureBuilder<CaminoJugador>(
           future: _futuro,
           builder: (context, snapshot) {
-            if (snapshot.connectionState != ConnectionState.done) {
+            // El spinner solo en la primera carga (INT-146). Al recargar,
+            // `FutureBuilder` conserva los datos anteriores: se sigue
+            // pintando ese camino, con su scroll, hasta que llega el nuevo.
+            // Cambiarlo por el spinner desmontaba la lista, que reaparecía
+            // en el offset 0 (la última parada, arriba del todo).
+            if (!snapshot.hasData && !snapshot.hasError) {
               return const Center(
                 child: CircularProgressIndicator(color: _teal),
               );
@@ -445,7 +462,11 @@ class _CaminoScreenState extends State<CaminoScreen> with RouteAware {
                 ? 0.0
                 : tops[indiceActual] + _paradaAltura / 2;
 
-            _autoScroll(entradas, tops);
+            // Centrar solo con datos definitivos: mientras recarga, `entradas`
+            // son las de antes y la parada actual puede haber cambiado.
+            if (snapshot.connectionState == ConnectionState.done) {
+              _autoScroll(entradas, tops);
+            }
 
             return Stack(
               children: [
@@ -882,22 +903,23 @@ class _ParadaTile extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 5),
-                Text(
-                  // Los puntos acumulados HASTA esta parada, no el total del
-                  // jugador repetido en todas (como hacía INT-112): el riel se
-                  // lee como una barra de progreso, y el indicador de la
-                  // última parada coincide con la píldora de la cabecera por
-                  // construcción (INT-123, D3).
-                  _formatMiles(parada.puntosAcumulados),
-                  key: Key('parada-puntos-${parada.caminoId}'),
-                  style: GoogleFonts.baloo2(
-                    color: Colors.white.withValues(
-                      alpha: bloqueado ? 0.4 : 0.85,
-                    ),
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
+                // Las paradas bloqueadas no enseñan cifra (INT-146): repetían
+                // el acumulado anterior y parecían tener ya puntos. Un texto
+                // vacío con el mismo estilo deja el mismo alto, así que la
+                // marca no se mueve, y no se anuncia al lector de pantalla.
+                if (bloqueado)
+                  ExcludeSemantics(child: Text(' ', style: _estiloPuntosRiel))
+                else
+                  Text(
+                    // Los puntos acumulados HASTA esta parada, no el total del
+                    // jugador repetido en todas (como hacía INT-112): el riel
+                    // se lee como una barra de progreso, y el indicador de la
+                    // última parada desbloqueada coincide con la píldora de la
+                    // cabecera por construcción (INT-123, D3).
+                    _formatMiles(parada.puntosAcumulados),
+                    key: Key('parada-puntos-${parada.caminoId}'),
+                    style: _estiloPuntosRiel,
                   ),
-                ),
               ],
             ),
           ),
