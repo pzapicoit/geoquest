@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:geoquest/screens/camino_screen.dart';
@@ -17,7 +19,15 @@ import 'fakes/fake_profile_gateway.dart';
 
 late FakeAuthGateway auth;
 late FakeEstadoApodoGateway estadoApodo;
-late FakeCaminoGateway camino;
+late CaminoGateway camino;
+
+/// Un camino que no termina de llegar, para ver la pantalla mientras carga.
+class _CaminoPendiente implements CaminoGateway {
+  final completer = Completer<CaminoJugador>();
+
+  @override
+  Future<CaminoJugador> fetchCamino() => completer.future;
+}
 
 /// Una parada mínima del camino para las insignias (INT-144): solo importan
 /// cuántas hay y de qué temática es cada una.
@@ -141,7 +151,7 @@ void main() {
       expect(find.text('6 TEMÁTICAS'), findsOneWidget);
       expect(find.textContaining('RÉCORD'), findsNothing);
       expect(find.text('13 NIVELES'), findsNothing);
-      expect(camino.fetchCaminoCalls, 1);
+      expect((camino as FakeCaminoGateway).fetchCaminoCalls, 1);
     });
 
     testWidgets('con texto grande no se recortan ni desbordan', (tester) async {
@@ -165,6 +175,42 @@ void main() {
       semantica.dispose();
     });
 
+    testWidgets('mientras carga se reserva su hueco, del mismo alto', (
+      tester,
+    ) async {
+      final pendiente = _CaminoPendiente();
+      camino = pendiente;
+
+      await _pump(tester, profileGateway: FakeProfileGateway());
+      final hueco = tester.getSize(find.byType(Visibility).first).height;
+      final tituloAntes = tester.getTopLeft(find.text('Entra a jugar')).dy;
+
+      expect(find.textContaining('NIVEL'), findsNothing);
+      expect(hueco, greaterThan(0));
+
+      pendiente.completer.complete(_caminoReal());
+      await tester.pumpAndSettle();
+
+      expect(find.text('8 NIVELES'), findsOneWidget);
+      // Las dos insignias van en la misma línea, y el título no se mueve.
+      expect(
+        tester.getTopLeft(find.text('8 NIVELES')).dy,
+        tester.getTopLeft(find.text('6 TEMÁTICAS')).dy,
+      );
+      expect(tester.getTopLeft(find.text('Entra a jugar')).dy, tituloAntes);
+    });
+
+    testWidgets('un camino vacío no muestra «0 NIVELES»', (tester) async {
+      camino = FakeCaminoGateway(
+        const CaminoJugador(entradas: [], puntosTotales: 0),
+      );
+
+      await _pump(tester, profileGateway: FakeProfileGateway());
+
+      expect(find.textContaining('NIVEL'), findsNothing);
+      expect(find.textContaining('TEMÁTICA'), findsNothing);
+    });
+
     testWidgets('usan el singular con una parada', (tester) async {
       camino = FakeCaminoGateway(
         CaminoJugador(entradas: [_parada(1, 'monumentos')], puntosTotales: 0),
@@ -179,7 +225,7 @@ void main() {
     testWidgets('si falla la lectura no se muestran y se puede entrar', (
       tester,
     ) async {
-      camino.throwOnNextCall = Exception('sin red');
+      (camino as FakeCaminoGateway).throwOnNextCall = Exception('sin red');
 
       await _pump(tester, profileGateway: FakeProfileGateway());
 

@@ -44,7 +44,8 @@ class _LoginScreenState extends State<LoginScreen> {
   late final UsernameStorage _usernameStorage =
       widget.usernameStorage ?? UsernameStorage();
   // `late` para no tocar `Supabase.instance` (y así no exigir que esté
-  // inicializado) salvo que de verdad se llegue al estado "regreso".
+  // inicializado) hasta que alguien lo use: la bienvenida de regreso y, desde
+  // INT-144, las insignias de la pantalla de apodo.
   late final CaminoGateway _caminoGateway =
       widget.caminoGateway ?? SupabaseCaminoGateway(Supabase.instance.client);
 

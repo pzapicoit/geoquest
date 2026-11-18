@@ -2,9 +2,14 @@
 
 `UsernameScreen` no recibe ningún gateway de datos de juego: solo almacenamiento,
 perfil, sesión y roster. `LoginScreen`, que la construye, ya tiene un
-`CaminoGateway`, que usa la bienvenida. Cuando se muestra la pantalla de apodo ya
-existe una sesión anónima, creada por el splash, así que `camino_jugador` es
-legible.
+`CaminoGateway`, que usa la bienvenida. En el primer arranque, la pantalla de
+apodo llega con una sesión anónima creada por el splash. Tras «Cambiar de
+jugador» o «Descartar», en cambio, llega **sin sesión**: esas operaciones cierran
+la sesión y no crean otra. La lectura funciona igual, porque `camino_jugador`
+parte de `camino` y usa `auth.uid()` solo para el progreso, así que sin sesión
+devuelve las paradas con el progreso a cero. Si esa vista llegara a filtrar por
+usuario, las insignias se quedarían en el hueco: nunca enseñarían ceros, porque
+un camino vacío también deja el hueco.
 
 ## Goals / Non-Goals
 
@@ -29,8 +34,11 @@ Lanza `fetchCamino()` una vez en `initState`. «Niveles» es `entradas.length`;
   descarta por coherencia con `app-login` y por no hacer dos lecturas.
 
 **D2. Hueco reservado mientras carga.**
-Mientras no hay datos, o si falla la lectura, se pinta un `SizedBox` con la
-altura de una insignia en vez de la fila. Así el título y el formulario no saltan
+Mientras no hay datos, si falla la lectura o si el camino está vacío, se pinta
+una insignia invisible (`Visibility` con `maintainSize`) en vez de la fila: mide
+lo mismo que la real con cualquier escala de texto. Las insignias van en un
+`Wrap`, para que con texto muy grande bajen de línea en vez de desbordar, y la
+fila se lee como una sola frase en el lector de pantalla. Así el título y el formulario no saltan
 cuando llegan las cifras. Un fallo no se reporta al jugador: las insignias son
 decorativas y no deben bloquear la entrada.
 
@@ -45,3 +53,6 @@ la lista entera. El splash elige uno en `initState` con un `Random` inyectable
   bienvenida y no bloquea nada: las insignias aparecen cuando llegan.
 - [Las cifras cambian al editar el camino desde el panel] → Es lo deseado: dejan
   de estar desfasadas.
+- [Lectura colgada] → No hay timeout: si la petición no vuelve, el hueco se
+  queda vacío. No bloquea la entrada, y es el mismo comportamiento que el resto
+  de lecturas de la app.

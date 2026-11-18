@@ -506,7 +506,9 @@ class _BrandHeader extends StatelessWidget {
               final datos = snapshot.data;
               // Mientras carga, o si falla, se reserva el hueco de una
               // insignia para que el formulario no salte al llegar los datos.
-              if (datos == null) {
+              // Un camino vacío tampoco da cifras: «0 NIVELES» sería otra
+              // cifra que no dice nada del juego.
+              if (datos == null || datos.entradas.isEmpty) {
                 // Una insignia invisible, no un alto fijo: así el hueco mide
                 // lo mismo que la real con cualquier escala de texto.
                 return const Visibility(
@@ -591,9 +593,10 @@ class _StatBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
+      // Sin `alignment`: con él, el Container ocupa todo el ancho que le da
+      // el Wrap y cada insignia acabaría en su propia línea.
       constraints: const BoxConstraints(minHeight: alturaMinima),
-      alignment: Alignment.center,
-      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
       decoration: BoxDecoration(
         color: background,
         borderRadius: BorderRadius.circular(12),

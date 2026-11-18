@@ -154,7 +154,8 @@ class _SplashScreenState extends State<SplashScreen> {
 /// de un juego por GPS que GeoQuest no es.
 const consejosDeCarga = [
   'Coloca tu pin en el mapa: cuanto más cerca del lugar real, más puntos.',
-  'Responde rápido: el tiempo que te sobra suma un bonus a tus puntos.',
+  'Acierta y responde rápido: el tiempo que te sobra suma un bonus a tus '
+      'puntos.',
   'Consigue estrellas en cada parada para desbloquear las siguientes del '
       'camino.',
   '¿Te atascas? Usa un comodín: parar el reloj, ver el país o un círculo de '
