@@ -1,4 +1,5 @@
 import 'package:animations/animations.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 import 'movimiento.dart';
@@ -39,9 +40,69 @@ class TransicionDeProfundidad extends PageTransitionsBuilder {
   }
 }
 
+/// Transición nativa de iOS para las rutas apiladas, que conserva el gesto de
+/// deslizar desde el borde para volver (D3 de `design.md`). Con «reducir
+/// movimiento» se queda en un fundido: la de Cupertino no lo consulta y
+/// desplazaría la pantalla igualmente.
+class TransicionNativaDeIOS extends PageTransitionsBuilder {
+  const TransicionNativaDeIOS();
+
+  static const _cupertino = CupertinoPageTransitionsBuilder();
+
+  @override
+  Duration get transitionDuration => _cupertino.transitionDuration;
+
+  @override
+  Duration get reverseTransitionDuration =>
+      _cupertino.reverseTransitionDuration;
+
+  @override
+  DelegatedTransitionBuilder? get delegatedTransition =>
+      _cupertino.delegatedTransition;
+
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T> route,
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) {
+    if (movimientoReducido(context)) {
+      return FadeTransition(opacity: animation, child: child);
+    }
+    return _cupertino.buildTransitions(
+      route,
+      context,
+      animation,
+      secondaryAnimation,
+      child,
+    );
+  }
+}
+
+/// Transiciones de las rutas apiladas de la app (D2/D3 de `design.md`): la
+/// del juego en todas partes salvo en la app nativa de iOS, que conserva la
+/// suya por el gesto de volver.
+///
+/// En web, también en el navegador de un iPhone, se usa la del juego: allí el
+/// gesto de volver es el del propio navegador, no el de Cupertino.
+PageTransitionsTheme temaDeTransiciones({required bool web}) {
+  const juego = TransicionDeProfundidad();
+  return PageTransitionsTheme(
+    builders: {
+      for (final plataforma in TargetPlatform.values) plataforma: juego,
+      if (!web) TargetPlatform.iOS: const TransicionNativaDeIOS(),
+    },
+  );
+}
+
 /// Ruta para sustituir la pantalla actual por otra (`pushReplacement`): un
 /// fundido cruzado en todas las plataformas, porque al relevar una pantalla
-/// no hay jerarquía que expresar ni gesto de volver que conservar.
+/// no hay jerarquía que expresar.
+///
+/// No lleva el gesto de volver de iOS: el resumen y el nivel reintentado
+/// vuelven al camino con sus propios botones (D3 de `design.md`).
 Route<T> rutaDeRelevo<T>(WidgetBuilder builder) {
   return PageRouteBuilder<T>(
     transitionDuration: Movimiento.pantalla,

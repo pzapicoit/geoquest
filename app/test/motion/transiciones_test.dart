@@ -2,7 +2,6 @@ import 'package:animations/animations.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:geoquest/main.dart' show temaDeTransiciones;
 import 'package:geoquest/motion/movimiento.dart';
 import 'package:geoquest/motion/rutas.dart';
 
@@ -15,7 +14,7 @@ void main() {
     bool reducirMovimiento = false,
   }) {
     return MaterialApp(
-      theme: ThemeData(pageTransitionsTheme: temaDeTransiciones),
+      theme: ThemeData(pageTransitionsTheme: temaDeTransiciones(web: false)),
       builder: (context, child) => MediaQuery(
         data: MediaQuery.of(context)
             .copyWith(disableAnimations: reducirMovimiento),
@@ -75,11 +74,12 @@ void main() {
   });
 
   group('tema de transiciones', () {
-    test('usa la transición del juego en todas las plataformas salvo iOS', () {
+    test('en la app nativa usa la del juego salvo en iOS', () {
+      final tema = temaDeTransiciones(web: false);
       for (final plataforma in TargetPlatform.values) {
-        final builder = temaDeTransiciones.builders[plataforma];
+        final builder = tema.builders[plataforma];
         if (plataforma == TargetPlatform.iOS) {
-          expect(builder, isA<CupertinoPageTransitionsBuilder>());
+          expect(builder, isA<TransicionNativaDeIOS>());
         } else {
           expect(
             builder,
@@ -88,6 +88,24 @@ void main() {
           );
         }
       }
+    });
+
+    test('en web usa la del juego en todas las plataformas, iOS incluido', () {
+      final tema = temaDeTransiciones(web: true);
+      for (final plataforma in TargetPlatform.values) {
+        expect(
+          tema.builders[plataforma],
+          isA<TransicionDeProfundidad>(),
+          reason: '$plataforma',
+        );
+      }
+    });
+
+    test('la nativa de iOS conserva el ritmo de Cupertino', () {
+      const nativa = TransicionNativaDeIOS();
+      const cupertino = CupertinoPageTransitionsBuilder();
+      expect(nativa.transitionDuration, cupertino.transitionDuration);
+      expect(nativa.delegatedTransition, isNotNull);
     });
 
     test('la transición dura lo que marca la base común', () {
@@ -156,6 +174,41 @@ void main() {
       await tester.pumpAndSettle();
     }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
   });
+
+  testWidgets(
+    'en iOS con «reducir movimiento» solo hay fundido, sin desplazamiento',
+    (tester) async {
+      await tester.pumpWidget(
+        appDePrueba(
+          reducirMovimiento: true,
+          navegar: (nav) => nav.push(MaterialPageRoute<void>(builder: destino)),
+        ),
+      );
+      await tester.tap(find.text('ir'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+
+      expect(find.byType(CupertinoPageTransition), findsNothing);
+      expect(
+        find.ancestor(
+          of: find.byKey(const Key('destino')),
+          matching: find.byType(SlideTransition),
+        ),
+        findsNothing,
+      );
+      expect(
+        find.ancestor(
+          of: find.byKey(const Key('destino')),
+          matching: find.byType(FadeTransition),
+        ),
+        findsWidgets,
+      );
+
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('destino')), findsOneWidget);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.iOS),
+  );
 
   group('rutaDeRelevo', () {
     testWidgets('sustituye con fundido cruzado y termina', (tester) async {

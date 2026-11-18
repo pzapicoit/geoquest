@@ -13,6 +13,7 @@ import '../services/nivel_juego_gateway.dart';
 import 'bandeja_comodines.dart';
 import 'cuenta_atras_de_desafio.dart';
 import 'resumen_nivel_screen.dart';
+import '../motion/movimiento.dart';
 import '../motion/rutas.dart';
 
 const _ink = Color(0xFF0E1620);
@@ -862,7 +863,7 @@ class _NivelJuegoScreenState extends State<NivelJuegoScreen>
                         opacidad: opacidadDelMarcoCritico(
                           restante: _cuentaAtras.restante,
                           umbral: _cuentaAtras.umbralCritico,
-                          conLatido: !MediaQuery.of(context).disableAnimations,
+                          conLatido: !movimientoReducido(context),
                         ),
                       ),
                     ),

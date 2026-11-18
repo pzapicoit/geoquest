@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -69,7 +68,7 @@ class GeoQuestApp extends StatelessWidget {
       title: 'GeoQuest',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF1B6B4C)),
-        pageTransitionsTheme: temaDeTransiciones,
+        pageTransitionsTheme: temaDeTransiciones(web: kIsWeb),
       ),
       navigatorObservers: [routeObserver],
       // Encajona la app en una franja vertical si la ventana es más ancha que
@@ -81,17 +80,3 @@ class GeoQuestApp extends StatelessWidget {
     );
   }
 }
-
-/// Transiciones de las rutas apiladas (INT-151, `app-motion`, D2/D3 de
-/// `design.md`): la del juego en todas las plataformas salvo iOS, que conserva
-/// la nativa para no perder el gesto de deslizar desde el borde para volver.
-const temaDeTransiciones = PageTransitionsTheme(
-  builders: {
-    TargetPlatform.android: TransicionDeProfundidad(),
-    TargetPlatform.fuchsia: TransicionDeProfundidad(),
-    TargetPlatform.linux: TransicionDeProfundidad(),
-    TargetPlatform.macOS: TransicionDeProfundidad(),
-    TargetPlatform.windows: TransicionDeProfundidad(),
-    TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
-  },
-);
