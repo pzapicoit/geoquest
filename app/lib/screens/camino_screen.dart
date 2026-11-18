@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -1353,7 +1355,10 @@ class _TextoQueCabe extends StatelessWidget {
         final escala = natural <= restricciones.maxWidth
             ? 1.0
             : (restricciones.maxWidth / natural).clamp(
-                tamanoMinimo / (estilo.fontSize ?? 14),
+                // `min`: si algún día el mínimo superase el tamaño base, el
+                // `clamp` lanzaría con el límite inferior mayor que el
+                // superior.
+                math.min(tamanoMinimo / (estilo.fontSize ?? 14), 1.0),
                 1.0,
               );
         return Text(
