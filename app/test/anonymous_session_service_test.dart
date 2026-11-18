@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' show ClientException;
 import 'package:geoquest/services/anonymous_session_service.dart';
 import 'package:geoquest/services/device_id_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -62,10 +65,9 @@ void main() {
       final result = await service.ensureSession();
 
       expect(result, isA<AnonymousSessionFailure>());
-      expect(
-        (result as AnonymousSessionFailure).reason,
-        'Proveedor anónimo deshabilitado',
-      );
+      final fallo = result as AnonymousSessionFailure;
+      expect(fallo.causa, CausaFalloSesion.otra);
+      expect(fallo.detalle, contains('Proveedor anónimo deshabilitado'));
     });
 
     test(
@@ -80,5 +82,53 @@ void main() {
         expect(result, isA<AnonymousSessionFailure>());
       },
     );
+  });
+
+  group('clasificarFalloSesion (INT-145)', () {
+    test('un 5xx de Auth es un fallo del servidor', () {
+      expect(
+        clasificarFalloSesion(
+          const AuthException('Unexpected failure', statusCode: '500'),
+        ),
+        CausaFalloSesion.servidor,
+      );
+      expect(
+        clasificarFalloSesion(
+          AuthRetryableFetchException(message: 'down', statusCode: '521'),
+        ),
+        CausaFalloSesion.servidor,
+      );
+    });
+
+    test('un fallo de red sin respuesta es sinRespuesta', () {
+      expect(
+        clasificarFalloSesion(
+          AuthRetryableFetchException(message: 'Failed to fetch'),
+        ),
+        CausaFalloSesion.sinRespuesta,
+      );
+      expect(
+        clasificarFalloSesion(ClientException('Failed to fetch')),
+        CausaFalloSesion.sinRespuesta,
+      );
+      expect(
+        clasificarFalloSesion(TimeoutException('lento')),
+        CausaFalloSesion.sinRespuesta,
+      );
+    });
+
+    test('un error de Auth 4xx o sin código es otra causa', () {
+      expect(
+        clasificarFalloSesion(
+          const AuthException('anónimo deshabilitado', statusCode: '422'),
+        ),
+        CausaFalloSesion.otra,
+      );
+      expect(
+        clasificarFalloSesion(const AuthException('sin código')),
+        CausaFalloSesion.otra,
+      );
+      expect(clasificarFalloSesion(Exception('raro')), CausaFalloSesion.otra);
+    });
   });
 }

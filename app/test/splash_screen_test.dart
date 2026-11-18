@@ -170,10 +170,59 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('No se pudo iniciar sesión'), findsOneWidget);
-      expect(find.text('Proveedor anónimo deshabilitado'), findsOneWidget);
+      expect(
+        find.text(motivoDeFalloSesion(CausaFalloSesion.otra)),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Proveedor anónimo'), findsNothing);
       expect(find.text('Reintentar'), findsOneWidget);
     },
   );
+
+  testWidgets(
+    'un fallo de red muestra un texto legible, sin la excepción ni la URL '
+    '(INT-145)',
+    (tester) async {
+      final auth = FakeAuthGateway()
+        ..throwOnNextCall = AuthRetryableFetchException(
+          message:
+              'ClientException: Failed to fetch, '
+              'uri=https://x.supabase.co/auth/v1/signup?',
+        );
+      final service = AnonymousSessionService(auth, DeviceIdService());
+
+      await tester.pumpWidget(_pantalla(service: service));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text(motivoDeFalloSesion(CausaFalloSesion.sinRespuesta)),
+        findsOneWidget,
+      );
+      expect(find.textContaining('ClientException'), findsNothing);
+      expect(find.textContaining('supabase.co'), findsNothing);
+      expect(find.text('Reintentar'), findsOneWidget);
+    },
+  );
+
+  testWidgets('un 5xx de Auth dice que el servidor no responde (INT-145)', (
+    tester,
+  ) async {
+    final auth = FakeAuthGateway()
+      ..throwOnNextCall = AuthRetryableFetchException(
+        message: 'Web server is down',
+        statusCode: '521',
+      );
+    final service = AnonymousSessionService(auth, DeviceIdService());
+
+    await tester.pumpWidget(_pantalla(service: service));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(motivoDeFalloSesion(CausaFalloSesion.servidor)),
+      findsOneWidget,
+    );
+    expect(find.textContaining('521'), findsNothing);
+  });
 
   testWidgets('reintentar tras un fallo vuelve a intentar y puede navegar', (
     tester,
@@ -271,4 +320,14 @@ void main() {
       expect(find.byType(UsernameScreen), findsOneWidget);
     },
   );
+
+  test('cada causa tiene un motivo legible y distinto (INT-145)', () {
+    final motivos = CausaFalloSesion.values.map(motivoDeFalloSesion).toSet();
+
+    expect(motivos, hasLength(CausaFalloSesion.values.length));
+    for (final motivo in motivos) {
+      expect(motivo, isNot(contains('Exception')));
+      expect(motivo, isNot(contains('http')));
+    }
+  });
 }

@@ -1,3 +1,5 @@
+import 'dart:developer' as developer;
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'auth_gateway.dart';
@@ -191,7 +193,7 @@ class PlayerSessionService {
     if (!tieneCredenciales) return const CambioNecesitaContrasena();
 
     try {
-      await _auth.signOut();
+      await _cerrarSesionLocal();
     } catch (error) {
       return CambioFallido('No se pudo cerrar la sesión: $error');
     }
@@ -204,7 +206,7 @@ class PlayerSessionService {
   /// progreso no se podrá recuperar. Solo debe llamarse tras confirmarlo.
   Future<CambioJugadorResult> descartarJugador() async {
     try {
-      await _auth.signOut();
+      await _cerrarSesionLocal();
     } catch (error) {
       return CambioFallido('No se pudo cerrar la sesión: $error');
     }
@@ -289,10 +291,40 @@ class PlayerSessionService {
   }
 
   Future<void> _sesionRecienCreada() async {
-    await _auth.signOut();
+    await _cerrarSesionLocal();
     await _auth.signInAnonymously(
       data: {'device_id': await _deviceId.getOrCreate()},
     );
+  }
+
+  /// Suelta la sesión del dispositivo. Lo que decide si se ha cerrado es el
+  /// estado local, no la respuesta del servidor (INT-145).
+  ///
+  /// `gotrue` borra la sesión local **antes** de llamar a `/logout`, y después
+  /// relanza cualquier error que no sea 401/403/404. Así que un 500 o un fallo
+  /// de red llegan aquí con la sesión ya cerrada en el dispositivo: tratarlo
+  /// como fallo bloqueaba la entrada como invitado y dejaba el cambio de
+  /// jugador a medias. Si tras el error la sesión **sigue** viva, sí es un
+  /// fallo de verdad y se propaga.
+  Future<void> _cerrarSesionLocal() async {
+    try {
+      await _auth.signOut();
+    } on AuthException catch (error) {
+      // Solo errores de Auth: `gotrue` envuelve en `AuthException` tanto la
+      // respuesta de `/logout` como el fallo de red. Cualquier otra excepción
+      // es un fallo de verdad y se propaga sin mirar la sesión.
+      //
+      // Con `gotrue` 2.27 la sesión local ya está a `null` en este punto, así
+      // que la comprobación siguiente es defensiva: protege ante un SDK que
+      // cambie el orden y lance antes de soltar la sesión.
+      if (_auth.currentSession != null) rethrow;
+      developer.log(
+        'El servidor falló al cerrar la sesión; la sesión local ya estaba '
+        'soltada.',
+        name: 'geoquest.sesion',
+        error: error,
+      );
+    }
   }
 
   Future<void> _culminarEntrada(String apodo) async {

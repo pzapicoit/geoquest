@@ -82,6 +82,10 @@ class _SplashScreenState extends State<SplashScreen> {
       _resolution = pendiente;
     });
     pendiente.then((result) {
+      if (result is AnonymousSessionFailure) {
+        // El detalle técnico va al registro, nunca a la pantalla (INT-145).
+        debugPrint('Splash: no se pudo preparar la sesión. ${result.detalle}');
+      }
       if (mounted && result is AnonymousSessionReady) {
         _navigateNext();
       }
@@ -122,7 +126,9 @@ class _SplashScreenState extends State<SplashScreen> {
           future: _resolution,
           builder: (context, snapshot) {
             final reason = switch (snapshot.data) {
-              AnonymousSessionFailure(:final reason) => reason,
+              AnonymousSessionFailure(:final causa) => motivoDeFalloSesion(
+                causa,
+              ),
               _ => null,
             };
             return _SplashChrome(errorReason: reason, onRetry: _run);
@@ -132,6 +138,19 @@ class _SplashScreenState extends State<SplashScreen> {
     );
   }
 }
+
+/// Texto para el jugador según por qué no se pudo preparar la sesión. Nunca
+/// incluye la excepción, URLs ni códigos internos (INT-145).
+String motivoDeFalloSesion(CausaFalloSesion causa) => switch (causa) {
+  CausaFalloSesion.sinRespuesta =>
+    'No hemos podido conectar con el servidor. Comprueba tu conexión o '
+        'vuelve a intentarlo en unos minutos.',
+  CausaFalloSesion.servidor =>
+    'El servidor no está respondiendo ahora mismo. Vuelve a intentarlo en '
+        'unos minutos.',
+  CausaFalloSesion.otra =>
+    'No hemos podido preparar tu partida. Vuelve a intentarlo.',
+};
 
 /// Presentación del splash: logo, marca y, según el estado, un indicador de
 /// carga o el error con opción de reintentar.
