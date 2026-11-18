@@ -53,6 +53,7 @@ Los tests que buscaban `CircularProgressIndicator` pasan a buscar esa clave. El 
 `_PistaImagen` y `_MiniaturaDeLaPista` siguen siendo `Image.network(url)`; solo se añade `frameBuilder`:
 - `wasSynchronouslyLoaded` (acierto de caché por la precarga): devuelve la imagen tal cual, sin fondo ni fundido.
 - Si no: apila `FondoDeCarga` (nuevo, `app/lib/motion/fondo_de_carga.dart`: un brillo que barre en bucle, o quieto con «reducir movimiento») y la imagen con `AnimatedOpacity` de 0 a 1 en cuanto llega su primer fotograma.
+El `frameBuilder` es la función pública `apareceAlCargar` del mismo fichero, para poder probar sus tres casos sin depender de la red en los tests.
 El `errorBuilder` no cambia. El test de INT-120 que compara providers sigue valiendo.
 
 **D8. Las entradas que ya existían pasan a la base común.**
