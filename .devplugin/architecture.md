@@ -133,6 +133,30 @@ definición, en esa misma pieza: menos de una quinta parte del desafío **o** me
 de 5 segundos. El suelo existe porque en las dificultades cortas una quinta parte
 son 1-2 s y el aviso llegaría tarde para servir de algo.
 
+### Movimiento y transiciones de la app
+
+Desde INT-151, `app/lib/motion/` es la base de movimiento común:
+`Movimiento` (duraciones y curvas con nombre) y `movimientoReducido(context)`,
+que lee «reducir movimiento» de `MediaQuery` para que los tests lo puedan forzar.
+El código de animación nuevo o modificado la usa en vez de escribir valores a mano.
+Las piezas antiguas de `entry_motion.dart` siguen con su getter propio hasta que
+INT-152/153 las toquen.
+
+Las transiciones entre pantallas tienen dos formas:
+
+- **Apilar** (`push` con `MaterialPageRoute`): no se toca la llamada. La aplica el
+  `pageTransitionsTheme` de `main.dart` (`temaDeTransiciones(web: kIsWeb)`), con
+  la transición de profundidad del juego (`SharedAxisTransition` escalada del
+  paquete `animations`). La app nativa de iOS conserva la de Cupertino por el
+  gesto de volver (`TransicionNativaDeIOS`), con fundido si hay «reducir
+  movimiento», también en la pantalla de debajo. En web se usa la del juego
+  aunque el navegador sea iOS.
+- **Relevar** (`pushReplacement`): siempre `rutaDeRelevo(builder)`, con un
+  fundido cruzado. No lleva el gesto de volver de iOS.
+
+`flutter_animate` está instalado con `Animate.defaultDuration` y
+`Animate.defaultCurve` tomados de `Movimiento`.
+
 ## Flujo de base de datos
 
 **Remote-first.** Las migraciones se escriben en local y se aplican al proyecto
